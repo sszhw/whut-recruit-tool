@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>武汉理工招聘信息 · 采集与企业分析</title>
+<style>
+  :root {
+    /* 深色 · Material Dark */
+    --bg: #121212; --panel: #1E1E1E; --panel2: #2A2A2A;
+    --text: #E7E7E7; --muted: #A0A0A0; --muted2: #6F6F6F;
+    --accent: #BB86FC; --accent-hover: #CFA9FF; --accent2: #03DAC6;
+    --warn: #F5A623; --danger: #CF6679;
+    --border: rgba(255,255,255,.10); --border-strong: rgba(255,255,255,.16);
+    --card-bg: #1E1E1E; --card-bg-hover: #262626;
+    --header-bg: #1E1E1E;
+    --th-bg: #262626;
+    --row-hover: rgba(187,134,252,.08);
+    --input-bg: #1E1E1E; --input-bg-focus: #262626; --input-border: rgba(255,255,255,.14);
+    --tag-no-bg: rgba(255,255,255,.05);
+    --toast-bg: #2A2A2A; --toast-border: rgba(255,255,255,.16); --toast-text: #E7E7E7;
+    --track-bg: #2A2A2A;
+    --preview-bg: #2A2A2A;
+    --shadow: 0 8px 30px rgba(0,0,0,.5);
+    --radius: 10px;
+  }
+  [data-theme="light"] {
+    /* 浅色 · SaaS Dashboard */
+    --bg: #f8fafc; --panel: #ffffff; --panel2: #f1f5f9;
+    --text: #1e293b; --muted: #64748b; --muted2: #94a3b8;
+    --accent: #6366f1; --accent-hover: #818cf8; --accent2: #10b981;
+    --warn: #f59e0b; --danger: #ef4444;
+    --border: rgba(15,23,42,.10); --border-strong: rgba(15,23,42,.18);
+    --card-bg: #ffffff; --card-bg-hover: #ffffff;
+    --header-bg: #ffffff;
+    --th-bg: #f1f5f9;
+    --row-hover: rgba(99,102,241,.06);
+    --input-bg: #ffffff; --input-bg-focus: #ffffff; --input-border: rgba(15,23,42,.16);
+    --tag-no-bg: #eef2f7;
+    --toast-bg: #1e293b; --toast-border: rgba(255,255,255,.2); --toast-text: #f8fafc;
+    --track-bg: #e2e8f0;
+    --preview-bg: #f1f5f9;
+    --shadow: 0 8px 30px rgba(15,23,42,.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif; -webkit-font-smoothing: antialiased; }
+  header { padding: 20px 30px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; background: var(--header-bg); }
+  header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  #themeSel { width:auto; min-width:130px; margin-left:auto; cursor:pointer; }
+  .badge { font-size: 12px; padding: 3px 11px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--muted); background: var(--tag-no-bg); font-weight: 500; }
+  .badge.ok { color: var(--accent2); border-color: rgba(16,185,129,.4); background: rgba(16,185,129,.1); }
+  .badge.no { color: var(--danger); border-color: rgba(239,91,91,.4); background: rgba(239,91,91,.1); }
+  nav { display: flex; gap: 4px; padding: 14px 30px 0; flex-wrap: wrap; }
+  nav button { background: transparent; color: var(--muted); border: 1px solid transparent; border-bottom: none;
+    padding: 10px 18px; border-radius: 9px 9px 0 0; cursor: pointer; font-size: 14px; font-weight: 500; transition: color .15s; }
+  nav button:hover { color: var(--text); }
+  nav button.active { background: var(--panel); color: var(--text); border-color: var(--border); font-weight: 600; }
+  main { padding: 22px 30px 72px; max-width: 1240px; margin: 0 auto; }
+  section { display: none; }
+  section.active { display: block; }
+  .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; margin-bottom: 18px; transition: background .2s; }
+  .card:hover { background: var(--card-bg-hover); }
+  .card h2 { font-size: 15px; margin-bottom: 14px; font-weight: 600; letter-spacing: -0.01em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .stat { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .stat .num { font-size: 28px; font-weight: 600; color: var(--accent); letter-spacing: -0.02em; }
+  .stat .lbl { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  label { display: block; color: var(--muted); font-size: 12px; margin: 12px 0 5px; font-weight: 500; }
+  input, select { width: 100%; background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text);
+    padding: 10px 13px; border-radius: 8px; font-size: 14px; outline: none; transition: border-color .15s, background .15s; }
+  input:focus, select:focus { border-color: var(--accent); background: var(--input-bg-focus); }
+  input::placeholder { color: var(--muted2); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .row > div { flex: 1; min-width: 150px; }
+  button.btn { background: var(--accent); color: #fff; border: none; padding: 10px 22px; border-radius: 8px;
+    cursor: pointer; font-size: 14px; font-weight: 600; transition: background .15s, transform .08s; }
+  button.btn:hover { background: var(--accent-hover); }
+  button.btn:active { transform: translateY(1px); }
+  button.btn:disabled { opacity: .45; cursor: not-allowed; }
+  button.btn.ghost { background: var(--card-bg); border: 1px solid var(--border-strong); color: var(--text); font-weight: 500; }
+  button.btn.ghost:hover { background: var(--card-bg-hover); border-color: var(--border-strong); }
+  button.btn.green { background: var(--accent2); color: #06281c; }
+  button.btn.green:hover { background: #14c98c; }
+  button.btn.red { background: var(--danger); }
+  pre.log { background: #0a0b0d; border: 1px solid var(--border); border-radius: 10px; padding: 14px;
+    height: 300px; overflow-y: auto; font: 12px/1.7 "JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color: #b8c4dd; white-space: pre-wrap; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--th-bg); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  tr:hover td { background: var(--row-hover); }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; margin: 1px 3px 1px 0; white-space: nowrap; font-weight: 500; }
+  .tag.so { background: rgba(16,185,129,.12); color: var(--accent2); border: 1px solid rgba(16,185,129,.3); }
+  .tag.no { background: var(--tag-no-bg); color: var(--muted); border: 1px solid var(--border); }
+  .tag.loc { background: rgba(99,102,241,.14); color: var(--accent); border: 1px solid rgba(99,102,241,.3); }
+  .tag.type { background: rgba(245,166,35,.12); color: var(--warn); border: 1px solid rgba(245,166,35,.3); }
+  .tag.remind { background: rgba(239,91,91,.14); color: #ff8a8a; border: 1px solid rgba(239,91,91,.35); font-weight: 600; }
+  .favbtn { background: transparent; border: none; cursor: pointer; font-size: 18px; line-height: 1;
+    color: var(--muted); padding: 2px 6px; transition: color .15s, transform .15s; }
+  .favbtn:hover { color: var(--warn); transform: scale(1.15); }
+  .favbtn.on { color: var(--warn); text-shadow: 0 0 8px rgba(245,166,35,.5); }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  a { color: var(--accent); text-decoration: none; transition: color .15s; }
+  a:hover { text-decoration: underline; color: var(--accent-hover); }
+  .pager { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 16px; }
+  .tablewrap { max-height: 640px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg); }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin: 5px 0; font-size: 13px; }
+  .bar-label { width: 180px; text-align: right; color: var(--muted); flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { flex: 1; background: var(--track-bg); border-radius: 6px; height: 18px; overflow: hidden; }
+  .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-hover)); border-radius: 6px; min-width: 2px; }
+  .bar-fill.green { background: linear-gradient(90deg, var(--accent2), #34d399); }
+  .bar-num { width: 42px; color: var(--muted); font-weight: 500; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; line-height: 1.6; }
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+  .toolbar input, .toolbar select { width: auto; min-width: 140px; }
+  .expand { cursor: pointer; color: var(--accent); font-size: 12px; user-select: none; }
+  .expand:hover { color: var(--accent-hover); }
+  .body-preview { display: none; margin-top: 8px; color: var(--muted); font-size: 12px; white-space: pre-wrap;
+    background: var(--preview-bg); padding: 10px 12px; border-radius: 8px; max-height: 200px; overflow-y: auto; }
+  .body-preview.show { display: block; }
+  .toast { position: fixed; top: 18px; right: 18px; background: var(--toast-bg); border: 1px solid var(--toast-border);
+    padding: 12px 20px; border-radius: 10px; z-index: 99; display: none; max-width: 360px; color: var(--toast-text);
+    box-shadow: var(--shadow); }
+  .toast.err { border-color: var(--danger); }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--muted); border-top-color: var(--accent);
+    border-radius: 50%; animation: sp 1s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎓 武汉理工招聘信息 · 采集与企业分析</h1>
+  <span class="sub">crawler.py 抓取 → 硅基流动 AI 分析企业性质与工作地点</span>
+  <span id="statusBadge" class="badge">加载中…</span>
+  <select id="themeSel" title="切换配色主题">
+    <option value="light">浅色 · SaaS Dashboard</option>
+    <option value="dark">深色 · Material Dark</option>
+  </select>
+</header>
+
+<nav>
+  <button data-tab="dashboard" class="active">📊 总览</button>
+  <button data-tab="crawl">🕷️ 抓取数据</button>
+  <button data-tab="analyze">🤖 企业分析</button>
+  <button data-tab="resume">🎯 投递推荐</button>
+  <button data-tab="recruits">📄 招聘信息</button>
+  <button data-tab="preachs">🎤 宣讲会</button>
+  <button data-tab="settings">⚙️ 设置</button>
+</nav>
+
+<main>
+<!-- ================= 总览 ================= -->
+<section id="tab-dashboard" class="active">
+  <div class="grid" id="statCards"></div>
+  <div class="card"><h2>企业类型分布</h2><div id="typeBars"><span class="muted">暂无数据，请先运行企业分析</span></div></div>
+  <div class="card"><h2>工作地点分布（前 20）</h2><div id="locBars"><span class="muted">暂无数据</span></div></div>
+  <div class="card">
+    <h2>导出报告</h2>
+    <div class="row">
+      <button class="btn ghost" onclick="download('/api/export/csv')">⬇️ 企业分析 CSV</button>
+      <button class="btn ghost" onclick="download('/api/export/md')">⬇️ 分析报告 Markdown</button>
+      <button class="btn ghost" onclick="download('/api/recruitments/export')">⬇️ 招聘信息 CSV</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 抓取 ================= -->
+<section id="tab-crawl">
+  <div class="card" style="border-color:var(--accent2)">
+    <h2>🕷️ 一键抓取今日招聘</h2>
+    <div class="row">
+      <div><label>今日日期</label><input type="date" id="todayDate" readonly></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnCrawlToday" onclick="startCrawlToday()">开始抓取今日</button></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost red" id="btnCrawlTodayStop" style="display:none" onclick="stopTask(state.crawlerTask)">停止</button></div>
+    </div>
+    <p class="hint">只抓取今天发布的招聘信息（单日，速度快）。抓取完成后，「招聘信息」页会展示最新一次抓取的数据。</p>
+  </div>
+  <div class="card">
+    <h2>🕷️ 抓取武汉理工就业网招聘信息（按日期范围）</h2>
+    <div class="row">
+      <div><label>开始日期</label><input type="date" id="crawlStart" value="2026-06-01"></div>
+      <div><label>结束日期</label><input type="date" id="crawlEnd"></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn" id="btnCrawl" onclick="startCrawl()">开始抓取</button></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost red" id="btnCrawlStop" style="display:none" onclick="stopTask(state.crawlerTask)">停止</button></div>
+    </div>
+    <p class="hint">抓取招聘信息 + 双选会全文，输出 CSV / Markdown / JSON 到本目录。数据量大时约需几分钟。</p>
+  </div>
+  <div class="card"><h2>运行日志 <span id="crawlStatus" class="muted small"></span></h2><pre class="log" id="crawlLog">（尚未运行）</pre></div>
+</section>
+
+<!-- ================= 企业分析 ================= -->
+<section id="tab-analyze">
+  <div class="card">
+    <h2>🤖 AI 分析企业性质与工作地点（硅基流动 API）</h2>
+    <div class="row">
+      <div><label>模型</label><select id="modelSel">
+        <option value="Qwen/Qwen2.5-72B-Instruct">Qwen2.5-72B-Instruct（推荐）</option>
+        <option value="Qwen/Qwen2.5-32B-Instruct">Qwen2.5-32B-Instruct（更快）</option>
+        <option value="deepseek-ai/DeepSeek-V3">DeepSeek-V3</option>
+        <option value="deepseek-ai/DeepSeek-R1">DeepSeek-R1（推理，慢）</option>
+      </select></div>
+      <div><label>分析数量（0 = 全部）</label><input type="number" id="analyzeLimit" value="0" min="0"></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnAnalyze" onclick="startAnalyze()">开始分析</button></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost red" id="btnAnalyzeStop" style="display:none" onclick="stopTask(state.analyzeTask)">停止</button></div>
+    </div>
+    <p class="hint">已分析的企业会缓存，重复运行自动跳过、可断点续跑。需先在「设置」中填写 API Key。</p>
+  </div>
+  <div class="card"><h2>运行日志 <span id="analyzeStatus" class="muted small"></span></h2><pre class="log" id="analyzeLog">（尚未运行）</pre></div>
+
+  <div class="card">
+    <h2>🏢 企业分析结果 <span id="companyTotal" class="muted small"></span></h2>
+    <div class="toolbar">
+      <div><label>搜索企业</label><input id="cq" placeholder="名称或依据关键词" onkeydown="if(event.key==='Enter')loadCompanies(1)"></div>
+      <div><label>企业类型</label><select id="ctype" onchange="loadCompanies(1)"><option value="">全部</option></select></div>
+      <div><label>国企</label><select id="cso" onchange="loadCompanies(1)">
+        <option value="">全部</option><option value="yes">仅国企/央企</option><option value="no">非国企</option></select></div>
+      <div><label>工作地点</label><select id="cloc" onchange="loadCompanies(1)"><option value="">全部</option></select></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost" onclick="loadCompanies(1)">查询</button></div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>企业名称</th><th>类型</th><th>国企</th><th>置信度</th><th>工作地点</th><th>判断依据</th></tr></thead>
+        <tbody id="companyRows"><tr><td colspan="6" class="muted">加载中…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <button class="btn ghost" onclick="loadCompanies(state.cPage-1)">上一页</button>
+      <span id="cPageInfo" class="muted small"></span>
+      <button class="btn ghost" onclick="loadCompanies(state.cPage+1)">下一页</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 投递推荐 ================= -->
+<section id="tab-resume">
+  <div class="card">
+    <h2>🎯 上传简历，AI 推荐适合投递的企业（硅基流动）</h2>
+    <div class="row">
+      <div style="flex:2">
+        <label>简历文件（PDF / .docx / 图片）</label>
+        <input type="file" id="resumeFile" accept=".pdf,.docx,.png,.jpg,.jpeg,.bmp,.webp">
+        <p class="hint">旧版 .doc 请先另存为 .docx 或 PDF；扫描版 PDF / 图片会走视觉模型 OCR 识别。</p>
+      </div>
+      <div><label>推荐模型</label>
+        <select id="resumeModel">
+          <option value="Qwen/Qwen2.5-72B-Instruct">Qwen2.5-72B-Instruct（推荐）</option>
+          <option value="Qwen/Qwen3.5-27B">Qwen3.5-27B（更快）</option>
+          <option value="deepseek-ai/DeepSeek-V3.2">DeepSeek-V3.2</option>
+          <option value="deepseek-ai/DeepSeek-V3">DeepSeek-V3</option>
+        </select>
+      </div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnResumeRec" onclick="resumeRecommend()">生成推荐</button></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost" id="btnResumeExtract" onclick="resumeExtract()">提取文字预览</button></div>
+    </div>
+    <div class="row" style="margin-top:4px">
+      <div style="flex:2"><label>🎯 目标工作地（可多填，逗号/顿号分隔）</label><input id="workPlace" placeholder="如：武汉、北京、深圳（留空则按简历城市推断）"></div>
+      <div style="flex:0"><label>目标企业性质</label><select id="companyType">
+        <option value="">不限</option>
+        <option value="国企央企">国企 / 央企</option>
+        <option value="私企外企">私企 / 外企 / 互联网</option>
+      </select></div>
+    </div>
+    <p class="hint" style="margin-top:2px">设置目标工作地与目标企业性质后，推荐会据此收窄范围，并会额外列出<b>可参加的宣讲会</b>（依据企业工作地映射）。</p>
+    <details style="margin-top:10px"><summary class="muted small">图片 / 扫描件 OCR 模型（高级）</summary>
+      <div class="row" style="margin-top:4px">
+        <div><label>视觉模型</label>
+          <select id="visionModel">
+            <option value="Qwen/Qwen3-VL-32B-Instruct">Qwen3-VL-32B-Instruct（推荐）</option>
+            <option value="Qwen/Qwen3-VL-30B-A3B-Instruct">Qwen3-VL-30B-A3B-Instruct（更快）</option>
+            <option value="Qwen/Qwen3-VL-8B-Instruct">Qwen3-VL-8B-Instruct（轻量）</option>
+          </select>
+        </div>
+      </div>
+    </details>
+    <label style="margin-top:12px">也可以直接粘贴简历文字（若已上传文件则优先识别文件）</label>
+    <textarea id="resumeText" style="min-height:88px;width:100%" placeholder="粘贴简历：学校、专业、技能、实习/项目经历、求职意向、倾向城市……"></textarea>
+    <p class="hint">推荐范围 = 本次抓取到的校招企业清单（当前共 <span id="resumeCompanyCount">…</span> 家）。建议先运行「抓取」与「企业分析」以获得更完整的企业画像；AI 推荐需在「设置」配置好 API Key 且有余额。</p>
+  </div>
+
+  <div class="card" id="resumeResultCard" style="display:none">
+    <h2>✨ 投递推荐结果</h2>
+    <div id="resumeSummary"></div>
+    <div id="resumePositions"></div>
+    <h3 style="margin-top:16px">🏆 推荐企业</h3>
+    <div id="resumeRecs"></div>
+    <h3 style="margin-top:18px">🎤 可参加的宣讲会 <span class="muted small" id="resumePreachCount"></span></h3>
+    <div id="resumePreachs"></div>
+  </div>
+</section>
+
+<!-- ================= 招聘信息 ================= -->
+<section id="tab-recruits">
+  <div class="card">
+    <h2>📄 招聘信息列表 <span id="rTotal" class="muted small"></span></h2>
+    <div class="toolbar">
+      <div style="flex:2"><label>搜索标题 / 单位</label><input id="rq" placeholder="如：中国核电、比亚迪" onkeydown="if(event.key==='Enter')loadRecruits(1)"></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost" onclick="loadRecruits(1)">查询</button></div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:130px">发布日期</th><th>标题</th><th style="width:220px">单位</th><th style="width:60px">链接</th></tr></thead>
+        <tbody id="recruitRows"><tr><td colspan="4" class="muted">加载中…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <button class="btn ghost" onclick="loadRecruits(state.rPage-1)">上一页</button>
+      <span id="rPageInfo" class="muted small"></span>
+      <button class="btn ghost" onclick="loadRecruits(state.rPage+1)">下一页</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 宣讲会 ================= -->
+<section id="tab-preachs">
+  <div class="card">
+    <h2>🎤 宣讲会列表 <span id="pTotal" class="muted small"></span></h2>
+    <div class="toolbar">
+      <div style="flex:2"><label>搜索单位 / 标题 / 地点 / 城市 / 公司地点</label><input id="pq" placeholder="如：比亚迪、马房山、东风厅、北京" onkeydown="if(event.key==='Enter')loadPreachs(1)"></div>
+      <div><label>举办时间从</label><input type="date" id="pstart" onchange="loadPreachs(1)"></div>
+      <div><label>举办时间到</label><input type="date" id="pend" onchange="loadPreachs(1)"></div>
+      <div><label>公司地点（工作地）</label><select id="pwork" onchange="loadPreachs(1)"><option value="">全部</option></select></div>
+      <div><label>宣讲会地点</label><select id="pvenue" onchange="loadPreachs(1)"><option value="">全部</option></select></div>
+      <div><label>线下/线上</label><select id="ptype" onchange="loadPreachs(1)">
+        <option value="">全部</option><option value="线下">仅线下</option><option value="线上">线上</option></select></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost" onclick="loadPreachs(1)">查询</button></div>
+    </div>
+    <p class="hint">「公司地点」= 企业工作地（来自《宣讲会_工作地流动.csv》映射）；「宣讲会地点」= 具体宣讲场馆（按校区/场地筛选）；「举办时间」= 按开始日期范围筛选。</p>
+    <label class="small" style="margin:6px 0 12px;display:flex;align-items:center;gap:6px;color:var(--accent);cursor:pointer"><input type="checkbox" id="pUpcoming" checked onchange="loadPreachs(1)" style="width:auto"> 仅显示今天及以后（今天新出的和3天内开始的会用红色标出；取消勾选可查看过去/全部）</label>
+    <div class="row" style="margin-bottom:12px">
+      <div style="flex:0;min-width:0"><label class="small" style="display:flex;align-items:center;gap:6px;color:var(--accent);cursor:pointer"><input type="checkbox" id="pFavOnly" onchange="loadPreachs(1)" style="width:auto"> 只看收藏 ⭐</label></div>
+      <div style="flex:0;min-width:0"><label>&nbsp;</label><button class="btn ghost" onclick="exportPreachFavs()">⬇️ 导出收藏为 Excel</button></div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th style="width:140px">宣讲时间</th><th>单位名称</th><th style="width:200px">宣讲会地点</th><th style="width:120px">公司地点</th><th style="width:70px">线下/线上</th><th style="width:170px">提醒</th><th style="width:52px">⭐</th><th style="width:52px">链接</th></tr></thead>
+        <tbody id="preachRows"><tr><td colspan="8" class="muted">加载中…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <button class="btn ghost" onclick="loadPreachs(state.pPage-1)">上一页</button>
+      <span id="pPageInfo" class="muted small"></span>
+      <button class="btn ghost" onclick="loadPreachs(state.pPage+1)">下一页</button>
+    </div>
+  </div>
+  <div class="card" style="border-color:var(--accent2)">
+    <h2>🔄 检查宣讲会更新 <span id="checkPreachStatus" class="muted small"></span></h2>
+    <div class="row">
+      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnCheckPreach" onclick="checkPreachUpdate()">检查更新</button></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost red" id="btnCheckPreachStop" style="display:none" onclick="stopTask(state.checkTask)">停止</button></div>
+    </div>
+    <p class="hint">抓取今年最新宣讲会，与已缓存数据对比（按 ID），输出<b>新增场次</b>并更新数据文件。建议每日运行一次。</p>
+    <pre class="log" id="checkPreachLog">（尚未运行）</pre>
+  </div>
+</section>
+
+<!-- ================= 设置 ================= -->
+<section id="tab-settings">
+  <div class="card" style="max-width:640px">
+    <h2>🤖 LLM 调用配置（硅基流动 / DeepSeek）</h2>
+    <label>当前使用的提供商</label>
+    <select id="llmProvider">
+      <option value="siliconflow">硅基流动</option>
+      <option value="deepseek">DeepSeek</option>
+    </select>
+    <div id="sfCfg">
+      <label>硅基流动 API Key（<a href="https://cloud.siliconflow.cn/account/ak" target="_blank">到 cloud.siliconflow.cn 获取</a>）</label>
+      <input type="password" id="apiKey" placeholder="«redacted:sk-…»">
+      <label>硅基流动默认模型</label>
+      <input id="cfgModel" placeholder="Qwen/Qwen2.5-72B-Instruct">
+    </div>
+    <div id="dsCfg" style="display:none">
+      <label>DeepSeek API Key（<a href="https://api-docs.deepseek.com/zh-cn/" target="_blank">文档</a>）</label>
+      <input type="password" id="deepseekKey" placeholder="sk-…">
+      <label>DeepSeek 模型</label>
+      <input id="deepseekModel" placeholder="deepseek-chat">
+      <label>接口地址 Base URL</label>
+      <input id="deepseekBase" placeholder="https://api.deepseek.com">
+    </div>
+    <p class="hint" id="keyState"></p>
+    <p class="hint">Key 保存在本目录 config.json，仅本机使用。</p>
+    <div style="margin-top:14px"><button class="btn" onclick="saveConfig()">保存配置</button></div>
+  </div>
+
+  <div class="card" style="max-width:640px">
+    <h2>📊 宣讲会工作地流动分析</h2>
+    <div class="row">
+      <div><label>分析方法</label>
+        <select id="flowMethod">
+          <option value="offline">离线（本地关键词+总部映射，免费）</option>
+          <option value="ai">AI（走上方配置的 LLM）</option>
+        </select></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnFlow" onclick="runFlow()">开始分析</button></div>
+    </div>
+    <p class="hint" id="flowStatus">-</p>
+    <p class="hint">生成《宣讲会_工作地流动.csv》+《宣讲会_工作地流动报告.md》，并在「宣讲会」页作为「公司地点」映射依据。</p>
+    <pre class="log" id="flowLog">（尚未运行）</pre>
+  </div>
+</section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const state = { cPage: 1, rPage: 1, pPage: 1, crawlerTask: null, analyzeTask: null, checkTask: null, pollTimer: null };
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg, err){ const t=$('toast'); t.textContent=msg; t.className='toast'+(err?' err':''); t.style.display='block';
+  clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none', 3500); }
+function download(url){ window.location.href = url; }
+
+// ---- 配色主题切换
+function applyTheme(t){ document.documentElement.setAttribute('data-theme', t); try{ localStorage.setItem('theme', t); }catch(e){} }
+(function(){
+  let saved = null; try{ saved = localStorage.getItem('theme'); }catch(e){}
+  const t = saved === 'dark' ? 'dark' : 'light';
+  applyTheme(t);
+  const s = $('themeSel');
+  if (s){ s.value = t; s.onchange = function(){ applyTheme(this.value); }; }
+})();
+
+// ---- Tabs
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('section').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  $('tab-'+b.dataset.tab).classList.add('active');
+  if (b.dataset.tab==='dashboard'){ loadStats(); }
+  if (b.dataset.tab==='analyze'){ loadCompanyFilters(); loadCompanies(1); }
+  if (b.dataset.tab==='recruits'){ loadRecruits(1); }
+  if (b.dataset.tab==='preachs'){ loadPreachFilters(); loadPreachFavs(); loadPreachs(1); }
+  if (b.dataset.tab==='resume'){ loadResumeCompanyCount(); }
+  if (b.dataset.tab==='crawl'){ loadCrawlDates(); }
+});
+
+// ---- Status
+async function refreshStatus(){
+  try{
+    const s = await (await fetch('/api/status')).json();
+    const badge = $('statusBadge');
+    if (s.has_api_key){ badge.textContent='API Key ✓ · '+s.api_key_masked; badge.className='badge ok'; }
+    else { badge.textContent='未配置 API Key'; badge.className='badge no'; }
+    $('keyState').textContent = s.has_api_key ? ('当前已配置：'+s.api_key_masked) : '尚未配置';
+    $('cfgModel').value = s.model || '';
+    if ($('modelSel')) $('modelSel').value = s.model || '';
+    if ($('llmProvider')) { $('llmProvider').value = s.provider || 'siliconflow'; toggleLlmCfg(); }
+    if ($('deepseekModel')) $('deepseekModel').value = s.llm_model || (s.provider==='deepseek'?'deepseek-chat':'');
+    state.crawlerTask = s.crawler_task; state.analyzeTask = s.analyze_task; state.checkTask = s.check_task;
+    renderTask($('crawlLog'), $('crawlStatus'), $('btnCrawlStop'), s.crawler_task);
+    renderTask($('analyzeLog'), $('analyzeStatus'), $('btnAnalyzeStop'), s.analyze_task);
+    renderTask($('checkPreachLog'), $('checkPreachStatus'), $('btnCheckPreachStop'), s.check_task);
+    // stat cards
+    $('statCards').innerHTML = `
+      <div class="stat"><div class="num">${s.recruit_count}</div><div class="lbl">招聘信息条数</div></div>
+      <div class="stat"><div class="num">${s.preach_count}</div><div class="lbl">宣讲会场数</div></div>
+      <div class="stat"><div class="num">${s.analyzed_count}</div><div class="lbl">已分析企业数</div></div>
+      <div class="stat"><div class="num" id="soNum">-</div><div class="lbl">国企 / 央企系</div></div>
+      <div class="stat"><div class="num">${s.raw_mtime||'-'}</div><div class="lbl">数据文件：${esc(s.raw_file||'（未抓取）')}</div></div>`;
+    const running = (s.crawler_task&&s.crawler_task.running)||(s.analyze_task&&s.analyze_task.running)||(s.check_task&&s.check_task.running);
+    clearInterval(state.pollTimer);
+    if (running) state.pollTimer = setInterval(pollTasks, 2000);
+    loadStats(true);
+  }catch(e){ /* 服务未就绪 */ }
+}
+
+function renderTask(logEl, statusEl, stopBtn, task){
+  if (!task) return;
+  if (task.lines && task.lines.length){ logEl.textContent = task.lines.slice(-300).join('\n'); logEl.scrollTop = logEl.scrollHeight; }
+  if (task.running){ statusEl.innerHTML = '<span class="spin"></span>运行中（'+task.started+' 开始）'; stopBtn.style.display=''; }
+  else { statusEl.textContent = '已结束，退出码 '+task.exit_code+'（'+(task.finished||'')+'）'; stopBtn.style.display='none';
+    if (task.exit_code===0){ refreshDataViews(); } }
+}
+
+async function pollTasks(){
+  for (const [id, logEl, statusEl, stopBtn] of [
+      [state.crawlerTask?.id, $('crawlLog'), $('crawlStatus'), $('btnCrawlStop')],
+      [state.analyzeTask?.id, $('analyzeLog'), $('analyzeStatus'), $('btnAnalyzeStop')],
+      [state.checkTask?.id, $('checkPreachLog'), $('checkPreachStatus'), $('btnCheckPreachStop')]]){
+    if (!id) continue;
+    try{
+      const r = await (await fetch('/api/task/'+id+'/log?tail=300')).json();
+      if (r.ok){ const t=r.task;
+        logEl.textContent = t.lines.join('\n'); logEl.scrollTop = logEl.scrollHeight;
+        if (t.running){ statusEl.innerHTML='<span class="spin"></span>运行中'; }
+        else { statusEl.textContent='已结束，退出码 '+t.exit_code+'（'+(t.finished||'')+'）'; stopBtn.style.display='none'; refreshStatus(); }
+      }
+    }catch(e){}
+  }
+}
+
+function refreshDataViews(){ refreshStatus(); if($('tab-analyze').classList.contains('active')){ loadCompanyFilters(); loadCompanies(state.cPage); }
+  if($('tab-recruits').classList.contains('active')) loadRecruits(state.rPage); if($('tab-preachs').classList.contains('active')) loadPreachs(state.pPage); if($('tab-dashboard').classList.contains('active')) loadStats(); }
+
+// ---- Crawl / Analyze
+async function startCrawl(){
+  const body = { start: $('crawlStart').value, end: $('crawlEnd').value };
+  $('btnCrawl').disabled = true;
+  const r = await (await fetch('/api/crawl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  $('btnCrawl').disabled = false;
+  if (!r.ok){ toast(r.error||'启动失败', true); return; }
+  toast('抓取任务已启动'); state.crawlerTask = r.task; $('crawlLog').textContent='';
+  clearInterval(state.pollTimer); state.pollTimer = setInterval(pollTasks, 2000);
+}
+async function loadCrawlDates(){
+  try{
+    const d = await (await fetch('/api/crawl/dates')).json();
+    if (d.today) $('todayDate').value = d.today;
+    if (d.start && $('crawlStart').value === '2026-06-01') $('crawlStart').value = d.start;
+    if (d.end) $('crawlEnd').value = d.end;
+  }catch(e){}
+}
+async function startCrawlToday(){
+  $('btnCrawlToday').disabled = true;
+  const r = await (await fetch('/api/crawl/today',{method:'POST'})).json();
+  $('btnCrawlToday').disabled = false;
+  if (!r.ok){ toast(r.error||'启动失败', true); return; }
+  toast('已开始抓取今日招聘'); state.crawlerTask = r.task; $('crawlLog').textContent='';
+  clearInterval(state.pollTimer); state.pollTimer = setInterval(pollTasks, 2000);
+}
+async function startAnalyze(){
+  const body = { limit: parseInt($('analyzeLimit').value||'0',10) };
+  // 顺手保存模型选择
+  await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:$('modelSel').value})});
+  $('btnAnalyze').disabled = true;
+  const r = await (await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  $('btnAnalyze').disabled = false;
+  if (!r.ok){ toast(r.error||'启动失败', true); return; }
+  toast('分析任务已启动'); state.analyzeTask = r.task; $('analyzeLog').textContent='';
+  clearInterval(state.pollTimer); state.pollTimer = setInterval(pollTasks, 2000);
+}
+async function checkPreachUpdate(){
+  $('btnCheckPreach').disabled = true;
+  const r = await (await fetch('/api/preach/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})})).json();
+  $('btnCheckPreach').disabled = false;
+  if (!r.ok){ toast(r.error||'启动失败', true); return; }
+  toast('已开始检查宣讲会更新'); state.checkTask = r.task; $('checkPreachLog').textContent='';
+  clearInterval(state.pollTimer); state.pollTimer = setInterval(pollTasks, 2000);
+}
+async function stopTask(task){
+  if (!task) return;
+  const r = await (await fetch('/api/task/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_id:task.id})})).json();
+  toast(r.ok?'已发送停止信号':(r.error||'停止失败'), !r.ok);
+}
+
+// ---- Stats
+async function loadStats(quiet){
+  try{
+    const s = await (await fetch('/api/stats')).json();
+    if ($('soNum')) $('soNum').textContent = s.state_owned;
+    const maxT = Math.max(1, ...(s.types.map(x=>x[1])));
+    $('typeBars').innerHTML = s.types.length ? s.types.map(([k,v]) =>
+      `<div class="bar-row"><div class="bar-label" title="${esc(k)}">${esc(k||'（未分析）')}</div>
+       <div class="bar-track"><div class="bar-fill ${k.includes('国企')||k==='央企'?'green':''}" style="width:${v/maxT*100}%"></div></div>
+       <div class="bar-num">${v}</div></div>`).join('') : '<span class="muted">暂无数据，请先运行企业分析</span>';
+    const maxL = Math.max(1, ...(s.locations.map(x=>x[1])));
+    $('locBars').innerHTML = s.locations.length ? s.locations.slice(0,20).map(([k,v]) =>
+      `<div class="bar-row"><div class="bar-label">${esc(k)}</div>
+       <div class="bar-track"><div class="bar-fill" style="width:${v/maxL*100}%"></div></div>
+       <div class="bar-num">${v}</div></div>`).join('') : '<span class="muted">暂无数据</span>';
+    // 填充类型筛选下拉
+    const sel = $('ctype'); const cur = sel.value;
+    sel.innerHTML = '<option value="">全部</option>' + s.types.map(([k])=>`<option value="${esc(k)}">${esc(k)}</option>`).join('');
+    sel.value = cur;
+  }catch(e){ if(!quiet) toast('统计加载失败', true); }
+}
+
+// ---- Companies
+async function loadCompanyFilters(){
+  try{
+    const f = await (await fetch('/api/companies/filters')).json();
+    const ct = $('ctype'), cl = $('cloc');
+    const curT = ct.value, curL = cl.value;
+    ct.innerHTML = '<option value="">全部</option>' + (f.types||[]).map(o=>`<option value="${esc(o.value)}">${esc(o.value)}（${o.count}）</option>`).join('');
+    ct.value = curT;
+    cl.innerHTML = '<option value="">全部</option>' + (f.locations||[]).map(o=>`<option value="${esc(o.value)}">${esc(o.value)}（${o.count}）</option>`).join('');
+    cl.value = curL;
+  }catch(e){}
+}
+async function loadCompanies(page){
+  state.cPage = Math.max(1, page||1);
+  const p = new URLSearchParams({ q:$('cq').value.trim(), type:$('ctype').value, so:$('cso').value,
+    loc:$('cloc').value.trim(), page:state.cPage, size:100 });
+  const r = await (await fetch('/api/companies?'+p)).json();
+  $('companyTotal').textContent = '共 '+r.total+' 家';
+  const pages = Math.max(1, Math.ceil(r.total/r.size));
+  $('cPageInfo').textContent = state.cPage+' / '+pages;
+  $('companyRows').innerHTML = r.rows.length ? r.rows.map(c => `<tr>
+      <td><b>${esc(c.name)}</b></td>
+      <td><span class="tag type">${esc(c.type||'-')}</span></td>
+      <td><span class="tag ${c.so==='是'?'so':'no'}">${esc(c.so)}</span></td>
+      <td class="muted">${esc(c.confidence||'-')}</td>
+      <td>${(c.locations||[]).map(l=>`<span class="tag loc">${esc(l)}</span>`).join('')||'<span class="muted">-</span>'}</td>
+      <td class="muted small">${esc(c.evidence||'')}</td></tr>`).join('')
+    : '<tr><td colspan="6" class="muted">无匹配结果</td></tr>';
+}
+
+// ---- Recruitments
+async function loadRecruits(page){
+  state.rPage = Math.max(1, page||1);
+  const p = new URLSearchParams({ q:$('rq').value.trim(), page:state.rPage, size:50 });
+  const r = await (await fetch('/api/recruitments?'+p)).json();
+  $('rTotal').textContent = '共 '+r.total+' 条';
+  const pages = Math.max(1, Math.ceil(r.total/r.size));
+  $('rPageInfo').textContent = state.rPage+' / '+pages;
+  $('recruitRows').innerHTML = r.rows.length ? r.rows.map((x,i) => {
+    const id = 'rb'+state.rPage+'_'+i;
+    return `<tr><td class="muted small">${esc(x['发布日期'])}</td>
+      <td>${x['今日更新']?'<span class="tag remind">今日更新</span> ':''}${esc(x['标题'])}${x['正文']?`<div><span class="expand" onclick="document.getElementById('${id}').classList.toggle('show')">展开正文 ▾</span><div class="body-preview" id="${id}">${esc(x['正文'])}…</div></div>`:''}</td>
+      <td class="small">${esc(x['单位']||'-')}</td>
+      <td>${x['原网页']?`<a href="${esc(x['原网页'])}" target="_blank">原文</a>`:''}</td></tr>`; }).join('')
+    : '<tr><td colspan="4" class="muted">暂无数据，请先运行抓取</td></tr>';
+}
+
+// ---- Preachs (宣讲会)
+async function loadPreachFilters(){
+  try{
+    const f = await (await fetch('/api/preachs/filters')).json();
+    const pwork = $('pwork'), pvenue = $('pvenue');
+    const curW = pwork.value, curV = pvenue.value;
+    pwork.innerHTML = '<option value="">全部</option>' + (f.work_cities||[]).map(o=>`<option value="${esc(o.value)}">${esc(o.value)}（${o.count}）</option>`).join('');
+    pwork.value = curW;
+    pvenue.innerHTML = '<option value="">全部</option>' + (f.venues||[]).map(o=>`<option value="${esc(o.value)}">${esc(o.label)}（${o.count}）</option>`).join('');
+    pvenue.value = curV;
+  }catch(e){}
+}
+async function loadPreachs(page){
+  state.pPage = Math.max(1, page||1);
+  const p = new URLSearchParams({ q:$('pq').value.trim(), type:$('ptype').value,
+    work:$('pwork').value, venue:$('pvenue').value,
+    start:$('pstart').value, end:$('pend').value, show_past:$('pUpcoming').checked?'':'1', fav_only:$('pFavOnly').checked?'1':'', page:state.pPage, size:50 });
+  const r = await (await fetch('/api/preachs?'+p)).json();
+  $('pTotal').textContent = '共 '+r.total+' 场';
+  const pages = Math.max(1, Math.ceil(r.total/r.size));
+  $('pPageInfo').textContent = state.pPage+' / '+pages;
+  $('preachRows').innerHTML = r.rows.length ? r.rows.map((x,i) => {
+    const id = 'pb'+state.pPage+'_'+i;
+    const isOffline = x['线下/线上']==='线下';
+    return `<tr><td class="muted small">${esc(x['宣讲时间']||'-')}</td>
+      <td>${esc(x['单位名称']||'-')}${x['标题']&&x['标题']!==x['单位名称']?`<div class="small muted">${esc(x['标题'])}</div>`:''}
+      ${x['正文']?`<div><span class="expand" onclick="document.getElementById('${id}').classList.toggle('show')">展开详情 ▾</span><div class="body-preview" id="${id}">${esc(x['正文'])}…</div></div>`:''}</td>
+      <td class="small">${esc(x['宣讲会地点']||'-')}</td>
+      <td>${(x['work_cities']||[]).length? x['work_cities'].map(c=>`<span class="tag loc">${esc(c)}</span>`).join(''):'<span class="tag type">未确定</span>'}</td>
+      <td><span class="tag ${isOffline?'so':'no'}">${esc(x['线下/线上']||'-')}</span></td>
+      <td class="small">${(x['提醒']||[]).map(t=>`<span class="tag remind">${esc(t)}</span>`).join('')||'<span class="muted">-</span>'}</td>
+      <td class="small" style="text-align:center">${favBtn(x)}</td>
+      <td>${x['原网页']?`<a href="${esc(x['原网页'])}" target="_blank">原文</a>`:''}</td></tr>`; }).join('')
+    : '<tr><td colspan="8" class="muted">暂无数据，请先运行抓取</td></tr>';
+}
+
+// ---- 宣讲会收藏
+let favs = new Set();
+async function loadPreachFavs(){
+  try{ const r = await (await fetch('/api/preach/favs')).json();
+    favs = new Set(r.ids || []);
+  }catch(e){}
+}
+function favBtn(x){
+  const id = esc(x['ID']||'');
+  const on = favs.has(String(x['ID']||''));
+  return `<button class="favbtn ${on?'on':''}" onclick="toggleFav('${id}', this)" title="${on?'取消收藏':'收藏'}">${on?'★':'☆'}</button>`;
+}
+function toggleFav(id, btn){
+  const was = favs.has(String(id));
+  const method = was ? 'unfav' : 'fav';
+  fetch('/api/preach/'+method, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id})})
+    .then(r=>r.json()).then(r=>{
+      if (r.ok){ if(was) favs.delete(String(id)); else favs.add(String(id)); btn.textContent = was?'☆':'★'; btn.classList.toggle('on', !was); toast(was?'已取消收藏':'已收藏'); }
+      else toast((r.error||'操作失败'), true);
+    }).catch(()=>toast('网络错误', true));
+}
+function exportPreachFavs(){ download('/api/preach/favs/export'); }
+
+// ---- Resume / 投递推荐
+function resumeFormData(){
+  const fd = new FormData();
+  const f = $('resumeFile').files[0];
+  if (f) fd.append('file', f);
+  const t = $('resumeText').value.trim();
+  if (t) fd.append('resume_text', t);
+  const m = $('resumeModel').value.trim(); if (m) fd.append('model', m);
+  const v = $('visionModel').value.trim(); if (v) fd.append('vision_model', v);
+  const wp = $('workPlace').value.trim(); if (wp) fd.append('work_place', wp);
+  const ct = $('companyType').value; if (ct) fd.append('company_type', ct);
+  return fd;
+}
+async function loadResumeCompanyCount(){
+  try{ const r = await (await fetch('/api/resume/companies')).json();
+    $('resumeCompanyCount').textContent = r.count != null ? r.count : '?'; }catch(e){}
+}
+async function resumeExtract(){
+  const f = $('resumeFile').files[0];
+  if (!f){ toast('请先选择简历文件', true); return; }
+  $('btnResumeExtract').disabled = true; $('btnResumeExtract').textContent='提取中…';
+  try{
+    const r = await (await fetch('/api/resume/extract',{method:'POST',body:resumeFormData()})).json();
+    if (!r.ok){ toast(r.error||'提取失败', true); }
+    else { $('resumeText').value = r.text; toast('已提取 '+r.chars+' 字'); }
+  }catch(e){ toast('提取异常', true); }
+  $('btnResumeExtract').disabled = false; $('btnResumeExtract').textContent='提取文字预览';
+}
+async function resumeRecommend(){
+  const f = $('resumeFile').files[0];
+  const t = $('resumeText').value.trim();
+  if (!f && !t){ toast('请上传简历文件或粘贴文字', true); return; }
+  $('btnResumeRec').disabled = true; $('btnResumeRec').textContent='AI 分析中…';
+  try{
+    const r = await (await fetch('/api/resume/recommend',{method:'POST',body:resumeFormData()})).json();
+    if (!r.ok){ toast(r.error||'推荐失败', true); }
+    else { renderResumeResult(r); toast('已生成推荐（'+r.companies_count+' 家企业候选）'); }
+  }catch(e){ toast('推荐异常', true); }
+  $('btnResumeRec').disabled = false; $('btnResumeRec').textContent='生成推荐';
+}
+function renderResumeResult(r){
+  const res = r.result;
+  const banner = r.source === 'offline'
+    ? `<div class="card" style="border-color:var(--warn);background:rgba(245,166,35,.08);margin-bottom:10px"><b>⚠️ 离线推荐</b>：${esc(res.note||'AI 模型不可用，已用本地关键词匹配生成推荐。')}</div>` : '';
+  $('resumeResultCard').style.display = 'block';
+  $('resumeSummary').innerHTML = banner + (res.resume_summary
+    ? `<div class="card" style="background:var(--panel2);margin-bottom:0"><b>📝 简历速览：</b>${esc(res.resume_summary)}</div>` : '');
+  $('resumePositions').innerHTML = (res.target_positions && res.target_positions.length)
+    ? `<div style="margin-top:10px">🎯 建议投递方向：${res.target_positions.map(p=>`<span class="tag type">${esc(p)}</span>`).join('')}</div>` : '';
+  const recs = res.recommendations || [];
+  $('resumeRecs').innerHTML = recs.length ? recs.map(c=>{
+      const cls = c.match==='高' ? 'so' : (c.match==='中' ? 'type' : '');
+      return `<div class="card" style="background:var(--panel2)">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <b style="font-size:15px">${esc(c.company)}</b>
+          <span class="tag ${cls}">匹配度 ${esc(c.match||'-')}</span>
+          ${c.location?`<span class="tag loc">${esc(c.location)}</span>`:''}
+          <span class="muted small">建议岗位：${esc(c.position||'-')}</span>
+        </div>
+        <div class="muted" style="margin-top:6px">${esc(c.reason||'')}</div>
+      </div>`;}).join('')
+    : '<p class="muted">AI 认为当前校招清单中暂无特别匹配的企业，可扩大抓取范围或调整求职意向后再试。</p>';
+  // 可参加的宣讲会（基于轨迹流动工作地映射）
+  const preachs = r.recommended_preachs || [];
+  $('resumePreachCount').textContent = preachs.length ? `（${preachs.length} 场，按时间排序）` : '';
+  $('resumePreachs').innerHTML = preachs.length ? preachs.map((x,i)=>{
+    const wc = (x['工作地城市']||[]).map(c=>`<span class="tag loc">${esc(c)}</span>`).join('') || '<span class="muted">-</span>';
+    const so = x['企业性质'] ? `<span class="tag ${x['企业性质']==='是'?'so':'no'}">${esc(x['企业性质']==='是'?'国企/央企':'非国企')}</span>` : '';
+    return `<div class="card" style="background:var(--panel2)">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="muted small" style="flex-shrink:0">${esc(x['举办日期']||'-')}</span>
+        <b>${esc(x['单位名称']||'-')}</b>${so}
+      </div>
+      <div class="small muted" style="margin-top:4px">📍 ${esc(x['宣讲会地点']||'-')} · ${esc(x['线下/线上']||'-')}</div>
+      <div style="margin-top:4px">公司地点：${wc}</div>
+      <div class="small" style="margin-top:4px">${esc(x['reason']||'')} <a href="${esc(x['原网页']||'')}" target="_blank">原文</a></div>
+    </div>`;}).join('')
+    : '<p class="muted">暂无与目标工作地匹配的宣讲会（可设定目标工作地，或运行企业分析/Silicon 流动分析后重试）。</p>';
+}
+
+// ---- Settings
+async function saveConfig(){
+  const body = {};
+  if ($('apiKey').value.trim()) body.api_key = $('apiKey').value.trim();
+  if ($('cfgModel').value.trim()) body.model = $('cfgModel').value.trim();
+  body.provider = $('llmProvider').value;
+  if ($('deepseekKey').value.trim()) body.deepseek_api_key = $('deepseekKey').value.trim();
+  if ($('deepseekModel').value.trim()) body.deepseek_model = $('deepseekModel').value.trim();
+  if ($('deepseekBase').value.trim()) body.deepseek_base_url = $('deepseekBase').value.trim();
+  const r = await (await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  if (r.ok){ toast('配置已保存'); $('apiKey').value=''; $('deepseekKey').value=''; refreshStatus(); } else toast('保存失败', true);
+}
+
+function toggleLlmCfg(){ const p=$('llmProvider').value; $('sfCfg').style.display = (p==='siliconflow')?'':'none'; $('dsCfg').style.display = (p==='deepseek')?'':'none'; }
+
+async function runFlow(){
+  const method = $('flowMethod').value;
+  $('btnFlow').disabled = true; $('btnFlow').textContent='分析中…';
+  const r = await (await fetch('/api/preach/flow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method})})).json();
+  if (!r.ok){ toast(r.error||'启动失败', true); $('btnFlow').disabled=false; $('btnFlow').textContent='开始分析'; return; }
+  $('flowLog').textContent=''; pollFlow(r.task.id);
+}
+function pollFlow(tid){
+  const t = setInterval(async ()=>{
+    try{
+      const r = await (await fetch('/api/task/'+tid+'/log')).json();
+      if (r.ok){ $('flowLog').textContent = (r.task.lines||[]).join('\n'); $('flowStatus').textContent = r.task.running?'运行中…':'已完成';
+        if(!r.task.running){ clearInterval(t); $('btnFlow').disabled=false; $('btnFlow').textContent='开始分析'; loadFlowStatus(); toast('工作地流动分析完成'); } }
+      else clearInterval(t);
+    }catch(e){ clearInterval(t); }
+  }, 1500);
+}
+async function loadFlowStatus(){
+  try{ const r = await (await fetch('/api/flow')).json();
+    if (r.csv_exists) $('flowStatus').textContent = '上次生成：'+(r.csv_mtime||'');
+    else $('flowStatus').textContent = '尚未生成流动分析';
+  }catch(e){}
+}
+
+// ---- init
+$('crawlEnd').value = new Date().toISOString().slice(0,10);
+loadCrawlDates();
+$('llmProvider').onchange = toggleLlmCfg; toggleLlmCfg();
+loadFlowStatus();
+refreshStatus();
+loadStats(true);
+setInterval(()=>{ if(!state.pollTimer) refreshStatus(); }, 15000);
+</script>
+</body>
+</html>

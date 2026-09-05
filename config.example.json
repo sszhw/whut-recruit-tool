@@ -1,0 +1,8 @@
+{
+  "provider": "siliconflow",
+  "api_key": "",
+  "model": "Qwen/Qwen2.5-72B-Instruct",
+  "deepseek_api_key": "",
+  "deepseek_model": "deepseek-chat",
+  "deepseek_base_url": "https://api.deepseek.com"
+}

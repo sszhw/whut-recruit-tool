@@ -1,0 +1,32 @@
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.idea/
+.vscode/
+
+# 本地运行配置（含 API Key，不入库；请复制 config.example.json 为 config.json）
+config.json
+
+# 运行时数据 / 生成产物（如需示例数据，放入 samples/，勿用真实数据）
+*_原始数据.json
+*_缓存.json
+企业分析_*.csv
+企业分析报告.md
+宣讲会_*.csv
+宣讲会_*.md
+宣讲会_*.json
+武汉理工大学招聘信息_*.csv
+武汉理工大学招聘信息_*.md
+武汉理工大学招聘信息_*.json
+
+# 收藏 / 日志
+收藏_宣讲会.json
+preach_update_log.txt
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
