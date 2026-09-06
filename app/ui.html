@@ -328,8 +328,13 @@
     <p class="hint">「公司地点」= 企业工作地（来自《宣讲会_工作地流动.csv》映射）；「宣讲会地点」= 具体宣讲场馆（按校区/场地筛选）；「举办时间」= 按开始日期范围筛选。</p>
     <label class="small" style="margin:6px 0 12px;display:flex;align-items:center;gap:6px;color:var(--accent);cursor:pointer"><input type="checkbox" id="pUpcoming" checked onchange="loadPreachs(1)" style="width:auto"> 仅显示今天及以后（今天新出的和3天内开始的会用红色标出；取消勾选可查看过去/全部）</label>
     <div class="row" style="margin-bottom:12px">
-      <div style="flex:0;min-width:0"><label class="small" style="display:flex;align-items:center;gap:6px;color:var(--accent);cursor:pointer"><input type="checkbox" id="pFavOnly" onchange="loadPreachs(1)" style="width:auto"> 只看收藏 ⭐</label></div>
-      <div style="flex:0;min-width:0"><label>&nbsp;</label><button class="btn ghost" onclick="exportPreachFavs()">⬇️ 导出收藏为 Excel</button></div>
+      <div style="flex:0 0 auto"><label class="small" style="display:flex;align-items:center;gap:6px;color:var(--accent);cursor:pointer;white-space:nowrap"><input type="checkbox" id="pFavOnly" onchange="loadPreachs(1)" style="width:auto"> 只看收藏 ⭐</label></div>
+      <div style="display:flex;flex-wrap:nowrap;gap:6px;align-items:center;flex:0 0 auto">
+        <button class="btn ghost" style="white-space:nowrap" onclick="favAllPreachs()">⭐ 一键收藏全部</button>
+        <button class="btn ghost" style="white-space:nowrap" onclick="unfavAllPreachs()">☆ 一键取消收藏全部</button>
+        <button class="btn ghost" style="white-space:nowrap" onclick="exportPreachFavs()">⬇️ 导出收藏为 Excel</button>
+        <button class="btn ghost" style="white-space:nowrap" onclick="exportPreachFavsIcs()">📅 导出收藏为 ICS</button>
+      </div>
     </div>
     <div class="tablewrap">
       <table>
@@ -670,6 +675,27 @@ function toggleFav(id, btn){
     }).catch(()=>toast('网络错误', true));
 }
 function exportPreachFavs(){ download('/api/preach/favs/export'); }
+function exportPreachFavsIcs(){ download('/api/preach/favs/export-ics'); }
+async function favAllPreachs(){
+  const p = new URLSearchParams({ q:$('pq').value.trim(), type:$('ptype').value,
+    work:$('pwork').value, venue:$('pvenue').value,
+    start:$('pstart').value, end:$('pend').value, show_past:$('pUpcoming').checked?'':'1' });
+  try{
+    const r = await (await fetch('/api/preach/fav-all', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(Object.fromEntries(p))})).json();
+    if (r.ok){ await loadPreachFavs(); loadPreachs(state.pPage); toast(r.added ? '⭐ 已收藏全部 '+r.matched+' 场（新增 '+r.added+' 场）' : '当前条件下的宣讲会都已在收藏中'); }
+    else toast(r.error||'操作失败', true);
+  }catch(e){ toast('网络错误', true); }
+}
+async function unfavAllPreachs(){
+  const p = new URLSearchParams({ q:$('pq').value.trim(), type:$('ptype').value,
+    work:$('pwork').value, venue:$('pvenue').value,
+    start:$('pstart').value, end:$('pend').value, show_past:$('pUpcoming').checked?'':'1' });
+  try{
+    const r = await (await fetch('/api/preach/unfav-all', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(Object.fromEntries(p))})).json();
+    if (r.ok){ await loadPreachFavs(); loadPreachs(state.pPage); toast(r.removed ? '☆ 已取消收藏 '+r.removed+' 场' : '当前条件下没有已在收藏的宣讲会'); }
+    else toast(r.error||'操作失败', true);
+  }catch(e){ toast('网络错误', true); }
+}
 
 // ---- Resume / 投递推荐
 function resumeFormData(){

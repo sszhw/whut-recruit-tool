@@ -9,7 +9,7 @@
 - **企业分析**：调用 LLM（可切换提供商）判定企业性质（央企/国企/民企…）+ 工作地点，输出 CSV + 报告。
 - **工作地流动分析**：对宣讲会企业推断工作地，生成 `宣讲会_工作地流动.csv` + 报告；方法可选
   `offline`（本地关键词 + 总部映射，免费）或 `ai`（走配置的 LLM）。
-- **宣讲会浏览**：搜索 / 筛选（工作地、场馆、线下线上、日期）；收藏 ⭐ 与**导出收藏为 Excel**。
+- **宣讲会浏览**：搜索 / 筛选（工作地、场馆、线下线上、日期）；支持**一键收藏全部 / 一键取消收藏全部**（按当前筛选范围），并可**导出收藏为 Excel** 或 **iCalendar (.ics)**（日历 App 可直接导入/订阅）。
 - **投递推荐**：上传简历（图片/扫描件走视觉 OCR）→ AI 生成本次宣讲会的岗位推荐。
 - **统计总览**：数量看板 + 类型 / 地点分布图 + CSV/报告导出。
 - **主题切换**：顶栏一键切换「浅色 · SaaS Dashboard」/「深色 · Material Dark」。
@@ -22,6 +22,7 @@ whut-recruit-tool/
 ├── requirements.txt                # Python 依赖
 ├── .gitignore                      # 排除运行数据 / 配置 / 产物
 ├── config.example.json             # 配置模板（复制为 config.json 并填入 Key）
+├── 启动服务.bat                    # 入口启动脚本（双击即可；自动检查 8765 端口，已在运行则提示，不重复启动）
 ├── app/                            # 【源码 + 前端】
 │   ├── server.py                   # Flask Web 服务（http://127.0.0.1:8765）
 │   ├── ui.html                     # 前端页面
@@ -53,10 +54,13 @@ cp config.example.json config.json   # Windows: copy config.example.json config.
 
 # 3. 启动
 python app/server.py --port 8765
-#   或双击 scripts/start_server.bat
+#   或双击根目录「启动服务.bat」（自动检查 8765 端口，已在运行会提示，不会重复启动）
+#   或 scripts/start_server.bat（基础版，直接运行）
 ```
 
 打开浏览器访问 http://127.0.0.1:8765
+
+> 「启动服务.bat」**不会自动打开浏览器**，启动后请手动访问上方的地址。
 
 ## LLM 提供商配置
 
