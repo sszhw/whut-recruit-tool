@@ -74,7 +74,7 @@
   .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
   .row > div { flex: 1; min-width: 150px; }
   button.btn { background: var(--accent); color: #fff; border: none; padding: 10px 22px; border-radius: 8px;
-    cursor: pointer; font-size: 14px; font-weight: 600; transition: background .15s, transform .08s; }
+    cursor: pointer; font-size: 14px; font-weight: 600; transition: background .15s, transform .08s; white-space: nowrap; }
   button.btn:hover { background: var(--accent-hover); }
   button.btn:active { transform: translateY(1px); }
   button.btn:disabled { opacity: .45; cursor: not-allowed; }
@@ -362,24 +362,17 @@
 <!-- ================= 设置 ================= -->
 <section id="tab-settings">
   <div class="card" style="max-width:640px">
-    <h2>🤖 LLM 调用配置（硅基流动 / DeepSeek）</h2>
-    <label>当前使用的提供商</label>
-    <select id="llmProvider">
-      <option value="siliconflow">硅基流动</option>
-      <option value="deepseek">DeepSeek</option>
-    </select>
-    <div id="sfCfg">
-      <label>硅基流动 API Key（<a href="https://cloud.siliconflow.cn/account/ak" target="_blank">到 cloud.siliconflow.cn 获取</a>）</label>
-      <input type="password" id="apiKey" placeholder="«redacted:sk-…»">
-      <label>硅基流动默认模型</label>
-      <input id="cfgModel" placeholder="Qwen/Qwen2.5-72B-Instruct">
+    <h2>🤖 LLM 调用配置（各厂商分开，模型跨厂家选择）</h2>
+    <label>使用模型（不同厂家）</label>
+    <select id="llmModel"></select>
+    <div id="sfVendor" style="margin-top:12px">
+      <label style="font-weight:600">硅基流动 · API Key（<a href="https://cloud.siliconflow.cn/account/ak" target="_blank">到 cloud.siliconflow.cn 获取</a>）</label>
+      <input type="password" id="apiKey" placeholder="sk-…">
     </div>
-    <div id="dsCfg" style="display:none">
-      <label>DeepSeek API Key（<a href="https://api-docs.deepseek.com/zh-cn/" target="_blank">文档</a>）</label>
+    <div id="dsVendor" style="margin-top:12px">
+      <label style="font-weight:600">DeepSeek · API Key（<a href="https://api-docs.deepseek.com/zh-cn/" target="_blank">文档</a>）</label>
       <input type="password" id="deepseekKey" placeholder="sk-…">
-      <label>DeepSeek 模型</label>
-      <input id="deepseekModel" placeholder="deepseek-chat">
-      <label>接口地址 Base URL</label>
+      <label>DeepSeek 接口地址 Base URL</label>
       <input id="deepseekBase" placeholder="https://api.deepseek.com">
     </div>
     <p class="hint" id="keyState"></p>
@@ -447,10 +440,20 @@ async function refreshStatus(){
     if (s.has_api_key){ badge.textContent='API Key ✓ · '+s.api_key_masked; badge.className='badge ok'; }
     else { badge.textContent='未配置 API Key'; badge.className='badge no'; }
     $('keyState').textContent = s.has_api_key ? ('当前已配置：'+s.api_key_masked) : '尚未配置';
-    $('cfgModel').value = s.model || '';
     if ($('modelSel')) $('modelSel').value = s.model || '';
-    if ($('llmProvider')) { $('llmProvider').value = s.provider || 'siliconflow'; toggleLlmCfg(); }
-    if ($('deepseekModel')) $('deepseekModel').value = s.llm_model || (s.provider==='deepseek'?'deepseek-chat':'');
+    try{
+      const c = await (await fetch('/api/llm/catalog')).json();
+      const sel = $('llmModel');
+      if (sel && sel.options.length===0){
+        sel.innerHTML = c.providers.map(p=>`<optgroup label="${esc(p.label)}">`+p.models.map(m=>`<option value="${esc(p.id)}|${esc(m)}">${esc(m)}</option>`).join('')+'</optgroup>').join('');
+      }
+      const cur = (c.current ? c.current.provider+'|'+c.current.model : '');
+      if (sel && cur){
+        if (![...sel.options].some(o=>o.value===cur)) sel.insertAdjacentHTML('beforeend', `<option value="${esc(cur)}">${esc(cur.split('|')[1])}（当前）</option>`);
+        sel.value = cur;
+      }
+      if ($('deepseekBase') && c.keys) $('deepseekBase').value = c.keys.deepseek_base_url || '';
+    }catch(e){}
     state.crawlerTask = s.crawler_task; state.analyzeTask = s.analyze_task; state.checkTask = s.check_task;
     renderTask($('crawlLog'), $('crawlStatus'), $('btnCrawlStop'), s.crawler_task);
     renderTask($('analyzeLog'), $('analyzeStatus'), $('btnAnalyzeStop'), s.analyze_task);
@@ -631,6 +634,7 @@ async function loadPreachFilters(){
 }
 async function loadPreachs(page){
   state.pPage = Math.max(1, page||1);
+  if(!favsLoaded){ try{ await loadPreachFavs(); }catch(e){} }
   const p = new URLSearchParams({ q:$('pq').value.trim(), type:$('ptype').value,
     work:$('pwork').value, venue:$('pvenue').value,
     start:$('pstart').value, end:$('pend').value, show_past:$('pUpcoming').checked?'':'1', fav_only:$('pFavOnly').checked?'1':'', page:state.pPage, size:50 });
@@ -655,10 +659,12 @@ async function loadPreachs(page){
 
 // ---- 宣讲会收藏
 let favs = new Set();
+let favsLoaded = false;
 async function loadPreachFavs(){
   try{ const r = await (await fetch('/api/preach/favs')).json();
     favs = new Set(r.ids || []);
-  }catch(e){}
+    favsLoaded = true;
+  }catch(e){ favsLoaded = favsLoaded || favs.size > 0; }
 }
 function favBtn(x){
   const id = esc(x['ID']||'');
@@ -666,13 +672,15 @@ function favBtn(x){
   return `<button class="favbtn ${on?'on':''}" onclick="toggleFav('${id}', this)" title="${on?'取消收藏':'收藏'}">${on?'★':'☆'}</button>`;
 }
 function toggleFav(id, btn){
+  if (btn.dataset.busy) return;                       // 防连点（请求未返回前忽略再次点击）
+  btn.dataset.busy = '1';
   const was = favs.has(String(id));
   const method = was ? 'unfav' : 'fav';
   fetch('/api/preach/'+method, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id})})
     .then(r=>r.json()).then(r=>{
-      if (r.ok){ if(was) favs.delete(String(id)); else favs.add(String(id)); btn.textContent = was?'☆':'★'; btn.classList.toggle('on', !was); toast(was?'已取消收藏':'已收藏'); }
+      if (r.ok){ if(was) favs.delete(String(id)); else favs.add(String(id)); btn.textContent = was?'☆':'★'; btn.classList.toggle('on', !was); toast(was?'已取消收藏':'已收藏'); if($('pFavOnly').checked) loadPreachs(state.pPage); }
       else toast((r.error||'操作失败'), true);
-    }).catch(()=>toast('网络错误', true));
+    }).catch(()=>toast('网络错误', true)).finally(()=>{ delete btn.dataset.busy; });
 }
 function exportPreachFavs(){ download('/api/preach/favs/export'); }
 function exportPreachFavsIcs(){ download('/api/preach/favs/export-ics'); }
@@ -779,18 +787,17 @@ function renderResumeResult(r){
 
 // ---- Settings
 async function saveConfig(){
-  const body = {};
+  const selVal = $('llmModel').value || '';
+  const sep = selVal.indexOf('|');
+  const provider = sep >= 0 ? selVal.slice(0, sep) : 'siliconflow';
+  const model = sep >= 0 ? selVal.slice(sep + 1) : '';
+  const body = { provider: provider, model: model };
   if ($('apiKey').value.trim()) body.api_key = $('apiKey').value.trim();
-  if ($('cfgModel').value.trim()) body.model = $('cfgModel').value.trim();
-  body.provider = $('llmProvider').value;
   if ($('deepseekKey').value.trim()) body.deepseek_api_key = $('deepseekKey').value.trim();
-  if ($('deepseekModel').value.trim()) body.deepseek_model = $('deepseekModel').value.trim();
   if ($('deepseekBase').value.trim()) body.deepseek_base_url = $('deepseekBase').value.trim();
   const r = await (await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
   if (r.ok){ toast('配置已保存'); $('apiKey').value=''; $('deepseekKey').value=''; refreshStatus(); } else toast('保存失败', true);
 }
-
-function toggleLlmCfg(){ const p=$('llmProvider').value; $('sfCfg').style.display = (p==='siliconflow')?'':'none'; $('dsCfg').style.display = (p==='deepseek')?'':'none'; }
 
 async function runFlow(){
   const method = $('flowMethod').value;
@@ -819,7 +826,6 @@ async function loadFlowStatus(){
 // ---- init
 $('crawlEnd').value = new Date().toISOString().slice(0,10);
 loadCrawlDates();
-$('llmProvider').onchange = toggleLlmCfg; toggleLlmCfg();
 loadFlowStatus();
 refreshStatus();
 loadStats(true);

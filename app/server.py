@@ -74,9 +74,13 @@ def get_api_key() -> str:
 
 LLM_PROVIDERS = {
     "siliconflow": {"label": "硅基流动", "base_url": "https://api.siliconflow.cn/v1",
-                    "api_key_field": "api_key", "model_field": "model", "default_model": "Qwen/Qwen2.5-72B-Instruct"},
+                    "api_key_field": "api_key", "model_field": "model", "default_model": "Qwen/Qwen2.5-72B-Instruct",
+                    "models": ["Qwen/Qwen2.5-72B-Instruct", "Qwen/Qwen2.5-32B-Instruct",
+                               "Qwen/Qwen2.5-14B-Instruct", "Qwen/Qwen2.5-7B-Instruct",
+                               "deepseek-ai/DeepSeek-V3", "deepseek-ai/DeepSeek-R1"]},
     "deepseek": {"label": "DeepSeek", "base_url": "https://api.deepseek.com",
-                 "api_key_field": "deepseek_api_key", "model_field": "deepseek_model", "default_model": "deepseek-chat"},
+                 "api_key_field": "deepseek_api_key", "model_field": "deepseek_model", "default_model": "deepseek-chat",
+                 "models": ["deepseek-chat", "deepseek-reasoner"]},
 }
 
 
@@ -112,6 +116,10 @@ class TaskManager:
             task_id = f"{kind}_{int(time.time())}"
             env = dict(env)
             env["PYTHONUNBUFFERED"] = "1"  # 让子进程 stdout 实时刷新，界面日志即时可见
+            # 强制子进程以 UTF-8 输出。Windows 中文环境下 Python 默认用 GBK(cp936) 写 stdout，
+            # 而本进程按 utf-8 解码（errors="replace"），会导致中文全部变成 � 乱码。
+            env["PYTHONIOENCODING"] = "utf-8"
+            env["PYTHONUTF8"] = "1"
             proc = subprocess.Popen(
                 cmd, cwd=str(WORKDIR), env=env,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -411,15 +419,42 @@ def api_status():
 
 # ---------------------------------------------------------------- API：配置
 
+@app.route("/api/llm/catalog")
+def api_llm_catalog():
+    """返回各厂家模型清单 + 当前使用的厂家/模型 + 各厂家 Key 是否已配置。"""
+    cfg = load_config()
+    llm = get_llm()
+    providers = [
+        {"id": pid, "label": conf["label"], "default_model": conf["default_model"], "models": conf["models"]}
+        for pid, conf in LLM_PROVIDERS.items()
+    ]
+    return jsonify({
+        "providers": providers,
+        "current": {"provider": llm["provider"], "model": llm["model"],
+                    "label": llm["label"], "base_url": llm["base_url"]},
+        "keys": {
+            "siliconflow_set": bool((cfg.get("api_key") or "").strip()),
+            "deepseek_set": bool((cfg.get("deepseek_api_key") or "").strip()),
+            "deepseek_base_url": cfg.get("deepseek_base_url", "https://api.deepseek.com"),
+        },
+    })
+
+
 @app.route("/api/config", methods=["POST"])
 def api_config():
     payload = request.get_json(force=True, silent=True) or {}
     cfg = load_config()
-    if "api_key" in payload:
-        cfg["api_key"] = str(payload["api_key"]).strip()
+    if "provider" in payload:
+        p = str(payload["provider"]).strip()
+        if p in LLM_PROVIDERS:
+            cfg["provider"] = p
+    # 所选模型写入对应厂家（由所选模型决定厂家）的 model 字段
     if "model" in payload and str(payload["model"]).strip():
-        cfg["model"] = str(payload["model"]).strip()
-    for f in ("provider", "deepseek_api_key", "deepseek_model", "deepseek_base_url"):
+        provider = cfg.get("provider", "siliconflow")
+        if provider not in LLM_PROVIDERS:
+            provider = "siliconflow"
+        cfg[LLM_PROVIDERS[provider]["model_field"]] = str(payload["model"]).strip()
+    for f in ("api_key", "deepseek_api_key", "deepseek_base_url"):
         if f in payload:
             cfg[f] = str(payload[f]).strip()
     save_config(cfg)
