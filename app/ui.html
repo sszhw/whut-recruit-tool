@@ -458,13 +458,8 @@ async function refreshStatus(){
     renderTask($('crawlLog'), $('crawlStatus'), $('btnCrawlStop'), s.crawler_task);
     renderTask($('analyzeLog'), $('analyzeStatus'), $('btnAnalyzeStop'), s.analyze_task);
     renderTask($('checkPreachLog'), $('checkPreachStatus'), $('btnCheckPreachStop'), s.check_task);
-    // stat cards
-    $('statCards').innerHTML = `
-      <div class="stat"><div class="num">${s.recruit_count}</div><div class="lbl">招聘信息条数</div></div>
-      <div class="stat"><div class="num">${s.preach_count}</div><div class="lbl">宣讲会场数</div></div>
-      <div class="stat"><div class="num">${s.analyzed_count}</div><div class="lbl">已分析企业数</div></div>
-      <div class="stat"><div class="num" id="soNum">-</div><div class="lbl">国企 / 央企系</div></div>
-      <div class="stat"><div class="num">${s.raw_mtime||'-'}</div><div class="lbl">数据文件：${esc(s.raw_file||'（未抓取）')}</div></div>`;
+    // stat cards —— 只在首次生成 DOM，之后仅更新文本，避免每次内联重建导致整排卡片重排/soNum 被重置闪烁
+    renderStatsCards(s);
     const running = (s.crawler_task&&s.crawler_task.running)||(s.analyze_task&&s.analyze_task.running)||(s.check_task&&s.check_task.running);
     clearInterval(state.pollTimer);
     if (running) state.pollTimer = setInterval(pollTasks, 2000);
@@ -472,12 +467,36 @@ async function refreshStatus(){
   }catch(e){ /* 服务未就绪 */ }
 }
 
+// 首次生成统计卡片 DOM；此后仅更新数值文本，不整体重建（消除「国企/央企系」在 - 与真实值之间跳动的闪烁）
+function renderStatsCards(s){
+  const box = $('statCards');
+  if (!box.dataset.built){
+    box.innerHTML = `
+      <div class="stat"><div class="num" id="stRecruit">-</div><div class="lbl">招聘信息条数</div></div>
+      <div class="stat"><div class="num" id="stPreach">-</div><div class="lbl">宣讲会场数</div></div>
+      <div class="stat"><div class="num" id="stAnalyzed">-</div><div class="lbl">已分析企业数</div></div>
+      <div class="stat"><div class="num" id="soNum">-</div><div class="lbl">国企 / 央企系</div></div>
+      <div class="stat"><div class="num" id="stRawTime">-</div><div class="lbl" id="stRawFile"></div></div>`;
+    box.dataset.built = '1';
+  }
+  $('stRecruit').textContent = s.recruit_count;
+  $('stPreach').textContent = s.preach_count;
+  $('stAnalyzed').textContent = s.analyzed_count;
+  $('stRawTime').textContent = s.raw_mtime || '-';
+  $('stRawFile').textContent = '数据文件：' + (s.raw_file || '（未抓取）');
+}
+
 function renderTask(logEl, statusEl, stopBtn, task){
   if (!task) return;
   if (task.lines && task.lines.length){ logEl.textContent = task.lines.slice(-300).join('\n'); logEl.scrollTop = logEl.scrollHeight; }
-  if (task.running){ statusEl.innerHTML = '<span class="spin"></span>运行中（'+task.started+' 开始）'; stopBtn.style.display=''; }
-  else { statusEl.textContent = '已结束，退出码 '+task.exit_code+'（'+(task.finished||'')+'）'; stopBtn.style.display='none';
-    if (task.exit_code===0){ refreshDataViews(); } }
+  if (task.running){
+    if (statusEl.dataset.state !== 'running'){ statusEl.innerHTML = '<span class="spin"></span>运行中（'+task.started+' 开始）'; statusEl.dataset.state='running'; }
+    stopBtn.style.display='';
+  } else {
+    statusEl.textContent = '已结束，退出码 '+task.exit_code+'（'+(task.finished||'')+'）'; stopBtn.style.display='none'; statusEl.dataset.state='done';
+    // 仅在该任务「由运行转结束」的首次刷新触发一次 refreshDataViews，避免 refreshStatus↔refreshDataViews 相互调用造成无限循环（整页高频重建/闪烁）
+    if (task.exit_code===0 && statusEl.dataset.notified !== '1'){ statusEl.dataset.notified='1'; refreshDataViews(); }
+  }
 }
 
 async function pollTasks(){
@@ -490,8 +509,8 @@ async function pollTasks(){
       const r = await (await fetch('/api/task/'+id+'/log?tail=300')).json();
       if (r.ok){ const t=r.task;
         logEl.textContent = t.lines.join('\n'); logEl.scrollTop = logEl.scrollHeight;
-        if (t.running){ statusEl.innerHTML='<span class="spin"></span>运行中'; }
-        else { statusEl.textContent='已结束，退出码 '+t.exit_code+'（'+(t.finished||'')+'）'; stopBtn.style.display='none'; refreshStatus(); }
+        if (t.running){ if (statusEl.dataset.state !== 'running'){ statusEl.innerHTML='<span class="spin"></span>运行中'; statusEl.dataset.state='running'; } }
+        else { statusEl.textContent='已结束，退出码 '+t.exit_code+'（'+(t.finished||'')+'）'; statusEl.dataset.state='done'; refreshStatus(); }
       }
     }catch(e){}
   }
