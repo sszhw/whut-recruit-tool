@@ -126,6 +126,16 @@
   .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--muted); border-top-color: var(--accent);
     border-radius: 50%; animation: sp 1s linear infinite; vertical-align: -2px; margin-right: 6px; }
   @keyframes sp { to { transform: rotate(360deg); } }
+  .vendor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+  .vendor-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; cursor: pointer;
+    transition: border-color .15s, background .15s, box-shadow .15s; }
+  .vendor-card:hover { border-color: var(--border-strong); background: var(--card-bg-hover); }
+  .vendor-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .vendor-card.current { border-color: rgba(16,185,129,.5); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip { display: inline-block; padding: 5px 12px; border-radius: 999px; font-size: 12px; background: var(--panel2);
+    border: 1px solid var(--border); color: var(--text); cursor: pointer; white-space: nowrap; }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
 </style>
 </head>
 <body>
@@ -162,6 +172,30 @@
       <button class="btn ghost" onclick="download('/api/export/md')">⬇️ 分析报告 Markdown</button>
       <button class="btn ghost" onclick="download('/api/recruitments/export')">⬇️ 招聘信息 CSV</button>
     </div>
+  </div>
+  <div class="card">
+    <h2>📥 导入分析报告（Markdown）</h2>
+    <div class="row">
+      <div style="flex:1"><input type="file" id="reportImportFile" accept=".md,.markdown,.txt"></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnImportReport" onclick="importReport()">导入报告</button></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost" onclick="download('/api/import/md/template')">⬇️ 下载模板</button></div>
+    </div>
+    <p class="hint">导入后会重建「企业分析」缓存：企业类型 / 国企 / 工作地点随之更新，企业分析结果、统计图表、宣讲会「公司地点」映射同步生效。可直接导入之前「导出报告 → 分析报告 Markdown」的文件，或按下方格式手写。</p>
+    <details style="margin-top:10px"><summary class="muted small">📐 导入报告 Markdown 怎么写</summary>
+      <p class="hint">只认「<b>全部企业明细</b>」这张表。表格列固定为<b>企业名称 | 类型 | 国企 | 置信度 | 工作地点 | 依据</b>，每行一家企业。填法：</p>
+      <ul class="hint" style="margin-top:4px">
+        <li><b>国企</b>：填 <code>是</code> 或 <code>否</code>（其余值视为「未知」）。</li>
+        <li><b>工作地点</b>：多个城市用「<code>、</code>」或「<code>,</code>」分隔；无信息填 <code>-</code>。</li>
+        <li><b>类型</b>：央企 / 地方国企 / 民企 / 外企 / 事业单位 / 其他等，按需填写。</li>
+        <li><b>依据</b>：一句判断依据（可留空）。</li>
+      </ul>
+      <pre class="log" style="white-space:pre;font-size:12px">## 全部企业明细
+
+| 企业名称 | 类型 | 国企 | 置信度 | 工作地点 | 依据 |
+|---|---|---|---|---|---|
+| 中国建筑第三工程局 | 央企 | 是 | 高 | 武汉、深圳 | 央企子公司，总部武汉 |
+| 某科技公司 | 民企 | 否 | 中 | 北京 | 民营互联网企业，总部北京 |</pre>
+    </details>
   </div>
 </section>
 
@@ -236,13 +270,13 @@
 <section id="tab-resume">
   <div class="card">
     <h2>🎯 上传简历，AI 推荐适合投递的企业（硅基流动）</h2>
-    <div class="row">
+    <div class="row" style="align-items:flex-end">
       <div style="flex:2">
         <label>简历文件（PDF / .docx / 图片）</label>
         <input type="file" id="resumeFile" accept=".pdf,.docx,.png,.jpg,.jpeg,.bmp,.webp">
-        <p class="hint">旧版 .doc 请先另存为 .docx 或 PDF；扫描版 PDF / 图片会走视觉模型 OCR 识别。</p>
       </div>
-      <div><label>推荐模型</label>
+      <div>
+        <label>推荐模型</label>
         <select id="resumeModel">
           <option value="Qwen/Qwen2.5-72B-Instruct">Qwen2.5-72B-Instruct（推荐）</option>
           <option value="Qwen/Qwen3.5-27B">Qwen3.5-27B（更快）</option>
@@ -250,29 +284,28 @@
           <option value="deepseek-ai/DeepSeek-V3">DeepSeek-V3</option>
         </select>
       </div>
-      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnResumeRec" onclick="resumeRecommend()">生成推荐</button></div>
-      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost" id="btnResumeExtract" onclick="resumeExtract()">提取文字预览</button></div>
+      <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn green" id="btnResumeRec" onclick="resumeRecommend()" style="white-space:nowrap">生成推荐</button></div>
+      <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn ghost" id="btnResumeExtract" onclick="resumeExtract()" style="white-space:nowrap">提取文字预览</button></div>
     </div>
-    <div class="row" style="margin-top:4px">
-      <div style="flex:2"><label>🎯 目标工作地（可多填，逗号/顿号分隔）</label><input id="workPlace" placeholder="如：武汉、北京、深圳（留空则按简历城市推断）"></div>
-      <div style="flex:0"><label>目标企业性质</label><select id="companyType">
+    <p class="hint" style="margin-top:2px">旧版 .doc 请先另存为 .docx 或 PDF；扫描版 PDF / 图片会走视觉模型 OCR 识别。</p>
+    <div class="row" style="margin-top:6px;align-items:flex-end">
+      <div style="flex:1"><label>🎯 目标工作地（可多填，逗号/顿号分隔）</label><input id="workPlace" placeholder="如：武汉、北京、深圳（留空则按简历城市推断）"></div>
+      <div><label>目标企业性质</label><select id="companyType">
         <option value="">不限</option>
         <option value="国企央企">国企 / 央企</option>
         <option value="私企外企">私企 / 外企 / 互联网</option>
       </select></div>
     </div>
     <p class="hint" style="margin-top:2px">设置目标工作地与目标企业性质后，推荐会据此收窄范围，并会额外列出<b>可参加的宣讲会</b>（依据企业工作地映射）。</p>
-    <details style="margin-top:10px"><summary class="muted small">图片 / 扫描件 OCR 模型（高级）</summary>
-      <div class="row" style="margin-top:4px">
-        <div><label>视觉模型</label>
-          <select id="visionModel">
-            <option value="Qwen/Qwen3-VL-32B-Instruct">Qwen3-VL-32B-Instruct（推荐）</option>
-            <option value="Qwen/Qwen3-VL-30B-A3B-Instruct">Qwen3-VL-30B-A3B-Instruct（更快）</option>
-            <option value="Qwen/Qwen3-VL-8B-Instruct">Qwen3-VL-8B-Instruct（轻量）</option>
-          </select>
-        </div>
+    <div class="row" style="margin-top:6px;align-items:flex-end">
+      <div><label>视觉模型（图片 / 扫描件 OCR，高级）</label>
+        <select id="visionModel">
+          <option value="Qwen/Qwen3-VL-32B-Instruct">Qwen3-VL-32B-Instruct（推荐）</option>
+          <option value="Qwen/Qwen3-VL-30B-A3B-Instruct">Qwen3-VL-30B-A3B-Instruct（更快）</option>
+          <option value="Qwen/Qwen3-VL-8B-Instruct">Qwen3-VL-8B-Instruct（轻量）</option>
+        </select>
       </div>
-    </details>
+    </div>
     <label style="margin-top:12px">也可以直接粘贴简历文字（若已上传文件则优先识别文件）</label>
     <textarea id="resumeText" style="min-height:88px;width:100%" placeholder="粘贴简历：学校、专业、技能、实习/项目经历、求职意向、倾向城市……"></textarea>
     <p class="hint">推荐范围 = 本次抓取到的校招企业清单（当前共 <span id="resumeCompanyCount">…</span> 家）。建议先运行「抓取」与「企业分析」以获得更完整的企业画像；AI 推荐需在「设置」配置好 API Key 且有余额。</p>
@@ -361,23 +394,48 @@
 
 <!-- ================= 设置 ================= -->
 <section id="tab-settings">
-  <div class="card" style="max-width:640px">
-    <h2>🤖 LLM 调用配置（各厂商分开，模型跨厂家选择）</h2>
-    <label>使用模型（不同厂家）</label>
-    <select id="llmModel"></select>
-    <div id="sfVendor" style="margin-top:12px">
-      <label style="font-weight:600">硅基流动 · API Key（<a href="https://cloud.siliconflow.cn/account/ak" target="_blank">到 cloud.siliconflow.cn 获取</a>）</label>
-      <input type="password" id="apiKey" placeholder="sk-…">
+  <div class="card">
+    <h2>🤖 LLM 调用配置（各厂商独立）</h2>
+    <div class="toolbar" style="margin-bottom:12px">
+      <input id="llmSearch" placeholder="搜索模型平台..." style="min-width:220px">
+      <button class="btn ghost" id="btnLlmRefresh" onclick="loadLlmCatalog()" style="flex:0 0 auto">刷新预设</button>
     </div>
-    <div id="dsVendor" style="margin-top:12px">
-      <label style="font-weight:600">DeepSeek · API Key（<a href="https://api-docs.deepseek.com/zh-cn/" target="_blank">文档</a>）</label>
-      <input type="password" id="deepseekKey" placeholder="sk-…">
-      <label>DeepSeek 接口地址 Base URL</label>
-      <input id="deepseekBase" placeholder="https://api.deepseek.com">
+    <div id="llmVendorGrid" class="vendor-grid"><span class="muted">加载中…</span></div>
+
+    <div id="llmConfigPanel" style="display:none;margin-top:20px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span id="llmCfgLogo" style="font-size:20px"></span>
+        <b id="llmCfgTitle" style="font-size:17px"></b>
+        <span class="muted small" id="llmCfgDesc"></span>
+        <span class="badge ok" id="llmKeySaved" style="display:none">已保存密钥</span>
+        <a id="llmDocsBtn" class="btn ghost" target="_blank" rel="noopener" style="margin-left:auto;flex:0 0 auto">前往官网 ↗</a>
+      </div>
+      <label style="margin-top:14px">API KEY</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:nowrap">
+        <input type="password" id="llmApiKey" placeholder="sk-…" autocomplete="off" style="flex:1">
+        <button class="btn ghost red" id="btnDeleteKey" onclick="deleteLlmKey()" style="display:none;flex:0 0 auto">删除密钥</button>
+      </div>
+      <label>Base URL</label>
+      <input id="llmBaseUrl" placeholder="https://…">
+      <p class="hint" id="llmComputeHint"></p>
+      <label>模型</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:nowrap">
+        <input id="llmModelInput" placeholder="模型名" style="flex:1">
+        <button class="btn ghost" id="btnRefreshModels" onclick="refreshLlmModels()" style="flex:0 0 auto">刷新模型列表</button>
+      </div>
+      <label>上下文窗口</label>
+      <input id="llmCtx" placeholder="自动（约 1,000,000）">
+      <p class="hint">留空或填 0 使用模型自动探测；本地/自建模型探测不准时可手动指定（单位 token）。</p>
+      <p class="hint" id="llmCtxHint"></p>
+      <div id="llmModelChips" class="chips"></div>
+      <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:nowrap">
+        <button class="btn" id="btnSaveLlm" onclick="saveLlmConfig()">保存配置</button>
+        <button class="btn ghost" id="btnUseLlm" onclick="useLlmCurrent()">设为当前模型</button>
+        <button class="btn ghost" id="btnTestLlm" onclick="testLlm()">测试连接</button>
+        <span id="llmTestMsg" class="muted small" style="align-self:center"></span>
+      </div>
     </div>
-    <p class="hint" id="keyState"></p>
-    <p class="hint">Key 保存在本目录 config.json，仅本机使用。</p>
-    <div style="margin-top:14px"><button class="btn" onclick="saveConfig()">保存配置</button></div>
+    <p class="hint" style="margin-top:14px">每家厂商的 Key / Base URL / 模型独立保存到本目录 config.json，仅本机使用。选中厂商后点「设为当前模型」即可应用到企业分析 / 流动分析 / 投递推荐。</p>
   </div>
 
   <div class="card" style="max-width:640px">
@@ -407,6 +465,23 @@ function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','
 function toast(msg, err){ const t=$('toast'); t.textContent=msg; t.className='toast'+(err?' err':''); t.style.display='block';
   clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none', 3500); }
 function download(url){ window.location.href = url; }
+async function importReport(){
+  const f = $('reportImportFile').files[0];
+  if (!f){ toast('请先选择要导入的 Markdown 报告', true); return; }
+  const btn = $('btnImportReport'); btn.disabled = true; btn.textContent = '导入中…';
+  try{
+    const fd = new FormData(); fd.append('file', f);
+    const r = await (await fetch('/api/import/md',{method:'POST',body:fd})).json();
+    if (!r.ok){ toast(r.error || '导入失败', true); }
+    else {
+      toast('已导入 '+r.imported+' 家企业，当前缓存共 '+r.total+' 家');
+      refreshStatus();
+      loadStats(true);
+      if ($('tab-analyze').classList.contains('active')){ loadCompanyFilters(); loadCompanies(state.cPage); }
+    }
+  }catch(e){ toast('导入异常', true); }
+  btn.disabled = false; btn.textContent = '导入报告';
+}
 
 // ---- 配色主题切换
 function applyTheme(t){ document.documentElement.setAttribute('data-theme', t); try{ localStorage.setItem('theme', t); }catch(e){} }
@@ -433,27 +508,31 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
 });
 
 // ---- Status
+// 模型下拉通用同步：跟随设置中当前厂商/模型，动态构建选项并选中当前模型（用于企业分析 modelSel / 投递推荐 resumeModel）
+function modelDot(m){ const s = String(m || ''); return s.includes('/') ? s.slice(s.lastIndexOf('/')+1) : s; }
+function syncModelSelect(selId, model, models, defaultModel){
+  const sel = $(selId);
+  if (!sel) return;
+  const opts = [];
+  if (model) opts.push(model);
+  (models||[]).forEach(m => { if (m && opts.indexOf(m) < 0) opts.push(m); });
+  if (!opts.length) return;
+  sel.innerHTML = opts.map(m =>
+    `<option value="${esc(m)}">${esc(modelDot(m))}${m === defaultModel ? '（推荐）' : ''}</option>`).join('');
+  sel.value = opts.indexOf(model) >= 0 ? model : opts[0];
+}
+function syncModelSel(model, models, defaultModel){ syncModelSelect('modelSel', model, models, defaultModel); }
+function syncResumeModelSel(model, models, defaultModel){ syncModelSelect('resumeModel', model, models, defaultModel); }
+function syncVisionModelSel(model, models, defaultModel){ syncModelSelect('visionModel', model, models, defaultModel); }
 async function refreshStatus(){
   try{
     const s = await (await fetch('/api/status')).json();
     const badge = $('statusBadge');
     if (s.has_api_key){ badge.textContent='API Key ✓ · '+s.api_key_masked; badge.className='badge ok'; }
     else { badge.textContent='未配置 API Key'; badge.className='badge no'; }
-    $('keyState').textContent = s.has_api_key ? ('当前已配置：'+s.api_key_masked) : '尚未配置';
-    if ($('modelSel')) $('modelSel').value = s.model || '';
-    try{
-      const c = await (await fetch('/api/llm/catalog')).json();
-      const sel = $('llmModel');
-      if (sel && sel.options.length===0){
-        sel.innerHTML = c.providers.map(p=>`<optgroup label="${esc(p.label)}">`+p.models.map(m=>`<option value="${esc(p.id)}|${esc(m)}">${esc(m)}</option>`).join('')+'</optgroup>').join('');
-      }
-      const cur = (c.current ? c.current.provider+'|'+c.current.model : '');
-      if (sel && cur){
-        if (![...sel.options].some(o=>o.value===cur)) sel.insertAdjacentHTML('beforeend', `<option value="${esc(cur)}">${esc(cur.split('|')[1])}（当前）</option>`);
-        sel.value = cur;
-      }
-      if ($('deepseekBase') && c.keys) $('deepseekBase').value = c.keys.deepseek_base_url || '';
-    }catch(e){}
+    syncModelSel(s.llm_model, s.models, s.default_model);
+    syncResumeModelSel(s.llm_model, s.models, s.default_model);
+    syncVisionModelSel(s.llm_model, s.models, s.default_model);
     state.crawlerTask = s.crawler_task; state.analyzeTask = s.analyze_task; state.checkTask = s.check_task;
     renderTask($('crawlLog'), $('crawlStatus'), $('btnCrawlStop'), s.crawler_task);
     renderTask($('analyzeLog'), $('analyzeStatus'), $('btnAnalyzeStop'), s.analyze_task);
@@ -805,17 +884,117 @@ function renderResumeResult(r){
 }
 
 // ---- Settings
-async function saveConfig(){
-  const selVal = $('llmModel').value || '';
-  const sep = selVal.indexOf('|');
-  const provider = sep >= 0 ? selVal.slice(0, sep) : 'siliconflow';
-  const model = sep >= 0 ? selVal.slice(sep + 1) : '';
-  const body = { provider: provider, model: model };
-  if ($('apiKey').value.trim()) body.api_key = $('apiKey').value.trim();
-  if ($('deepseekKey').value.trim()) body.deepseek_api_key = $('deepseekKey').value.trim();
-  if ($('deepseekBase').value.trim()) body.deepseek_base_url = $('deepseekBase').value.trim();
+// ---- LLM 预设供应商配置（各厂商独立：Key / Base URL / 模型 各存一份）
+let llmProviders = [];
+let llmSelected = null;
+async function loadLlmCatalog(){
+  try{
+    const c = await (await fetch('/api/llm/catalog')).json();
+    llmProviders = c.providers || [];
+    renderLlmCards();
+    if (llmSelected) selectProvider(llmSelected);
+    else if (c.current && c.current.provider) selectProvider(c.current.provider);
+  }catch(e){ toast('加载 LLM 预设失败', true); }
+}
+function renderLlmCards(){
+  const grid = $('llmVendorGrid');
+  const q = ($('llmSearch').value || '').trim().toLowerCase();
+  const list = q ? llmProviders.filter(p => (p.label+' '+(p.desc||'')).toLowerCase().includes(q)) : llmProviders;
+  grid.innerHTML = list.map(p => `
+    <div class="vendor-card ${p.current?'current':''} ${llmSelected===p.id?'selected':''}" onclick="selectProvider('${esc(p.id)}')">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
+        <span style="font-size:18px">${esc(p.logo||'')}</span>
+        <span style="font-weight:600;white-space:nowrap">${esc(p.label)}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:nowrap">
+        ${p.current?'<span class="badge ok">当前</span>':''}
+        ${p.api_key_set?'<span class="badge" style="color:var(--accent2);border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.1)">已配置</span>':''}
+      </div>
+    </div>`).join('') || '<span class="muted">未匹配到厂商</span>';
+}
+function selectProvider(pid){
+  llmSelected = pid;
+  const p = llmProviders.find(x => x.id === pid);
+  if (!p) return;
+  renderLlmCards();
+  $('llmConfigPanel').style.display = 'block';
+  $('llmCfgLogo').textContent = p.logo || '';
+  $('llmCfgTitle').textContent = p.label || '';
+  $('llmCfgDesc').textContent = p.desc || '';
+  $('llmKeySaved').style.display = p.api_key_set ? '' : 'none';
+  $('btnDeleteKey').style.display = p.api_key_set ? '' : 'none';
+  if (p.docs_url){ $('llmDocsBtn').style.display=''; $('llmDocsBtn').href = p.docs_url; }
+  else { $('llmDocsBtn').style.display='none'; }
+  $('llmApiKey').value = '';
+  $('llmApiKey').placeholder = p.api_key_set ? (p.api_key_masked||'sk-…') : 'sk-…';
+  $('llmBaseUrl').value = p.base_url_saved || p.base_url || '';
+  $('llmComputeHint').textContent = p.compute_url ? ('请求将发送到 ' + p.compute_url) : '';
+  $('llmModelInput').value = p.model || p.default_model || '';
+  $('llmCtx').value = '';
+  const ctx = p.context_window;
+  $('llmCtxHint').textContent = ctx ? ('自动探测 1,000,000 · 默认 ' + ctx.toLocaleString('en-US')) : '';
+  renderLlmChips(p.models || []);
+  $('btnUseLlm').textContent = p.current ? '已是当前模型' : '设为当前模型';
+  $('llmTestMsg').textContent = '';
+}
+function renderLlmChips(models){
+  const box = $('llmModelChips');
+  box.innerHTML = models.length ? models.slice(0,40).map(m => `<span class="chip" onclick="setLlmModel('${esc(m)}')">${esc(m)}</span>`).join('') : '';
+}
+function setLlmModel(m){ $('llmModelInput').value = m; }
+async function deleteLlmKey(){
+  const pid = llmSelected; const p = llmProviders.find(x => x.id === pid);
+  if (!p) return;
+  if (!confirm('确定要删除「'+p.label+'」已保存的 API Key 吗？\n将清空本机 config.json 中的密钥，Base URL 与模型保持不变。')) return;
+  const r = await (await fetch('/api/config/key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:pid})})).json();
+  if (r.ok){ toast('已删除 '+p.label+' 的 API Key'); $('llmApiKey').value=''; await loadLlmCatalog(); refreshStatus(); }
+  else toast(r.error || '删除失败', true);
+}
+async function saveLlmConfig(){
+  const pid = llmSelected; const p = llmProviders.find(x => x.id === pid);
+  if (!p) return;
+  const body = { provider: pid };
+  const model = $('llmModelInput').value.trim(); if (model) body.model = model;
+  const key = $('llmApiKey').value.trim(); if (key) body.api_key = key;
+  const base = $('llmBaseUrl').value.trim(); if (base) body.base_url = base;
   const r = await (await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  if (r.ok){ toast('配置已保存'); $('apiKey').value=''; $('deepseekKey').value=''; refreshStatus(); } else toast('保存失败', true);
+  if (r.ok){ toast('该厂商配置已保存'); $('llmApiKey').value=''; await loadLlmCatalog(); }
+  else toast('保存失败', true);
+}
+async function useLlmCurrent(){
+  const pid = llmSelected; const p = llmProviders.find(x => x.id === pid);
+  if (!p) return;
+  const body = { provider: pid };
+  const model = $('llmModelInput').value.trim(); if (model) body.model = model;
+  const r = await (await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  if (r.ok){ toast('已切换使用 '+p.label); refreshStatus(); }
+  else toast('切换失败', true);
+}
+async function refreshLlmModels(){
+  const pid = llmSelected; if (!pid) return;
+  const btn = $('btnRefreshModels'); btn.disabled = true; btn.textContent='刷新中…';
+  try{
+    const r = await (await fetch('/api/llm/models/'+pid)).json();
+    if (r.ok){ renderLlmChips(r.models||[]); if (r.models && r.models.length) toast('已获取 '+r.models.length+' 个模型'); }
+    else toast(r.error || '刷新失败', true);
+  }catch(e){ toast('网络错误', true); }
+  btn.disabled = false; btn.textContent='刷新模型列表';
+}
+async function testLlm(){
+  const pid = llmSelected; const p = llmProviders.find(x => x.id === pid);
+  if (!p) return;
+  const body = { provider: pid };
+  if ($('llmApiKey').value.trim()) body.api_key = $('llmApiKey').value.trim();
+  if ($('llmBaseUrl').value.trim()) body.base_url = $('llmBaseUrl').value.trim();
+  if ($('llmModelInput').value.trim()) body.model = $('llmModelInput').value.trim();
+  const msg = $('llmTestMsg'); msg.textContent = '测试中…'; msg.style.color = 'var(--muted)';
+  const btn = $('btnTestLlm'); btn.disabled = true;
+  try{
+    const r = await (await fetch('/api/llm/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    if (r.ok){ msg.textContent = '✓ 连接成功（HTTP '+r.status+'）'; msg.style.color='var(--accent2)'; }
+    else { msg.textContent = '✗ 连接失败：'+(r.error||r.status||''); msg.style.color='var(--danger)'; }
+  }catch(e){ msg.textContent = '网络错误'; msg.style.color='var(--danger)'; }
+  btn.disabled = false;
 }
 
 async function runFlow(){
@@ -846,6 +1025,8 @@ async function loadFlowStatus(){
 $('crawlEnd').value = new Date().toISOString().slice(0,10);
 loadCrawlDates();
 loadFlowStatus();
+loadLlmCatalog();
+$('llmSearch') && $('llmSearch').addEventListener('input', renderLlmCards);
 refreshStatus();
 loadStats(true);
 setInterval(()=>{ if(!state.pollTimer) refreshStatus(); }, 15000);

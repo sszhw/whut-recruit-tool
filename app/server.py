@@ -73,20 +73,139 @@ def get_api_key() -> str:
     return (load_config().get("api_key") or "").strip()
 
 
+def _mask(v: str) -> str:
+    v = (v or "").strip()
+    if not v:
+        return ""
+    return (v[:6] + "****") if len(v) > 6 else (v[:2] + "****")
+
+
+# 预设供应商：每个厂家独立配置（api_key / model / base_url 各存一份，互不覆盖）。
+# base_url_field 缺省时回落到 base_url；context_window 仅作展示默认值；docs_url 为「前往官网/文档」。
 LLM_PROVIDERS = {
-    "siliconflow": {"label": "硅基流动", "base_url": "https://api.siliconflow.cn/v1",
-                    "api_key_field": "api_key", "model_field": "model", "default_model": "Qwen/Qwen2.5-72B-Instruct",
+    "deepseek": {"label": "DeepSeek", "logo": "🐳",
+                 "desc": "deepseek · DeepSeek · OpenAI 兼容格式",
+                 "base_url": "https://api.deepseek.com",
+                 "api_key_field": "deepseek_api_key", "model_field": "deepseek_model",
+                 "base_url_field": "deepseek_base_url",
+                 "default_model": "deepseek-chat",
+                 "models": ["deepseek-chat", "deepseek-reasoner"],
+                 "context_window": 65536,
+                 "docs_url": "https://api-docs.deepseek.com/zh-cn/",
+                 "compute_url": "https://api.deepseek.com/chat/completions"},
+    "siliconflow": {"label": "硅基流动 SiliconFlow", "logo": "🌟",
+                    "desc": "siliconflow · 硅基流动 · OpenAI 兼容格式",
+                    "base_url": "https://api.siliconflow.cn/v1",
+                    "api_key_field": "api_key", "model_field": "model",
+                    "base_url_field": "siliconflow_base_url",
+                    "default_model": "Qwen/Qwen2.5-72B-Instruct",
                     "models": ["Qwen/Qwen2.5-72B-Instruct", "Qwen/Qwen2.5-32B-Instruct",
                                "Qwen/Qwen2.5-14B-Instruct", "Qwen/Qwen2.5-7B-Instruct",
-                               "deepseek-ai/DeepSeek-V3", "deepseek-ai/DeepSeek-R1"]},
-    "deepseek": {"label": "DeepSeek", "base_url": "https://api.deepseek.com",
-                 "api_key_field": "deepseek_api_key", "model_field": "deepseek_model", "default_model": "deepseek-chat",
-                 "models": ["deepseek-chat", "deepseek-reasoner"]},
+                               "deepseek-ai/DeepSeek-V3", "deepseek-ai/DeepSeek-R1"],
+                    "context_window": 65536,
+                    "docs_url": "https://cloud.siliconflow.cn/account/ak",
+                    "compute_url": "https://api.siliconflow.cn/v1/chat/completions"},
+    "moonshot": {"label": "Kimi / Moonshot", "logo": "🌙",
+                 "desc": "moonshot · Kimi · OpenAI 兼容格式",
+                 "base_url": "https://api.moonshot.cn/v1",
+                 "api_key_field": "moonshot_api_key", "model_field": "moonshot_model",
+                 "base_url_field": "moonshot_base_url",
+                 "default_model": "moonshot-v1-8k",
+                 "models": ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+                 "context_window": 128000,
+                 "docs_url": "https://platform.moonshot.cn/docs/",
+                 "compute_url": "https://api.moonshot.cn/v1/chat/completions"},
+    "dashscope": {"label": "阿里云百炼 DashScope", "logo": "☁️",
+                  "desc": "dashscope · 阿里云百炼 · OpenAI 兼容格式",
+                  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                  "api_key_field": "dashscope_api_key", "model_field": "dashscope_model",
+                  "base_url_field": "dashscope_base_url",
+                  "default_model": "qwen-plus",
+                  "models": ["qwen-max", "qwen-plus", "qwen-turbo", "qwen2.5-72b-instruct"],
+                  "context_window": 128000,
+                  "docs_url": "https://help.aliyun.com/zh/model-studio/",
+                  "compute_url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"},
+    "volcengine": {"label": "火山方舟", "logo": "🌋",
+                   "desc": "volcengine · 火山方舟 · OpenAI 兼容格式",
+                   "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+                   "api_key_field": "volcengine_api_key", "model_field": "volcengine_model",
+                   "base_url_field": "volcengine_base_url",
+                   "default_model": "doubao-pro-32k", "models": [],
+                   "context_window": 32768,
+                   "docs_url": "https://www.volcengine.com/product/ark",
+                   "compute_url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions"},
+    "qianfan": {"label": "百度智能云千帆", "logo": "🦆",
+                "desc": "qianfan · 百度千帆 · OpenAI 兼容格式",
+                "base_url": "https://qianfan.baidubce.com/v2",
+                "api_key_field": "qianfan_api_key", "model_field": "qianfan_model",
+                "base_url_field": "qianfan_base_url",
+                "default_model": "ernie-4.0-8k", "models": [],
+                "context_window": 32768,
+                "docs_url": "https://cloud.baidu.com/product/wenxinworkshop",
+                "compute_url": "https://qianfan.baidubce.com/v2/chat/completions"},
+    "stepfun": {"label": "阶跃星辰", "logo": "📶",
+                "desc": "stepfun · 阶跃星辰 · OpenAI 兼容格式",
+                "base_url": "https://api.stepfun.com/v1",
+                "api_key_field": "stepfun_api_key", "model_field": "stepfun_model",
+                "base_url_field": "stepfun_base_url",
+                "default_model": "step-1-8k",
+                "models": ["step-1-8k", "step-2-16k"],
+                "context_window": 32768,
+                "docs_url": "https://platform.stepfun.com/",
+                "compute_url": "https://api.stepfun.com/v1/chat/completions"},
+    "modelscope": {"label": "魔搭 ModelScope", "logo": "🧩",
+                   "desc": "modelscope · 魔搭 · OpenAI 兼容格式",
+                   "base_url": "https://api-inference.modelscope.cn/v1",
+                   "api_key_field": "modelscope_api_key", "model_field": "modelscope_model",
+                   "base_url_field": "modelscope_base_url",
+                   "default_model": "qwen2.5-72b-instruct", "models": [],
+                   "context_window": 32768,
+                   "docs_url": "https://modelscope.cn/",
+                   "compute_url": "https://api-inference.modelscope.cn/v1/chat/completions"},
+    "sensenova": {"label": "商汤日日新 SenseNova", "logo": "🎨",
+                  "desc": "sensenova · 商汤日日新 · OpenAI 兼容格式",
+                  "base_url": "https://api.sensenova.cn/compatible-mode/v1",
+                  "api_key_field": "sensenova_api_key", "model_field": "sensenova_model",
+                  "base_url_field": "sensenova_base_url",
+                  "default_model": "sensechat-5", "models": [],
+                  "context_window": 32768,
+                  "docs_url": "https://platform.sensenova.cn/",
+                  "compute_url": "https://api.sensenova.cn/compatible-mode/v1/chat/completions"},
+    "hunyuan": {"label": "腾讯混元", "logo": "💠",
+                "desc": "hunyuan · 腾讯混元 · OpenAI 兼容格式",
+                "base_url": "https://api.hunyuan.cloud.tencent.com/v1",
+                "api_key_field": "hunyuan_api_key", "model_field": "hunyuan_model",
+                "base_url_field": "hunyuan_base_url",
+                "default_model": "hunyuan-turbo", "models": [],
+                "context_window": 32768,
+                "docs_url": "https://cloud.tencent.com/product/hunyuan",
+                "compute_url": "https://api.hunyuan.cloud.tencent.com/v1/chat/completions"},
+    "minimax": {"label": "MiniMax", "logo": "🅼",
+                "desc": "minimax · MiniMax 开放平台 · OpenAI 兼容格式",
+                "base_url": "https://api.minimax.chat/v1",
+                "api_key_field": "minimax_api_key", "model_field": "minimax_model",
+                "base_url_field": "minimax_base_url",
+                "default_model": "MiniMax-Text-01", "models": [],
+                "context_window": 32768,
+                "docs_url": "https://platform.minimaxi.com/",
+                "compute_url": "https://api.minimax.chat/v1/chat/completions"},
+    "local": {"label": "本地部署 · Local", "logo": "🖥️",
+              "desc": "local · OpenAI 兼容（任意 vLLM/Ollama/LM Studio 等）",
+              "base_url": "", "api_key_field": "local_api_key", "model_field": "local_model",
+              "base_url_field": "local_base_url",
+              "default_model": "", "models": [], "context_window": 128000,
+              "docs_url": "", "compute_url": ""},
+    "custom": {"label": "自定义配置", "logo": "🛠️",
+               "desc": "custom · 任意 OpenAI 兼容接口",
+               "base_url": "", "api_key_field": "custom_api_key", "model_field": "custom_model",
+               "base_url_field": "custom_base_url",
+               "default_model": "", "models": [], "context_window": 128000,
+               "docs_url": "", "compute_url": ""},
 }
 
 
 def get_llm() -> dict:
-    """按配置返回当前 LLM 提供商的 base_url / api_key / model / label。"""
+    """按当前配置的厂商，返回 base_url / api_key / model / label（各厂商字段独立，互不覆盖）。"""
     cfg = load_config()
     provider = cfg.get("provider", "siliconflow")
     if provider not in LLM_PROVIDERS:
@@ -94,10 +213,8 @@ def get_llm() -> dict:
     conf = LLM_PROVIDERS[provider]
     api_key = (cfg.get(conf["api_key_field"], "") or "").strip()
     model = (cfg.get(conf["model_field"], "") or "").strip() or conf["default_model"]
-    if provider == "deepseek":
-        base_url = (cfg.get("deepseek_base_url", "").strip() or conf["base_url"]).rstrip("/")
-    else:
-        base_url = conf["base_url"]
+    saved = (cfg.get(conf.get("base_url_field") or "", "") or "").strip()
+    base_url = (saved or conf["base_url"]).rstrip("/")
     return {"provider": provider, "label": conf["label"], "base_url": base_url,
             "api_key": api_key, "model": model}
 
@@ -392,6 +509,7 @@ def _count_ids(pattern: str, key: str) -> int:
 def api_status():
     cfg = load_config()
     cache = load_cache()
+    llm = get_llm()
     # 跨文件按 id 去重计数，避免增量爬取后最新文件只含新增记录导致计数虚低
     recruit_count = _count_ids("武汉理工大学招聘信息_*_原始数据.json", "招聘信息")
     preach_count = _count_ids("宣讲会_*_原始数据.json", "宣讲会")
@@ -402,8 +520,10 @@ def api_status():
         "has_api_key": bool(cfg.get("api_key", "").strip()),
         "api_key_masked": (cfg.get("api_key", "")[:6] + "****") if cfg.get("api_key") else "",
         "model": cfg.get("model", ""),
-        "provider": get_llm()["provider"],
-        "llm_model": get_llm()["model"],
+        "provider": llm["provider"],
+        "llm_model": llm["model"],
+        "models": LLM_PROVIDERS[llm["provider"]].get("models", []),
+        "default_model": LLM_PROVIDERS[llm["provider"]].get("default_model", ""),
         "raw_file": raw.name if raw else "",
         "raw_mtime": datetime.fromtimestamp(raw.stat().st_mtime).strftime("%Y-%m-%d %H:%M") if raw else "",
         "recruit_count": recruit_count,
@@ -422,44 +542,116 @@ def api_status():
 
 @app.route("/api/llm/catalog")
 def api_llm_catalog():
-    """返回各厂家模型清单 + 当前使用的厂家/模型 + 各厂家 Key 是否已配置。"""
+    """返回各厂家预设 + 每家已保存的 Key/模型/BaseURL，供「预设供应商」卡片网格与配置表单使用。"""
     cfg = load_config()
     llm = get_llm()
-    providers = [
-        {"id": pid, "label": conf["label"], "default_model": conf["default_model"], "models": conf["models"]}
-        for pid, conf in LLM_PROVIDERS.items()
-    ]
+    providers = []
+    for pid, conf in LLM_PROVIDERS.items():
+        key = (cfg.get(conf["api_key_field"], "") or "").strip()
+        model = (cfg.get(conf["model_field"], "") or "").strip()
+        saved_base = (cfg.get(conf.get("base_url_field") or "", "") or "").strip()
+        providers.append({
+            "id": pid, "label": conf["label"], "logo": conf.get("logo", ""),
+            "desc": conf.get("desc", ""), "base_url": conf["base_url"],
+            "default_model": conf["default_model"], "models": conf.get("models", []),
+            "context_window": conf.get("context_window"),
+            "docs_url": conf.get("docs_url", ""), "compute_url": conf.get("compute_url", ""),
+            "api_key_set": bool(key), "api_key_masked": _mask(key),
+            "model": model, "base_url_saved": saved_base,
+            "current": pid == cfg.get("provider", ""),
+        })
     return jsonify({
         "providers": providers,
         "current": {"provider": llm["provider"], "model": llm["model"],
                     "label": llm["label"], "base_url": llm["base_url"]},
-        "keys": {
-            "siliconflow_set": bool((cfg.get("api_key") or "").strip()),
-            "deepseek_set": bool((cfg.get("deepseek_api_key") or "").strip()),
-            "deepseek_base_url": cfg.get("deepseek_base_url", "https://api.deepseek.com"),
-        },
     })
+
+
+@app.route("/api/llm/models/<pid>")
+def api_llm_models(pid):
+    """用已保存的 Key + BaseURL 调用 /models，刷新该厂家的模型清单。"""
+    conf = LLM_PROVIDERS.get(pid)
+    if not conf:
+        return jsonify({"ok": False, "error": "未知厂商"}), 404
+    cfg = load_config()
+    key = (cfg.get(conf["api_key_field"], "") or "").strip()
+    base = (cfg.get(conf.get("base_url_field") or "", "") or conf["base_url"]).rstrip("/")
+    if not key:
+        return jsonify({"ok": False, "error": "请先填写该厂商的 API Key", "models": conf.get("models", [])})
+    if not base:
+        return jsonify({"ok": False, "error": "请先填写 Base URL", "models": conf.get("models", [])})
+    try:
+        import requests
+        r = requests.get(base + "/models", headers={"Authorization": "Bearer " + key}, timeout=20)
+        r.raise_for_status()
+        ids = [m.get("id") for m in r.json().get("data", []) if m.get("id")]
+        return jsonify({"ok": True, "models": ids or conf.get("models", [])})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e), "models": conf.get("models", [])})
+
+
+@app.route("/api/llm/test", methods=["POST"])
+def api_llm_test():
+    """测试连接：用当前填写的 Key/BaseURL/模型向该厂商发一条最小请求。"""
+    payload = request.get_json(force=True, silent=True) or {}
+    cfg = load_config()
+    provider = str(payload.get("provider") or "").strip() or cfg.get("provider", "siliconflow")
+    conf = LLM_PROVIDERS.get(provider) or LLM_PROVIDERS["siliconflow"]
+    key = str(payload.get("api_key") or "").strip() or (cfg.get(conf["api_key_field"], "") or "").strip()
+    base = (str(payload.get("base_url") or "").strip()
+            or (cfg.get(conf.get("base_url_field") or "", "") or "").strip()
+            or conf["base_url"]).rstrip("/")
+    model = str(payload.get("model") or "").strip() or conf["default_model"]
+    if not key:
+        return jsonify({"ok": False, "error": "未填写 API Key"})
+    if not base:
+        return jsonify({"ok": False, "error": "未填写 Base URL"})
+    try:
+        import requests
+        r = requests.post(base + "/chat/completions",
+                          headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
+                          json={"model": model, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 4},
+                          timeout=30)
+        return jsonify({"ok": r.ok, "status": r.status_code,
+                        "error": ("" if r.ok else r.text[:300])})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 
 @app.route("/api/config", methods=["POST"])
 def api_config():
     payload = request.get_json(force=True, silent=True) or {}
     cfg = load_config()
-    if "provider" in payload:
-        p = str(payload["provider"]).strip()
-        if p in LLM_PROVIDERS:
-            cfg["provider"] = p
+    if "provider" in payload and str(payload["provider"]).strip() in LLM_PROVIDERS:
+        cfg["provider"] = str(payload["provider"]).strip()
+    provider = cfg.get("provider", "siliconflow")
+    if provider not in LLM_PROVIDERS:
+        provider = "siliconflow"
+    conf = LLM_PROVIDERS[provider]
     # 所选模型写入对应厂家（由所选模型决定厂家）的 model 字段
     if "model" in payload and str(payload["model"]).strip():
-        provider = cfg.get("provider", "siliconflow")
-        if provider not in LLM_PROVIDERS:
-            provider = "siliconflow"
-        cfg[LLM_PROVIDERS[provider]["model_field"]] = str(payload["model"]).strip()
-    for f in ("api_key", "deepseek_api_key", "deepseek_base_url"):
-        if f in payload:
-            cfg[f] = str(payload[f]).strip()
+        cfg[conf["model_field"]] = str(payload["model"]).strip()
+    # 通用字段：api_key / base_url 按当前厂商写入独立字段（空值不动，保留已保存）
+    if "api_key" in payload and str(payload["api_key"]).strip():
+        cfg[conf["api_key_field"]] = str(payload["api_key"]).strip()
+    if "base_url" in payload and str(payload["base_url"]).strip():
+        cfg[conf.get("base_url_field") or ""] = str(payload["base_url"]).strip()
     save_config(cfg)
     return jsonify({"ok": True})
+
+
+@app.route("/api/config/key", methods=["POST", "DELETE"])
+def api_config_key_delete():
+    """删除某厂商已保存的 API Key（仅清空本机 config.json 中的密钥，不影响 Base URL/模型）。"""
+    payload = request.get_json(force=True, silent=True) or {}
+    cfg = load_config()
+    provider = str(payload.get("provider") or "").strip() or cfg.get("provider", "siliconflow")
+    conf = LLM_PROVIDERS.get(provider)
+    if not conf:
+        return jsonify({"ok": False, "error": "未知厂商"}), 404
+    cfg[conf["api_key_field"]] = ""
+    save_config(cfg)
+    return jsonify({"ok": True, "provider": provider})
 
 # ---------------------------------------------------------------- API：抓取
 
@@ -862,14 +1054,15 @@ def save_upload(file_storage) -> Path:
     return tmp
 
 
-def _extract_upload(api_key: str, file_storage) -> tuple:
+def _extract_upload(api_key: str, file_storage, base_url: str = None) -> tuple:
     """保存临时文件并提取文字，返回 (text, err)。无论成功与否都会清理临时文件。"""
     ext = Path(file_storage.filename).suffix.lower().lstrip(".")
     if ext not in ALLOWED_EXT:
         return "", f"不支持的格式 .{ext}，请用 PDF / .docx / 图片"
     tmp = save_upload(file_storage)
     try:
-        text = resume.extract_text(api_key, str(tmp), ext, request.form.get("vision_model") or None)
+        text = resume.extract_text(api_key, str(tmp), ext, request.form.get("vision_model") or None,
+                                   base_url=base_url)
     except ValueError as exc:
         return "", str(exc)
     except Exception as exc:
@@ -881,13 +1074,13 @@ def _extract_upload(api_key: str, file_storage) -> tuple:
 
 @app.route("/api/resume/extract", methods=["POST"])
 def api_resume_extract():
-    api_key = get_api_key()
-    if not api_key:
-        return jsonify({"ok": False, "error": "请先在设置中填写硅基流动 API Key"}), 400
+    llm = get_llm()
+    if not llm["api_key"]:
+        return jsonify({"ok": False, "error": f"请先在设置中配置 {llm['label']} API Key"}), 400
     file = request.files.get("file")
     if not file or not file.filename:
         return jsonify({"ok": False, "error": "请选择要上传的简历文件"}), 400
-    text, err = _extract_upload(api_key, file)
+    text, err = _extract_upload(llm["api_key"], file, base_url=llm["base_url"])
     if err:
         return jsonify({"ok": False, "error": err}), 400
     if not text.strip():
@@ -954,20 +1147,21 @@ def _recommend_preachs(text: str, target_cities: list[str], company_type: str = 
 
 @app.route("/api/resume/recommend", methods=["POST"])
 def api_resume_recommend():
-    api_key = get_api_key()
-    if not api_key:
-        return jsonify({"ok": False, "error": "请先在设置中填写硅基流动 API Key"}), 400
+    llm = get_llm()
+    if not llm["api_key"]:
+        return jsonify({"ok": False, "error": f"请先在设置中配置 {llm['label']} API Key"}), 400
     companies = resume.build_companies(DATA)
     if not companies:
         return jsonify({"ok": False, "error": "没有可推荐的企业数据，请先运行「抓取」与「企业分析」"}), 400
 
-    model = (request.form.get("model") or "").strip() or load_config().get("model", resume.DEFAULT_MODEL)
+    model = (request.form.get("model") or "").strip() or llm["model"]
     work_place = (request.form.get("work_place") or "").strip()
     company_type = (request.form.get("company_type") or "").strip()
     text = (request.form.get("resume_text") or "").strip()
     file = request.files.get("file")
     if file and file.filename:
-        extracted, err = _extract_upload(api_key, file)
+        # 文件文字提取走视觉模型 OCR（同样用当前配置的 LLM 密钥/地址）；推荐文本生成走当前配置的 LLM
+        extracted, err = _extract_upload(llm["api_key"], file, base_url=llm["base_url"])
         if err:
             # 文件解析失败：若用户已粘贴文字，则用粘贴文字继续
             if not text:
@@ -980,8 +1174,8 @@ def api_resume_recommend():
     if not text.strip():
         return jsonify({"ok": False, "error": "请上传简历文件，或直接粘贴简历文字"}), 400
 
-    result = resume.recommend(api_key, model, text, companies, work_place=work_place,
-                              company_type=company_type)
+    result = resume.recommend(llm["api_key"], model, text, companies, work_place=work_place,
+                              company_type=company_type, base_url=llm["base_url"])
     source = "ai"
     note = ""
     if result.get("error"):
@@ -1026,6 +1220,125 @@ def api_export_recruitments():
         return send_file(csv_path[0], mimetype="text/csv; charset=utf-8", as_attachment=True,
                          download_name=Path(csv_path[0]).name)
     return jsonify({"ok": False, "error": "CSV 不存在"}), 404
+
+
+# ---------------------------------------------------------------- API：导入报告
+
+# 导入模板：让用户按「全部企业明细」表格格式手写/复用导出报告
+_IMPORT_TEMPLATE = "# 企业性质与工作地点分析报告\n" + \
+                   "\n" + \
+                   "- 生成时间：2026-09-09 15:00\n" + \
+                   "- 数据来源：自定义导入\n" + \
+                   "- 分析模型：自定义\n" + \
+                   "- 企业总数：2\n" + \
+                   "\n" + \
+                   "## 全部企业明细\n" + \
+                   "\n" + \
+                   "| 企业名称 | 类型 | 国企 | 置信度 | 工作地点 | 依据 |\n" + \
+                   "|---|---|---|---|---|---|\n" + \
+                   "| 中国建筑第三工程局 | 央企 | 是 | 高 | 武汉、深圳 | 央企子公司，总部武汉 |\n" + \
+                   "| 某科技公司 | 民企 | 否 | 中 | 北京 | 民营互联网企业，总部北京 |\n"
+
+
+def parse_report_md(text: str) -> dict:
+    """解析导入的 Markdown 报告，从「全部企业明细」表格重建企业分析缓存。
+
+    返回 {"entries": {企业名: 记录}, "meta": {元信息}, "bad_rows": 忽略行数}。
+    列顺序（表头自动识别，兼容导出报告的「企业名称|类型|国企|置信度|工作地点|依据」）：
+      企业名称、类型、国企、置信度、工作地点、依据
+    """
+    entries: dict[str, dict] = {}
+    meta: dict[str, str] = {}
+    cols = None          # 列名 -> 下标
+    in_detail = False
+    bad = 0
+    for raw in text.splitlines():
+        line = raw.strip()
+        # 元信息行：- 生成时间：xxx / - 数据来源：xxx 等
+        m = re.match(r"^-\s*([^：:]+?)[：:]\s*(.*)$", line)
+        if m and not line.startswith("|"):
+            meta[m.group(1).strip()] = m.group(2).strip()
+            continue
+        if not (line.startswith("|") and line.endswith("|")):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        # 跳过分隔行 |---|
+        if cells and all(set(c) <= set("-: ") for c in cells if c):
+            continue
+        if not in_detail:
+            joined = "".join(cells)
+            if ("企业名称" in joined and ("国企" in joined or "是否国企" in joined)
+                    and "工作地点" in joined):
+                cols = {}
+                for i, h in enumerate(cells):
+                    if h == "企业名称": cols["name"] = i
+                    elif h in ("国企", "是否国企"): cols["so"] = i
+                    elif "类型" in h: cols["type"] = i
+                    elif "置信度" in h: cols["conf"] = i
+                    elif "工作地点" in h: cols["loc"] = i
+                    elif h in ("依据", "判断依据"): cols["evidence"] = i
+                in_detail = True
+            continue
+
+        def g(key, default=""):
+            i = cols.get(key) if cols else None
+            return cells[i].strip() if (i is not None and i < len(cells)) else default
+
+        name = g("name")
+        if not name or name in ("企业名称",):
+            continue
+        so_raw = g("so")
+        so = True if so_raw == "是" else (False if so_raw == "否" else None)
+        loc_str = g("loc")
+        locs = [c.strip() for c in loc_str.replace("、", ",").split(",") if c.strip()] if loc_str and loc_str != "-" else []
+        entries[name] = {
+            "company_type": g("type"),
+            "is_state_owned": so,
+            "confidence": g("conf"),
+            "locations": locs,
+            "evidence": g("evidence"),
+            "_raw": "",
+        }
+    return {"entries": entries, "meta": meta, "bad_rows": bad}
+
+
+@app.route("/api/import/md/template")
+def api_import_md_template():
+    """下载一份「导入报告 Markdown」模板供参考。"""
+    return send_file(io.BytesIO(_IMPORT_TEMPLATE.encode("utf-8")),
+                     mimetype="text/markdown; charset=utf-8", as_attachment=True,
+                     download_name="导入报告模板.md")
+
+
+@app.route("/api/import/md", methods=["POST"])
+def api_import_report():
+    """导入 Markdown 分析报告，重建「企业分析」缓存并同步刷新 CSV / MD 报告。"""
+    text = ""
+    if request.files.get("file"):
+        text = request.files["file"].read().decode("utf-8", errors="replace")
+    elif request.is_json and request.get_json(silent=True):
+        text = (request.get_json(silent=True) or {}).get("text", "")
+    text = (text or "").strip()
+    if not text:
+        return jsonify({"ok": False, "error": "请选择或粘贴要导入的 Markdown 报告"}), 400
+
+    parsed = parse_report_md(text)
+    if not parsed["entries"]:
+        return jsonify({"ok": False, "error": "未识别到「全部企业明细」表格。请按模板格式：企业名称 | 类型 | 国企 | 置信度 | 工作地点 | 依据"}), 400
+
+    cache = load_cache()
+    cache.update(parsed["entries"])
+    analyze.save_cache(CACHE_PATH, cache)
+    # 用缓存重建 CSV / Markdown，让导出与统计保持一致
+    model = parsed["meta"].get("分析模型", "") or get_llm()["model"]
+    src = parsed["meta"].get("数据来源", "") or "导入的分析报告"
+    try:
+        analyze.build_outputs(DATA, [{"name": n} for n in cache], cache, model, src)
+    except Exception:
+        pass  # 缓存已更新，报告文件重建失败不影响导入结果
+
+    return jsonify({"ok": True, "imported": len(parsed["entries"]),
+                    "total": len(cache), "bad_rows": parsed["bad_rows"]})
 
 
 _PREACH_FAV_HEADERS = ["宣讲时间", "举办日期", "单位名称", "宣讲会地点", "城市",

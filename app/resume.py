@@ -79,8 +79,10 @@ def extract_docx(path: str) -> str:
     return "\n".join(lines).strip()
 
 
-def ocr_image_bytes(api_key: str, model: str, image_bytes: bytes, mime: str = "image/png") -> str:
-    """用硅基流动视觉模型识别图片里的文字。"""
+def ocr_image_bytes(api_key: str, model: str, image_bytes: bytes, mime: str = "image/png",
+                    base_url: str = None) -> str:
+    """用当前厂商的视觉模型识别图片里的文字。base_url 为空时用模块默认（硅基流动）。"""
+    base_url = (base_url or BASE_URL).rstrip("/")
     prompt = ("请完整、准确地识别这张图片中的文字内容（这是一份简历）。"
               "按原有的段落结构逐行输出，保留序号/列表/分隔符，不要添加任何解释或评论。")
     b64 = base64.b64encode(image_bytes).decode()
@@ -89,7 +91,7 @@ def ocr_image_bytes(api_key: str, model: str, image_bytes: bytes, mime: str = "i
         {"type": "text", "content": prompt},
     ]
     resp = requests.post(
-        BASE_URL + "/chat/completions",
+        base_url + "/chat/completions",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={
             "model": model,
@@ -104,20 +106,22 @@ def ocr_image_bytes(api_key: str, model: str, image_bytes: bytes, mime: str = "i
     return resp.json()["choices"][0]["message"]["content"].strip()
 
 
-def ocr_image_file(api_key: str, model: str, path: str) -> str:
+def ocr_image_file(api_key: str, model: str, path: str, base_url: str = None) -> str:
     mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
             "bmp": "image/bmp", "webp": "image/webp"}.get(Path(path).suffix.lower().lstrip("."),
                                                           "image/png")
     data = Path(path).read_bytes()
-    return ocr_image_bytes(api_key, model, data, mime)
+    return ocr_image_bytes(api_key, model, data, mime, base_url=base_url)
 
 
-def extract_text(api_key: str, path: str, ext: str, vision_model: str | None = None) -> str:
-    """按扩展名提取文字，返回纯文本。找不到文字则返回空串。"""
+def extract_text(api_key: str, path: str, ext: str, vision_model: str | None = None,
+                 base_url: str = None) -> str:
+    """按扩展名提取文字，返回纯文本。找不到文字则返回空串。base_url 为空时用模块默认（硅基流动）。"""
+    base_url = (base_url or BASE_URL).rstrip("/")
     vision_model = vision_model or VISION_MODEL
     ext = ext.lower().lstrip(".")
     if ext in {"png", "jpg", "jpeg", "bmp", "webp"}:
-        return ocr_image_file(api_key, vision_model, path)
+        return ocr_image_file(api_key, vision_model, path, base_url=base_url)
     if ext == "pdf":
         text = extract_pdf(path)
         if text:
@@ -126,7 +130,7 @@ def extract_text(api_key: str, path: str, ext: str, vision_model: str | None = N
         pages = pdf_to_pngs(path)
         parts = []
         for page in pages:
-            parts.append(ocr_image_bytes(api_key, vision_model, page, "image/png"))
+            parts.append(ocr_image_bytes(api_key, vision_model, page, "image/png", base_url=base_url))
         return "\n\n".join(parts).strip()
     if ext == "docx":
         return extract_docx(path)
@@ -260,17 +264,19 @@ def _requirements_text(work_place: str = "", company_type: str = "") -> str:
 
 def recommend(api_key: str, model: str, resume_text: str, companies: list[dict],
               work_place: str = "", company_type: str = "",
-              top: int = 10, max_retries: int = 3) -> dict:
-    """调用硅基流动文本模型，返回推荐结果 JSON。失败返回 {"error": ...}。"""
+              top: int = 10, max_retries: int = 3, base_url: str = None) -> dict:
+    """调用 LLM 文本模型，返回推荐结果 JSON。失败返回 {"error": ...}。
+    base_url 为空时用模块默认（硅基流动），可由上层传入当前配置的厂商 Base URL。"""
     if not companies:
         return {"error": "没有可推荐的企业数据，请先运行「抓取」与「企业分析」"}
+    base_url = (base_url or BASE_URL).rstrip("/")
     requirements = _requirements_text(work_place, company_type)
     user = RECOMMEND_PROMPT.format(resume=resume_text[:1800], requirements=requirements,
                                    companies=company_lines(companies))
     for attempt in range(max_retries):
         try:
             resp = requests.post(
-                BASE_URL + "/chat/completions",
+                base_url + "/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json={
                     "model": model,
