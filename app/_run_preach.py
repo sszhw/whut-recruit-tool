@@ -14,6 +14,8 @@ import crawler
 from crawler import WhutClient, preach_row, list_preach_year
 
 ROOT = Path(__file__).resolve().parent.parent
+DATA = ROOT / "data"
+DATA.mkdir(parents=True, exist_ok=True)
 YEAR = 2026
 
 client = WhutClient()
@@ -29,7 +31,7 @@ rows = [preach_row(i) for i in items]
 print(f"单位去重前 {len(rows)} 条；去重后单位数 {len({r['单位名称'] for r in rows if r['单位名称']})}")
 
 # 写 CSV（utf-8-sig，Excel 打开不乱码）
-csv_path = ROOT / "宣讲会_2026年线下.csv"
+csv_path = DATA / "宣讲会_2026年线下.csv"
 fields = list(rows[0])
 import csv as _csv
 with csv_path.open("w", encoding="utf-8-sig", newline="") as f:
@@ -38,7 +40,7 @@ with csv_path.open("w", encoding="utf-8-sig", newline="") as f:
     w.writerows(rows)
 
 # 写原始数据（分析用）
-raw_path = ROOT / "宣讲会_2026年_原始数据.json"
+raw_path = DATA / "宣讲会_2026年_原始数据.json"
 raw_path.write_text(json.dumps({"宣讲会": items}, ensure_ascii=False, indent=2), encoding="utf-8")
 
 # 统计

@@ -35,9 +35,10 @@ from flask import Flask, Response, jsonify, request, send_file
 SCRIPT_DIR = Path(__file__).resolve().parent          # 代码所在目录（运行工具/）
 ROOT = SCRIPT_DIR.parent                              # 项目根目录（数据/配置所在）
 WORKDIR = SCRIPT_DIR                                  # 兼容旧引用：指代码目录
+DATA = ROOT / "data"                                  # 数据产物统一存放（抓取/分析/收藏/缓存）
 CONFIG_PATH = ROOT / "config.json"
-CACHE_PATH = ROOT / "企业分析_缓存.json"
-FAV_PATH = ROOT / "收藏_宣讲会.json"
+CACHE_PATH = DATA / "企业分析_缓存.json"
+FAV_PATH = DATA / "收藏_宣讲会.json"
 
 import analyze  # noqa: E402  复用 analyze.py 的工具函数
 import crawler  # noqa: E402  复用 time_text / plain_text
@@ -166,7 +167,7 @@ tasks = TaskManager()
 
 def _newest_glob(pattern: str) -> Path | None:
     """取项目根下匹配 pattern 的文件中最新的一个。"""
-    candidates = sorted(glob.glob(str(ROOT / pattern)), key=os.path.getmtime, reverse=True)
+    candidates = sorted(glob.glob(str(DATA / pattern)), key=os.path.getmtime, reverse=True)
     return Path(candidates[0]) if candidates else None
 
 
@@ -191,7 +192,7 @@ def _company_work_map() -> dict[str, list[str]]:
     优先读取本项目已生成的《宣讲会_工作地流动.csv》（457 家单位均已映射）。
     文件缺失时返回空 dict，由调用方回退到 analyze_preach.infer_work_cities 逐条推断。
     """
-    csv_path = ROOT / "宣讲会_工作地流动.csv"
+    csv_path = DATA / "宣讲会_工作地流动.csv"
     mapping: dict[str, list[str]] = {}
     if csv_path.exists():
         try:
@@ -209,7 +210,7 @@ def _company_work_map() -> dict[str, list[str]]:
 
 def _iter_recruit_files() -> list[Path]:
     """所有招聘信息原始数据文件（按修改时间倒序）。"""
-    return [Path(p) for p in sorted(glob.glob(str(ROOT / "武汉理工大学招聘信息_*_原始数据.json")),
+    return [Path(p) for p in sorted(glob.glob(str(DATA / "武汉理工大学招聘信息_*_原始数据.json")),
                                     key=os.path.getmtime, reverse=True)]
 
 
@@ -375,7 +376,7 @@ def index():
 def _count_ids(pattern: str, key: str) -> int:
     """跨所有匹配文件，按 id 去重后统计某类记录数量（与增量爬取去重保持一致）。"""
     ids: set[str] = set()
-    for path in glob.glob(str(ROOT / pattern)):
+    for path in glob.glob(str(DATA / pattern)):
         try:
             data = json.loads(Path(path).read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
@@ -412,8 +413,8 @@ def api_status():
         "analyze_task": tasks.public(task_analyze) if task_analyze else None,
         "check_task": tasks.public(tasks.latest("宣讲会检查")) if tasks.latest("宣讲会检查") else None,
         "outputs": {
-            "csv": (ROOT / analyze.CSV_NAME).exists(),
-            "md": (ROOT / analyze.MD_NAME).exists(),
+            "csv": (DATA / analyze.CSV_NAME).exists(),
+            "md": (DATA / analyze.MD_NAME).exists(),
         },
     })
 
@@ -476,7 +477,7 @@ def api_crawl():
         cmd += ["--start", start]
     if end:
         cmd += ["--end", end]
-    cmd += ["--output", str(ROOT)]
+    cmd += ["--output", str(DATA)]
     env = dict(os.environ)
     result = tasks.start("抓取", cmd, env)
     if not result["ok"]:
@@ -488,7 +489,7 @@ def api_crawl_today():
     """一键抓取今日（当天）的招聘信息。"""
     today = datetime.now().strftime("%Y-%m-%d")
     cmd = [sys.executable, str(WORKDIR / "crawler.py"),
-           "--start", today, "--end", today, "--output", str(ROOT)]
+           "--start", today, "--end", today, "--output", str(DATA)]
     env = dict(os.environ)
     result = tasks.start("抓取", cmd, env)
     if not result["ok"]:
@@ -546,8 +547,8 @@ def api_analyze():
 @app.route("/api/flow", methods=["GET"])
 def api_flow_status():
     """工作地流动分析：返回报告是否存在及生成时间。"""
-    csv = ROOT / "宣讲会_工作地流动.csv"
-    md = ROOT / "宣讲会_工作地流动报告.md"
+    csv = DATA / "宣讲会_工作地流动.csv"
+    md = DATA / "宣讲会_工作地流动报告.md"
     return jsonify({
         "ok": True,
         "csv_exists": csv.exists(),
@@ -896,7 +897,7 @@ def api_resume_extract():
 
 @app.route("/api/resume/companies")
 def api_resume_companies():
-    return jsonify({"count": len(resume.build_companies(ROOT))})
+    return jsonify({"count": len(resume.build_companies(DATA))})
 
 
 def _build_so_map() -> dict[str, str]:
@@ -956,7 +957,7 @@ def api_resume_recommend():
     api_key = get_api_key()
     if not api_key:
         return jsonify({"ok": False, "error": "请先在设置中填写硅基流动 API Key"}), 400
-    companies = resume.build_companies(ROOT)
+    companies = resume.build_companies(DATA)
     if not companies:
         return jsonify({"ok": False, "error": "没有可推荐的企业数据，请先运行「抓取」与「企业分析」"}), 400
 
@@ -1003,10 +1004,10 @@ def api_resume_recommend():
 @app.route("/api/export/<kind>")
 def api_export(kind):
     if kind == "csv":
-        path = ROOT / analyze.CSV_NAME
+        path = DATA / analyze.CSV_NAME
         mime = "text/csv"
     elif kind == "md":
-        path = ROOT / analyze.MD_NAME
+        path = DATA / analyze.MD_NAME
         mime = "text/markdown"
     else:
         return jsonify({"ok": False, "error": "未知导出类型"}), 400
@@ -1020,7 +1021,7 @@ def api_export_recruitments():
     raw = latest_raw_json()
     if not raw:
         return jsonify({"ok": False, "error": "无数据"}), 404
-    csv_path = sorted(glob.glob(str(ROOT / "*_招聘信息.csv")), key=os.path.getmtime, reverse=True)
+    csv_path = sorted(glob.glob(str(DATA / "*_招聘信息.csv")), key=os.path.getmtime, reverse=True)
     if csv_path:
         return send_file(csv_path[0], mimetype="text/csv; charset=utf-8", as_attachment=True,
                          download_name=Path(csv_path[0]).name)

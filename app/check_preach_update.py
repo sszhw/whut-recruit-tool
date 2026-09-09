@@ -28,6 +28,8 @@ import crawler
 from crawler import WhutClient, list_preach_year, preach_row
 
 ROOT = Path(__file__).resolve().parent.parent
+DATA = ROOT / "data"
+DATA.mkdir(parents=True, exist_ok=True)
 YEAR = datetime.now().year
 
 
@@ -67,7 +69,7 @@ def _company_text(item: dict) -> str:
 def refresh_work_flow(merged_items: list[dict]) -> int:
     """补充《宣讲会_工作地流动.csv》中缺失企业的工作地推断，保持 Web 端「公司地点」新鲜。返回新增企业数。"""
     import analyze_preach
-    flow_path = ROOT / "宣讲会_工作地流动.csv"
+    flow_path = DATA / "宣讲会_工作地流动.csv"
     seen: dict[str, str] = {}
     if flow_path.exists():
         try:
@@ -108,9 +110,9 @@ def main() -> int:
     if args.input:
         raw_path = Path(args.input)
     else:
-        candidates = sorted(ROOT.glob("宣讲会_*_原始数据.json"),
+        candidates = sorted(DATA.glob("宣讲会_*_原始数据.json"),
                             key=lambda p: p.stat().st_mtime, reverse=True)
-        raw_path = candidates[0] if candidates else ROOT / f"宣讲会_{YEAR}年_原始数据.json"
+        raw_path = candidates[0] if candidates else DATA / f"宣讲会_{YEAR}年_原始数据.json"
 
     existing_items, existing_ids = load_existing(raw_path)
     print(f"[1] 已有数据：{raw_path.name} 共 {len(existing_items)} 场")
@@ -134,7 +136,7 @@ def main() -> int:
         raw_path.write_text(json.dumps({"宣讲会": merged_items}, ensure_ascii=False, indent=2),
                             encoding="utf-8")
         rows = [preach_row(i) for i in merged_items]
-        csv_path = ROOT / f"宣讲会_{YEAR}年线下.csv"
+        csv_path = DATA / f"宣讲会_{YEAR}年线下.csv"
         if rows:
             with csv_path.open("w", encoding="utf-8-sig", newline="") as f:
                 w = csv.DictWriter(f, fieldnames=list(rows[0]))

@@ -363,7 +363,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--start", default="2026-06-01", help="开始日期，格式 YYYY-MM-DD")
     parser.add_argument("--end", default=datetime.now().strftime("%Y-%m-%d"), help="结束日期，格式 YYYY-MM-DD")
-    parser.add_argument("--output", default=str(Path(__file__).resolve().parent.parent), help="输出目录")
+    parser.add_argument("--output", default=str(Path(__file__).resolve().parent.parent / "data"), help="输出目录")
     parser.add_argument("--page-size", type=int, default=500, help="列表分页大小")
     parser.add_argument("--preach-year", type=int, default=datetime.now().year,
                         help="抓取的宣讲会年份（默认今年）")

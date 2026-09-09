@@ -21,7 +21,9 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
-LOG = ROOT / "preach_update_log.txt"
+DATA = ROOT / "data"
+DATA.mkdir(parents=True, exist_ok=True)
+LOG = DATA / "preach_update_log.txt"
 PY = sys.executable
 
 

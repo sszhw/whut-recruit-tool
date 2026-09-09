@@ -28,6 +28,8 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
+DATA = ROOT / "data"
+DATA.mkdir(parents=True, exist_ok=True)
 
 # ------------------------------------------------------------------ 城市库
 
@@ -180,7 +182,7 @@ def main() -> int:
     if args.input:
         input_path = Path(args.input)
     else:
-        candidates = sorted(ROOT.glob("宣讲会_*_原始数据.json"), key=os.path.getmtime, reverse=True)
+        candidates = sorted(DATA.glob("宣讲会_*_原始数据.json"), key=os.path.getmtime, reverse=True)
         if not candidates:
             print("错误：找不到 宣讲会_*_原始数据.json，请先运行 _run_preach.py 或 crawler.py", file=sys.stderr)
             return 2
@@ -210,7 +212,7 @@ def main() -> int:
                      "判断依据": evidence})
 
     # CSV
-    csv_path = ROOT / "宣讲会_工作地流动.csv"
+    csv_path = DATA / "宣讲会_工作地流动.csv"
     with csv_path.open("w", encoding="utf-8-sig", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()
@@ -231,7 +233,7 @@ def main() -> int:
     md.extend(["", "## 全部企业 · 工作地明细", "", "| 单位名称 | 工作地城市 | 依据 |", "|---|---|---|"])
     for r in rows:
         md.append(f"| {r['单位名称']} | {r['工作地城市'] or '未确定'} | {r['判断依据']} |")
-    md_path = ROOT / "宣讲会_工作地流动报告.md"
+    md_path = DATA / "宣讲会_工作地流动报告.md"
     md_path.write_text("\n".join(md), encoding="utf-8")
 
     print(f"\n=== 工作地流向（前 20 城）===")

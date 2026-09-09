@@ -23,6 +23,7 @@ whut-recruit-tool/
 ├── .gitignore                      # 排除运行数据 / 配置 / 产物
 ├── config.example.json             # 配置模板（复制为 config.json 并填入 Key）
 ├── 启动服务.bat                    # 入口启动脚本（双击即可；自动检查 8765 端口，已在运行则提示，不重复启动）
+├── data/                           # 【运行数据】抓取/分析产物、收藏、缓存、日志（.gitignore 排除）
 ├── app/                            # 【源码 + 前端】
 │   ├── server.py                   # Flask Web 服务（http://127.0.0.1:8765）
 │   ├── ui.html                     # 前端页面
@@ -83,7 +84,7 @@ python app/server.py --port 8765
 | 工作地流动 | `宣讲会_工作地流动.csv` / `.md` |
 | 分析缓存 | `<类型>_缓存.json` |
 
-数据均在**项目根目录**读写（`ROOT` 指向项目根）。见 `docs/数据格式.md`。
+数据均在 **`data/` 子目录**读写（各脚本 `DATA = ROOT / "data"`）。见 `docs/数据格式.md`。
 
 ## 技术栈
 

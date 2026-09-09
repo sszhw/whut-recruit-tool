@@ -257,7 +257,8 @@ def main() -> int:
         print('  PowerShell:  $env:SILICONFLOW_API_KEY="***"', file=sys.stderr)
         return 2
 
-    workdir = Path(__file__).resolve().parent.parent
+    workdir = Path(__file__).resolve().parent.parent / "data"
+    workdir.mkdir(parents=True, exist_ok=True)
     if args.input:
         input_path = Path(args.input)
     else:

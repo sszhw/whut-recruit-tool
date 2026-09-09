@@ -24,6 +24,8 @@ import crawler
 from crawler import WhutClient, fair_row, recruitment_row
 
 ROOT = Path(__file__).resolve().parent.parent
+DATA = ROOT / "data"
+DATA.mkdir(parents=True, exist_ok=True)
 YEAR = datetime.now().year
 
 
@@ -63,9 +65,9 @@ def _start_date(path: Path) -> str:
 def choose_master(start: str, end: str) -> Path:
     """选取合并写回的目标文件：优先「招聘信息」记录数最多的文件（增量去重的主库），
     避免把刚创建的单日小文件误当作主库而导致每日全量重抓。"""
-    candidates = list(ROOT.glob("武汉理工大学招聘信息_*_原始数据.json"))
+    candidates = list(DATA.glob("武汉理工大学招聘信息_*_原始数据.json"))
     if not candidates:
-        return ROOT / f"武汉理工大学招聘信息_{start}_至_{end}_原始数据.json"
+        return DATA / f"武汉理工大学招聘信息_{start}_至_{end}_原始数据.json"
     best = max(candidates, key=lambda p: (_count_recruit(p), _start_date(p)))
     return best
 
@@ -128,9 +130,9 @@ def main() -> int:
         r_rows = [recruitment_row(i) for i in merged_rec_list]
         f_rows = [fair_row(i) for i in merged_fair_list]
         if r_rows:
-            crawler.write_csv(ROOT / f"武汉理工大学招聘信息_{YEAR}年_招聘信息.csv", r_rows)
+            crawler.write_csv(DATA / f"武汉理工大学招聘信息_{YEAR}年_招聘信息.csv", r_rows)
         if f_rows:
-            crawler.write_csv(ROOT / f"武汉理工大学招聘信息_{YEAR}年_双选会.csv", f_rows)
+            crawler.write_csv(DATA / f"武汉理工大学招聘信息_{YEAR}年_双选会.csv", f_rows)
 
         print("[5] 新增明细：")
         for i in rec_new:

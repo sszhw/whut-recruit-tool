@@ -460,7 +460,7 @@ def main() -> int:
         print("错误：未配置 API Key（写进 config.json 或设置 SILICONFLOW_API_KEY）", file=os.sys.stderr)
         return 2
 
-    workdir = Path(__file__).resolve().parent.parent
+    workdir = Path(__file__).resolve().parent.parent / "data"
     companies = build_companies(workdir)
     print(f"候选企业：{len(companies)} 家")
 
