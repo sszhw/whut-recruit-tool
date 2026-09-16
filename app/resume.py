@@ -26,6 +26,8 @@ from pathlib import Path
 
 import requests
 
+import repository as repo  # 统一数据访问层：候选企业跨全部招聘原始文件合并去重
+
 BASE_URL = os.environ.get("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
 # 图片/扫描件 OCR 用的视觉模型（可在界面里改）
 VISION_MODEL = os.environ.get("RESUME_VISION_MODEL", "Qwen/Qwen3-VL-32B-Instruct")
@@ -165,28 +167,34 @@ def plain_text(value: str) -> str:
     return "\n".join(line.strip() for line in value.splitlines() if line.strip())
 
 
+def _merged_recruit_items(workdir: Path) -> list[dict]:
+    """跨全部招聘信息原始数据文件合并、按 ID 去重（与页面展示、企业分析同一口径）。"""
+    if Path(workdir).resolve() == repo.DATA.resolve():
+        return repo.raw_items("recruit")
+    return repo.raw_items_in("recruit", Path(workdir))
+
+
 def build_companies(workdir: Path, max_items: int = 60) -> list[dict]:
-    """汇总正在校招的企业清单：名称 + 类型/国企/地点(来自分析缓存) + 岗位摘要(来自原始数据)。"""
+    """汇总正在校招的企业清单：名称 + 类型/国企/地点(来自分析缓存) + 岗位摘要(来自原始数据)。
+
+    统一口径：候选企业来自 repository 合并后的**全部**招聘公告（不再是"最新那个文件"），
+    max_items=0 表示不截断（用于统计企业总数）。
+    """
     cache = load_cache(workdir)
-    raw = latest_raw_json(workdir)
     companies: dict[str, dict] = {}
 
-    if raw:
-        try:
-            data = json.loads(raw.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            data = {"招聘信息": []}
-        for item in data.get("招聘信息", []):
-            name = (item.get("com_id_name") or "").strip()
-            if not name:
-                continue
-            c = companies.setdefault(name, {"name": name, "type": "", "so": "", "locations": [],
-                                            "evidence": "", "text": "", "title": ""})
-            if item.get("title") and not c["title"]:
-                c["title"] = str(item["title"]).strip()
-            body = plain_text(item.get("content") or item.get("remarks") or "")
-            if body and len(body) > len(c["text"]):
-                c["text"] = body[:300]
+    for item in _merged_recruit_items(workdir):
+        name = (item.get("com_id_name") or "").strip()
+        if not name:
+            continue
+        c = companies.setdefault(name, {"name": name, "type": "", "so": "", "locations": [],
+                                        "evidence": "", "text": "", "title": "", "count": 0})
+        c["count"] += 1
+        if item.get("title") and not c["title"]:
+            c["title"] = str(item["title"]).strip()
+        body = plain_text(item.get("content") or item.get("remarks") or "")
+        if body and len(body) > len(c["text"]):
+            c["text"] = body[:300]
 
     # 附着分析缓存里的企业画像
     for name, c in companies.items():
@@ -198,13 +206,14 @@ def build_companies(workdir: Path, max_items: int = 60) -> list[dict]:
         c["locations"] = info.get("locations") or []
         c["evidence"] = info.get("evidence", "")
 
-    # 排序：有完整画像(类型/地点)的优先，其次有正文的，最后其余；保持相对顺序
+    # 排序：有完整画像(类型/地点)的优先 → 有正文的 → 公告数多的；保持相对顺序
     def rank(c: dict) -> tuple:
         return (0 if c["type"] or c["locations"] else 1,
-                0 if c["text"] else 1)
+                0 if c["text"] else 1,
+                -int(c.get("count") or 0))
 
     ordered = sorted(companies.values(), key=rank)
-    return ordered[:max_items]
+    return ordered[:max_items] if max_items else ordered
 
 
 def company_lines(companies: list[dict]) -> str:

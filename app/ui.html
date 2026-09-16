@@ -47,7 +47,8 @@
   header { padding: 20px 30px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; background: var(--header-bg); }
   header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
   header .sub { color: var(--muted); font-size: 12px; }
-  #themeSel { width:auto; min-width:130px; margin-left:auto; cursor:pointer; }
+  #themeSel { width:auto; min-width:130px; margin-left:0; cursor:pointer; }
+  #btnTaskCenter { margin-left:auto; white-space:nowrap; }
   .badge { font-size: 12px; padding: 3px 11px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--muted); background: var(--tag-no-bg); font-weight: 500; }
   .badge.ok { color: var(--accent2); border-color: rgba(16,185,129,.4); background: rgba(16,185,129,.1); }
   .badge.no { color: var(--danger); border-color: rgba(239,91,91,.4); background: rgba(239,91,91,.1); }
@@ -136,6 +137,35 @@
   .chip { display: inline-block; padding: 5px 12px; border-radius: 999px; font-size: 12px; background: var(--panel2);
     border: 1px solid var(--border); color: var(--text); cursor: pointer; white-space: nowrap; }
   .chip:hover { border-color: var(--accent); color: var(--accent); }
+  /* ---- 今日行动中心：可点击指标卡 */
+  .act { cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+  .act:hover { border-color: var(--accent); }
+  .act .num { color: var(--accent); }
+  .act .go { color: var(--muted); font-size: 11px; margin-top: 4px; }
+  .act:hover .go { color: var(--accent); }
+  .tag.run { background: rgba(99,102,241,.14); color: var(--accent); border: 1px solid rgba(99,102,241,.35); }
+  .tag.ok2 { background: rgba(16,185,129,.12); color: var(--accent2); border: 1px solid rgba(16,185,129,.3); }
+  .tag.err { background: rgba(239,91,91,.14); color: #ff8a8a; border: 1px solid rgba(239,91,91,.35); }
+  .tag.warn2 { background: rgba(245,166,35,.12); color: var(--warn); border: 1px solid rgba(245,166,35,.3); }
+  /* ---- 统一任务中心（右侧抽屉） */
+  .taskpanel { position: fixed; top: 0; right: 0; width: 470px; max-width: 94vw; height: 100vh; background: var(--panel);
+    border-left: 1px solid var(--border-strong); box-shadow: var(--shadow); z-index: 90;
+    display: flex; flex-direction: column; transform: translateX(103%); transition: transform .22s ease; }
+  .taskpanel.open { transform: translateX(0); }
+  .taskhead { display: flex; align-items: center; gap: 10px; padding: 14px 16px;
+    border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .taskhead .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .tasklist { flex: 1; overflow-y: auto; padding: 12px 16px; }
+  .taskitem { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: var(--card-bg); }
+  .taskitem .trow { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+  .taskitem .tname { font-weight: 600; font-size: 13px; flex: 1; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .taskitem .tmeta { color: var(--muted); font-size: 11.5px; margin-top: 4px; }
+  .progress { height: 6px; background: var(--track-bg); border-radius: 4px; margin-top: 8px; overflow: hidden; }
+  .progress > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-hover)); }
+  .tasklog { display: none; margin-top: 8px; max-height: 240px; overflow: auto; background: var(--preview-bg);
+    border-radius: 8px; padding: 9px 11px; font: 11.5px/1.6 ui-monospace,Consolas,monospace; white-space: pre-wrap; word-break: break-all; }
+  .tasklog.show { display: block; }
 </style>
 </head>
 <body>
@@ -143,11 +173,25 @@
   <h1>🎓 武汉理工招聘信息 · 采集与企业分析</h1>
   <span class="sub">crawler.py 抓取 → 硅基流动 AI 分析企业性质与工作地点</span>
   <span id="statusBadge" class="badge">加载中…</span>
+  <button class="btn ghost" id="btnTaskCenter" onclick="toggleTaskCenter()">📋 任务中心 <span id="taskRunningBadge" class="badge run" style="display:none">0</span></button>
   <select id="themeSel" title="切换配色主题">
     <option value="light">浅色 · SaaS Dashboard</option>
     <option value="dark">深色 · Material Dark</option>
   </select>
 </header>
+
+<!-- 统一任务中心（右侧抽屉） -->
+<aside id="taskPanel" class="taskpanel" aria-label="任务中心">
+  <div class="taskhead">
+    <b>📋 任务中心</b>
+    <span id="taskPanelSummary" class="muted small"></span>
+    <span class="right">
+      <button class="btn ghost" style="padding:5px 12px" onclick="loadTaskCenter()">刷新</button>
+      <button class="btn ghost" style="padding:5px 12px" onclick="toggleTaskCenter()">关闭</button>
+    </span>
+  </div>
+  <div class="tasklist" id="taskList"><span class="muted small">加载中…</span></div>
+</aside>
 
 <nav>
   <button data-tab="dashboard" class="active">📊 总览</button>
@@ -162,6 +206,16 @@
 <main>
 <!-- ================= 总览 ================= -->
 <section id="tab-dashboard" class="active">
+  <div class="card" style="border-color:var(--accent2)">
+    <h2>🎯 今日行动中心 <span id="actionUpdated" class="muted small"></span></h2>
+    <div class="grid" id="actionCards"><span class="muted small">加载中…</span></div>
+    <p class="hint">点击卡片即可跳转到对应页面并自动套用筛选条件（今日新增 / 近 3 天宣讲 / 只看收藏 / 待分析企业）。</p>
+  </div>
+  <div class="card">
+    <h2>🩺 数据健康 <span id="healthHint" class="muted small"></span></h2>
+    <div class="grid" id="healthBox"><span class="muted small">加载中…</span></div>
+    <p class="hint">口径说明：主库 = data 目录下全部「_原始数据.json」跨文件合并、按学校网站 ID 去重后的结果；页面列表、企业分析、投递推荐均使用这一份数据。</p>
+  </div>
   <div class="grid" id="statCards"></div>
   <div class="card"><h2>企业类型分布</h2><div id="typeBars"><span class="muted">暂无数据，请先运行企业分析</span></div></div>
   <div class="card"><h2>工作地点分布（前 20）</h2><div id="locBars"><span class="muted">暂无数据</span></div></div>
@@ -327,8 +381,13 @@
   <div class="card">
     <h2>📄 招聘信息列表 <span id="rTotal" class="muted small"></span></h2>
     <div class="toolbar">
-      <div style="flex:2"><label>搜索标题 / 单位</label><input id="rq" placeholder="如：中国核电、比亚迪" onkeydown="if(event.key==='Enter')loadRecruits(1)"></div>
-      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost" onclick="loadRecruits(1)">查询</button></div>
+      <div style="flex:2"><label>搜索标题 / 单位 / 正文</label><input id="rq" placeholder="如：中国核电、比亚迪、机械设计" onkeydown="if(event.key==='Enter')loadRecruits(1)"></div>
+      <div><label>排序</label><select id="rSort" onchange="loadRecruits(1)" style="min-width:150px">
+        <option value="">发布日期（新 → 旧）</option>
+        <option value="unit">按单位名称</option>
+      </select></div>
+      <div style="flex:0 0 auto"><label class="small" style="display:flex;align-items:center;gap:6px;color:var(--accent);cursor:pointer;white-space:nowrap;margin:0"><input type="checkbox" id="rToday" onchange="loadRecruits(1)" style="width:auto"> 只看今日新增</label></div>
+      <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn ghost" style="white-space:nowrap" onclick="loadRecruits(1)">查询</button></div>
     </div>
     <div class="tablewrap">
       <table>
@@ -499,7 +558,7 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('section').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
   $('tab-'+b.dataset.tab).classList.add('active');
-  if (b.dataset.tab==='dashboard'){ loadStats(); }
+  if (b.dataset.tab==='dashboard'){ loadDashboard(); }
   if (b.dataset.tab==='analyze'){ loadCompanyFilters(); loadCompanies(1); }
   if (b.dataset.tab==='recruits'){ loadRecruits(1); }
   if (b.dataset.tab==='preachs'){ loadPreachFilters(); loadPreachFavs(); loadPreachs(1); }
@@ -593,10 +652,148 @@ async function pollTasks(){
       }
     }catch(e){}
   }
+  loadTaskCenter();
 }
 
 function refreshDataViews(){ refreshStatus(); if($('tab-analyze').classList.contains('active')){ loadCompanyFilters(); loadCompanies(state.cPage); }
-  if($('tab-recruits').classList.contains('active')) loadRecruits(state.rPage); if($('tab-preachs').classList.contains('active')) loadPreachs(state.pPage); if($('tab-dashboard').classList.contains('active')) loadStats(); }
+  if($('tab-recruits').classList.contains('active')) loadRecruits(state.rPage); if($('tab-preachs').classList.contains('active')) loadPreachs(state.pPage); if($('tab-dashboard').classList.contains('active')) loadDashboard(); }
+
+// ---- 今日行动中心 / 数据健康 / 统一任务中心
+function goTab(tab){ const b = document.querySelector('nav button[data-tab="'+tab+'"]'); if (b) b.click(); }
+function isoDay(offset){
+  const d = new Date(); d.setDate(d.getDate() + (offset||0));
+  const p = n => String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
+// 首页可点击指标：key 对应 /api/actions 字段，act 为「跳转 + 套用筛选」
+const ACTIONS = [
+  {key:'today_recruit', lbl:'今日新增招聘', tip:'查看今天新增的招聘信息',
+   act:()=>{ $('rq').value=''; $('rToday').checked=true; $('rSort').value=''; goTab('recruits'); }},
+  {key:'preach_soon3', lbl:'近 3 天宣讲会', tip:'查看 3 天内开始的宣讲会',
+   act:()=>{ $('pq').value=''; $('pstart').value=isoDay(0); $('pend').value=isoDay(3); $('pFavOnly').checked=false; goTab('preachs'); }},
+  {key:'preach_today', lbl:'今日宣讲会', tip:'查看今天举行的宣讲会',
+   act:()=>{ $('pq').value=''; $('pstart').value=isoDay(0); $('pend').value=isoDay(0); $('pFavOnly').checked=false; goTab('preachs'); }},
+  {key:'preach_favs', lbl:'我的收藏宣讲会', tip:'只看已收藏的宣讲会',
+   act:()=>{ $('pq').value=''; $('pstart').value=''; $('pend').value=''; $('pFavOnly').checked=true; goTab('preachs'); }},
+  {key:'unanalyzed', lbl:'待分析企业', tip:'去企业分析页运行分析',
+   act:()=>{ goTab('analyze'); }},
+  {key:'recruit_total', lbl:'招聘主库条数', tip:'查看全部招聘信息（合并去重后）',
+   act:()=>{ $('rq').value=''; $('rToday').checked=false; $('rSort').value=''; goTab('recruits'); }},
+];
+function renderActionCards(){
+  const box = $('actionCards');
+  if (!box || box.dataset.built) return;
+  box.innerHTML = ACTIONS.map(a =>
+    `<div class="stat act" data-act="${a.key}" title="${esc(a.tip)}"><div class="num" id="act_${a.key}">-</div><div class="lbl">${esc(a.lbl)}</div><div class="go">点击查看 →</div></div>`).join('');
+  ACTIONS.forEach(a => { const el = box.querySelector('[data-act="'+a.key+'"]'); if (el) el.onclick = a.act; });
+  box.dataset.built = '1';
+}
+async function loadActions(){
+  try{
+    const a = await (await fetch('/api/actions')).json();
+    if (!a.ok) return;
+    renderActionCards();
+    ACTIONS.forEach(x => { const el = $('act_'+x.key); if (el) el.textContent = (a[x.key] ?? 0); });
+    $('actionUpdated').textContent = '数据更新：' + (a.data_updated || '未抓取') + ' · 统计日期 ' + (a.today||'');
+  }catch(e){}
+}
+async function loadHealth(){
+  try{
+    const r = await (await fetch('/api/health')).json();
+    if (!r.ok) return;
+    const h = r.health || {};
+    const items = [
+      ['最近抓取/更新', h.last_update || '未抓取', '原始数据文件最近写入时间', ''],
+      ['招聘信息（去重）', h.recruit_count, (h.recruit&&h.recruit.files||0)+' 个原始文件合并', ''],
+      ['双选会', h.fair_count, (h.fair&&h.fair.files||0)+' 个原始文件合并', ''],
+      ['宣讲会', h.preach_count, (h.preach&&h.preach.files||0)+' 个原始文件合并', ''],
+      ['数据覆盖日期', (h.coverage_start||'-') + ' ~ ' + (h.coverage_end||'-'), '按发布日期 / 举办日期', ''],
+      ['详情缺失', h.missing_detail, '招聘公告无正文的条数', ''],
+      ['已分析企业', h.analyzed_count, '企业分析缓存', ''],
+      ['未分析企业', h.unanalyzed_count, '点击去分析', 'analyze'],
+      ['工作地未确定', (h.work_undetermined ?? '-'), '宣讲会企业缺工作地映射', ''],
+    ];
+    $('healthBox').innerHTML = items.map(([lbl, val, tip, goto]) =>
+      `<div class="stat${goto?' act':''}"${goto?` data-goto="${goto}"`:''}><div class="num">${esc(String(val))}</div><div class="lbl">${esc(lbl)}</div>${tip?`<div class="go muted" style="font-size:11px">${esc(tip)}</div>`:''}</div>`).join('');
+    const go = $('healthBox').querySelector('[data-goto="analyze"]');
+    if (go) go.onclick = () => goTab('analyze');
+    const lt = h.last_task;
+    $('healthHint').textContent = lt
+      ? ('最近任务：' + (lt.title || lt.kind) + ' · ' + taskStatusText(lt.status) + (lt.finished ? '（' + lt.finished + '）' : '') + (lt.error ? ' · ' + lt.error : ''))
+      : '尚无任务记录';
+  }catch(e){}
+}
+function loadDashboard(){ loadStats(true); loadActions(); loadHealth(); }
+
+// ---- 统一任务中心（顶栏按钮 → 右侧抽屉）
+const TASK_STATUS = {running:['run','运行中'], queued:['run','排队中'], succeeded:['ok2','成功'],
+                     failed:['err','失败'], cancelled:['warn2','已停止']};
+function taskStatusText(s){ const t = TASK_STATUS[s]; return t ? t[1] : (s || '-'); }
+function toggleTaskCenter(force){
+  const p = $('taskPanel');
+  if (!p) return;
+  const open = (force === undefined) ? !p.classList.contains('open') : !!force;
+  p.classList.toggle('open', open);
+  if (open) loadTaskCenter();
+}
+function taskCard(t){
+  const st = TASK_STATUS[t.status] || ['no', t.status || '-'];
+  const pr = t.progress || {};
+  const prog = (t.status === 'running' && pr.total)
+    ? `<div class="progress"><i style="width:${pr.percent||0}%"></i></div><div class="tmeta">进度 ${pr.done}/${pr.total}（${pr.percent||0}%）</div>` : '';
+  const meta = [
+    t.started ? (t.status === 'running' ? '开始 ' + t.started : (t.started + (t.finished ? ' → ' + t.finished : ''))) : '',
+    t.duration ? '耗时 ' + t.duration + 's' : '',
+    (t.exit_code === null || t.exit_code === undefined) ? '' : '退出码 ' + t.exit_code,
+  ].filter(Boolean).join(' · ');
+  const err = t.error ? `<div class="tmeta" style="color:var(--danger)">${esc(t.error)}</div>` : '';
+  const stop = (t.status === 'running')
+    ? `<button class="btn ghost red" style="padding:3px 10px;white-space:nowrap" onclick="stopTaskById('${esc(t.id)}', this)">停止</button>` : '';
+  return `<div class="taskitem">
+    <div class="trow"><span class="tname" title="${esc(t.title||t.kind)}">${esc(t.title||t.kind)}</span>
+      <span class="tag ${st[0]}">${esc(st[1])}</span>${stop}</div>
+    <div class="tmeta">${esc(meta)}${t.id?' · '+esc(t.id):''}</div>${prog}${err}
+    <div style="margin-top:6px"><button class="btn ghost" style="padding:3px 10px;white-space:nowrap" onclick="showTaskLog('${esc(t.id)}')">查看日志</button></div>
+    <pre class="tasklog" id="log_${esc(t.id)}"></pre>
+  </div>`;
+}
+async function loadTaskCenter(){
+  try{
+    const r = await (await fetch('/api/tasks')).json();
+    if (!r.ok) return;
+    const badge = $('taskRunningBadge'), n = (r.running||[]).length;
+    badge.style.display = n ? '' : 'none';
+    badge.textContent = n;
+    $('taskPanelSummary').textContent = n ? (n + ' 个任务运行中') : ('历史 ' + r.count + ' 条');
+    $('taskList').innerHTML = r.tasks.length ? r.tasks.map(taskCard).join('')
+      : '<span class="muted small">暂无任务记录</span>';
+  }catch(e){}
+}
+async function showTaskLog(id){
+  const el = $('log_'+id);
+  if (!el) return;
+  const show = !el.classList.contains('show');
+  if (show){
+    el.textContent = '读取中…'; el.classList.add('show');
+    try{
+      const r = await (await fetch('/api/task/'+encodeURIComponent(id)+'/log?tail=400')).json();
+      el.textContent = ((r.task && r.task.lines) || []).join('\n') || '（无日志）';
+      el.scrollTop = el.scrollHeight;
+    }catch(e){ el.textContent = '日志读取失败'; }
+  } else {
+    el.classList.remove('show');
+  }
+}
+async function stopTaskById(id, btn){
+  if (btn) btn.disabled = true;
+  try{
+    const r = await (await fetch('/api/task/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_id:id})})).json();
+    if (!r.ok) toast(r.error || '停止失败', true); else toast('已发送停止指令');
+  }catch(e){ toast('停止异常', true); }
+  if (btn) btn.disabled = false;
+  loadTaskCenter();
+  setTimeout(refreshStatus, 800);
+}
 
 // ---- Crawl / Analyze
 async function startCrawl(){
@@ -704,9 +901,10 @@ async function loadCompanies(page){
 // ---- Recruitments
 async function loadRecruits(page){
   state.rPage = Math.max(1, page||1);
-  const p = new URLSearchParams({ q:$('rq').value.trim(), page:state.rPage, size:50 });
+  const p = new URLSearchParams({ q:$('rq').value.trim(), page:state.rPage, size:50,
+    today:$('rToday').checked?'1':'', sort:$('rSort').value });
   const r = await (await fetch('/api/recruitments?'+p)).json();
-  $('rTotal').textContent = '共 '+r.total+' 条';
+  $('rTotal').textContent = '共 '+r.total+' 条' + (r.today_count ? '（今日新增 '+r.today_count+' 条）' : '');
   const pages = Math.max(1, Math.ceil(r.total/r.size));
   $('rPageInfo').textContent = state.rPage+' / '+pages;
   $('recruitRows').innerHTML = r.rows.length ? r.rows.map((x,i) => {
@@ -848,8 +1046,10 @@ function renderResumeResult(r){
   const banner = r.source === 'offline'
     ? `<div class="card" style="border-color:var(--warn);background:rgba(245,166,35,.08);margin-bottom:10px"><b>⚠️ 离线推荐</b>：${esc(res.note||'AI 模型不可用，已用本地关键词匹配生成推荐。')}</div>` : '';
   $('resumeResultCard').style.display = 'block';
+  const ds = r.data_source;
+  const srcLine = ds ? `<div class="hint" style="margin-top:6px">数据来源（统一主库）：候选企业 ${r.companies_count} 家 / 共 ${r.companies_total} 家 · ${ds.recruit_count} 条招聘公告 · 覆盖 ${ds.coverage_start||'-'} ~ ${ds.coverage_end||'-'} · 更新于 ${ds.updated||'-'}</div>` : '';
   $('resumeSummary').innerHTML = banner + (res.resume_summary
-    ? `<div class="card" style="background:var(--panel2);margin-bottom:0"><b>📝 简历速览：</b>${esc(res.resume_summary)}</div>` : '');
+    ? `<div class="card" style="background:var(--panel2);margin-bottom:0"><b>📝 简历速览：</b>${esc(res.resume_summary)}</div>` : '') + srcLine;
   $('resumePositions').innerHTML = (res.target_positions && res.target_positions.length)
     ? `<div style="margin-top:10px">🎯 建议投递方向：${res.target_positions.map(p=>`<span class="tag type">${esc(p)}</span>`).join('')}</div>` : '';
   const recs = res.recommendations || [];
@@ -1028,8 +1228,10 @@ loadFlowStatus();
 loadLlmCatalog();
 $('llmSearch') && $('llmSearch').addEventListener('input', renderLlmCards);
 refreshStatus();
-loadStats(true);
+loadDashboard();
+loadTaskCenter();
 setInterval(()=>{ if(!state.pollTimer) refreshStatus(); }, 15000);
+setInterval(()=>{ if($('taskPanel').classList.contains('open')) loadTaskCenter(); }, 5000);
 </script>
 </body>
 </html>

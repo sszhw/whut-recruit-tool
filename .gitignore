@@ -22,10 +22,12 @@ config.json
 武汉理工大学招聘信息_*.md
 武汉理工大学招聘信息_*.json
 
-# 收藏 / 日志
+# 收藏 / 日志 / 后台任务记录
 收藏_宣讲会.json
 preach_update_log.txt
 *.log
+任务历史.json
+任务日志/
 
 # 系统文件
 .DS_Store

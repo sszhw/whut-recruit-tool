@@ -31,6 +31,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, send_file
+from werkzeug.exceptions import HTTPException
 
 SCRIPT_DIR = Path(__file__).resolve().parent          # 代码所在目录（运行工具/）
 ROOT = SCRIPT_DIR.parent                              # 项目根目录（数据/配置所在）
@@ -42,10 +43,39 @@ FAV_PATH = DATA / "收藏_宣讲会.json"
 
 import analyze  # noqa: E402  复用 analyze.py 的工具函数
 import crawler  # noqa: E402  复用 time_text / plain_text
+import repository as repo  # noqa: E402  统一数据访问层（跨文件合并 + ID 去重 + 缓存）
 import resume   # noqa: E402  简历解析 + 投递推荐
+
+TASK_HISTORY_PATH = DATA / "任务历史.json"     # 后台任务历史（服务重启后仍可查看）
+TASK_LOG_DIR = DATA / "任务日志"               # 每个任务一份独立日志文件
+TASK_HISTORY_MAX = 200                         # 历史记录上限
+# 任务 ID 前缀（ASCII，避免中文出现在 URL / 文件名 / HTML id 中）
+KIND_SLUGS = {"抓取": "crawl", "分析": "analyze", "宣讲会检查": "preach-check", "工作地流动": "flow"}
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
+
+
+# ---------------------------------------------------------------- 统一错误响应
+
+@app.errorhandler(HTTPException)
+def _handle_http_error(err: HTTPException):
+    """统一 JSON 错误响应：/api/* 的 4xx/5xx 一律返回 {ok:false, error}，前端可直接提示。"""
+    detail = err.description or err.name
+    if request.path.startswith("/api/"):
+        return jsonify({"ok": False, "error": f"{err.code} {err.name}：{detail}"}), err.code
+    return err
+
+
+@app.errorhandler(Exception)
+def _handle_unexpected(err: Exception):
+    """未捕获异常统一转成 JSON（同时写入服务端日志），避免前端拿到 HTML 错误页。"""
+    if isinstance(err, HTTPException):
+        return _handle_http_error(err)
+    app.logger.exception("未处理的异常：%s %s", request.method, request.path)
+    if request.path.startswith("/api/"):
+        return jsonify({"ok": False, "error": f"服务内部错误：{err}"}), 500
+    return "服务内部错误，请查看服务端日志", 500
 
 # ---------------------------------------------------------------- 配置管理
 
@@ -221,17 +251,109 @@ def get_llm() -> dict:
 
 # ---------------------------------------------------------------- 后台任务
 
+_PROGRESS_PAIR = re.compile(r"(\d+)\s*/\s*(\d+)")
+_PROGRESS_STEP = re.compile(r"^\s*\[(\d+)\]")
+_ERROR_HINTS = ("错误", "失败", "Traceback", "Error", "error", "Exception", "未设置")
+
+
+def _parse_progress(lines: list[str]) -> dict:
+    """从任务输出里推断进度：优先 `[3/120]` / `已抓取详情 3/120`，其次 `[3]` 阶段号。"""
+    for line in reversed(lines[-80:]):
+        m = re.search(r"\[(\d+)\s*/\s*(\d+)\]", line)
+        if m:
+            done, total = int(m.group(1)), int(m.group(2))
+            if total > 0:
+                return {"done": done, "total": total, "percent": min(100, round(done * 100 / total))}
+        m = _PROGRESS_PAIR.search(line)
+        if m:
+            done, total = int(m.group(1)), int(m.group(2))
+            if total > 0 and done <= total:
+                return {"done": done, "total": total, "percent": min(100, round(done * 100 / total))}
+        m = _PROGRESS_STEP.search(line)
+        if m:
+            return {"done": int(m.group(1)), "total": 0, "percent": 0}
+    return {"done": 0, "total": 0, "percent": 0}
+
+
+def _error_summary(lines: list[str]) -> str:
+    for line in reversed(lines[-40:]):
+        text = line.strip()
+        if text and any(h in text for h in _ERROR_HINTS):
+            return text[:200]
+    return ""
+
+
 class TaskManager:
+    """后台任务：运行状态在内存，历史记录落盘（服务重启后仍可查看/回看日志）。
+
+    任务记录字段：状态机 queued → running → succeeded / failed / cancelled，
+    含进度、成功/失败摘要、开始结束时间与耗时、日志文件路径。
+    """
+
     def __init__(self) -> None:
         self.lock = threading.Lock()
         self.tasks: dict[str, dict] = {}
+        self.history: list[dict] = self._load_history()
 
-    def start(self, kind: str, cmd: list[str], env: dict) -> dict:
+    # ---------------- 历史记录落盘
+
+    def _load_history(self) -> list[dict]:
+        try:
+            data = json.loads(TASK_HISTORY_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            return []
+        rows = data.get("tasks") if isinstance(data, dict) else data
+        return [r for r in (rows or []) if isinstance(r, dict)]
+
+    def _save_history(self) -> None:
+        """调用方需持有 lock。"""
+        try:
+            TASK_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+            TASK_HISTORY_PATH.write_text(
+                json.dumps({"tasks": self.history[:TASK_HISTORY_MAX]}, ensure_ascii=False, indent=2),
+                encoding="utf-8")
+        except OSError:
+            pass
+
+    def _snapshot(self, task: dict) -> dict:
+        """把运行中的任务转成可持久化的记录（不含子进程句柄与日志正文）。"""
+        return {
+            "id": task["id"], "kind": task["kind"], "title": task.get("title") or task["kind"],
+            "status": task.get("status", "queued"), "exit_code": task.get("exit_code"),
+            "started": task.get("started"), "finished": task.get("finished"),
+            "started_at": task.get("started_at"), "duration": task.get("duration"),
+            "progress": _parse_progress(task.get("lines") or []),
+            "error": task.get("error", ""),
+            "log_file": Path(task["log_file"]).name if task.get("log_file") else "",
+        }
+
+    def _sync(self, task: dict) -> None:
+        """调用方需持有 lock：把内存任务同步进历史列表并落盘。"""
+        snap = self._snapshot(task)
+        for i, row in enumerate(self.history):
+            if row.get("id") == snap["id"]:
+                self.history[i] = snap
+                break
+        else:
+            self.history.insert(0, snap)
+        self.history = self.history[:TASK_HISTORY_MAX]
+        self._save_history()
+
+    # ---------------- 启动 / 收集输出
+
+    def start(self, kind: str, cmd: list[str], env: dict, title: str = "") -> dict:
         with self.lock:
             for task in self.tasks.values():
                 if task["kind"] == kind and task["running"]:
-                    return {"ok": False, "error": f"已有{kind}任务在运行", "task": task}
-            task_id = f"{kind}_{int(time.time())}"
+                    return {"ok": False, "error": f"已有{kind}任务在运行", "task": self._public_nolock(task)}
+            now = time.time()
+            # 毫秒 + 冲突自增，确保同一秒内启动的不同类型任务不会共用 ID（否则内存记录与日志文件会互相覆盖）
+            base = f"{KIND_SLUGS.get(kind, 'task')}_{int(now * 1000)}"
+            task_id = base
+            seq = 1
+            while task_id in self.tasks or any(r.get("id") == task_id for r in self.history):
+                seq += 1
+                task_id = f"{base}_{seq}"
             env = dict(env)
             env["PYTHONUNBUFFERED"] = "1"  # 让子进程 stdout 实时刷新，界面日志即时可见
             # 强制子进程以 UTF-8 输出。Windows 中文环境下 Python 默认用 GBK(cp936) 写 stdout，
@@ -243,9 +365,21 @@ class TaskManager:
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace", bufsize=1,
             )
-            task = {"id": task_id, "kind": kind, "running": True, "exit_code": None,
-                    "started": datetime.now().strftime("%H:%M:%S"), "proc": proc, "lines": []}
+            try:
+                TASK_LOG_DIR.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass
+            log_file = TASK_LOG_DIR / f"{task_id}.log"
+            try:
+                log_handle = log_file.open("w", encoding="utf-8")
+            except OSError:
+                log_handle = None
+            task = {"id": task_id, "kind": kind, "title": title or kind, "running": True,
+                    "status": "running", "exit_code": None, "started": datetime.now().strftime("%H:%M:%S"),
+                    "started_at": now, "proc": proc, "lines": [], "log_file": log_file,
+                    "log_handle": log_handle, "error": "", "_last_sync": now}
             self.tasks[task_id] = task
+            self._sync(task)
         threading.Thread(target=self._pump, args=(task,), daemon=True).start()
         return {"ok": True, "task": self.public(task)}
 
@@ -254,28 +388,100 @@ class TaskManager:
         assert proc.stdout is not None
         for line in proc.stdout:
             line = line.rstrip("\r\n")
-            if line:
-                with self.lock:
-                    task["lines"].append(line)
-                    if len(task["lines"]) > 5000:
-                        del task["lines"][:2500]
+            if not line:
+                continue
+            with self.lock:
+                task["lines"].append(line)
+                if len(task["lines"]) > 5000:
+                    del task["lines"][:2500]
+                handle = task.get("log_handle")
+                if handle:
+                    try:
+                        handle.write(line + "\n")
+                        handle.flush()
+                    except (OSError, ValueError):
+                        task["log_handle"] = None
+                # 进度最多每 3 秒落盘一次，避免高频写文件
+                now = time.time()
+                if now - task.get("_last_sync", now) > 3:
+                    task["_last_sync"] = now
+                    self._sync(task)
         proc.wait()
         with self.lock:
             task["running"] = False
             task["exit_code"] = proc.returncode
             task["finished"] = datetime.now().strftime("%H:%M:%S")
+            task["duration"] = round(time.time() - float(task.get("started_at") or time.time()), 1)
+            cancelled = task.get("status") == "cancelled"
+            task["status"] = "cancelled" if cancelled else ("succeeded" if proc.returncode == 0 else "failed")
+            if proc.returncode != 0 and not cancelled:
+                task["error"] = _error_summary(task["lines"]) or f"退出码 {proc.returncode}"
+            handle = task.get("log_handle")
+            if handle:
+                try:
+                    handle.close()
+                except (OSError, ValueError):
+                    pass
+                task["log_handle"] = None
+            self._sync(task)
+
+    def _public_nolock(self, task: dict, tail: int = 0) -> dict:
+        # 调用方可能已持有 lock（Lock 不可重入），故单独提供无锁版本
+        lines = task["lines"][-tail:] if tail else list(task["lines"])
+        return {"id": task["id"], "kind": task["kind"], "title": task.get("title") or task["kind"],
+                "running": task["running"], "status": task.get("status", "running"),
+                "exit_code": task["exit_code"], "started": task.get("started"),
+                "finished": task.get("finished"), "started_at": task.get("started_at"),
+                "duration": task.get("duration"), "progress": _parse_progress(task["lines"]),
+                "error": task.get("error", ""),
+                "log_file": Path(task["log_file"]).name if task.get("log_file") else "",
+                "lines": lines}
 
     def public(self, task: dict, tail: int = 0) -> dict:
         with self.lock:
-            lines = task["lines"][-tail:] if tail else list(task["lines"])
-            return {"id": task["id"], "kind": task["kind"], "running": task["running"],
-                    "exit_code": task["exit_code"], "started": task.get("started"),
-                    "finished": task.get("finished"), "lines": lines}
+            return self._public_nolock(task, tail)
 
     def latest(self, kind: str) -> dict | None:
         with self.lock:
             candidates = [t for t in self.tasks.values() if t["kind"] == kind]
-        return max(candidates, key=lambda t: t["id"]) if candidates else None
+        return max(candidates, key=lambda t: t["started_at"]) if candidates else None
+
+    def running(self) -> list[dict]:
+        with self.lock:
+            tasks = [t for t in self.tasks.values() if t["running"]]
+        return [self.public(t) for t in tasks]
+
+    def get(self, task_id: str) -> dict | None:
+        """先查内存运行态，再回落到历史记录（服务重启后仍可取到）。"""
+        with self.lock:
+            task = self.tasks.get(task_id)
+            if task:
+                return self._public_nolock(task)
+            for row in self.history:
+                if row.get("id") == task_id:
+                    return dict(row)
+        return None
+
+    def read_log(self, task_id: str, tail: int = 300) -> list[str]:
+        """读取任务日志文件（历史任务也可读）。"""
+        path = TASK_LOG_DIR / f"{task_id}.log"
+        if not path.exists():
+            return []
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            return []
+        return lines[-tail:] if tail else lines
+
+    def history_list(self, limit: int = 60) -> list[dict]:
+        """运行中的任务 + 历史任务（合并、按开始时间倒序）。"""
+        with self.lock:
+            live_ids = set(self.tasks)
+            live = [self._snapshot(t) for t in self.tasks.values()]
+            past = [dict(r) for r in self.history if r.get("id") not in live_ids]
+        rows = live + past
+        rows.sort(key=lambda r: r.get("started_at") or 0, reverse=True)
+        return rows[:limit]
 
 
 tasks = TaskManager()
@@ -327,65 +533,47 @@ def _company_work_map() -> dict[str, list[str]]:
 
 def _iter_recruit_files() -> list[Path]:
     """所有招聘信息原始数据文件（按修改时间倒序）。"""
-    return [Path(p) for p in sorted(glob.glob(str(DATA / "武汉理工大学招聘信息_*_原始数据.json")),
-                                    key=os.path.getmtime, reverse=True)]
+    return repo.iter_files(repo.RECRUIT_GLOB)
 
 
 def load_recruitments() -> list[dict]:
-    seen: dict[str, dict] = {}
+    """招聘信息列表（统一口径：repository 跨全部原始文件合并、按 ID 去重）。"""
     today_str = datetime.now().strftime("%Y-%m-%d")
-    for path in _iter_recruit_files():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            continue
-        for item in data.get("招聘信息", []):
-            iid = str(item.get("id", ""))
-            if iid and iid in seen:
-                continue
-            add_date = crawler.time_text(item.get("addtime"), with_time=False)
-            seen[iid] = {
-                "发布日期": crawler.time_text(item.get("addtime")),
-                "今日更新": bool(add_date) and add_date == today_str,
-                "标题": item.get("title", ""),
-                "单位": item.get("com_id_name", ""),
-                "原网页": item.get("httpurl") or f"https://scc.whut.edu.cn/#/recruitmentInformation/notice?type=enrollment&id={item.get('id','')}",
-                "ID": item.get("id", ""),
-                "正文": crawler.plain_text(item.get("remarks") or item.get("content") or "")[:600],
-            }
-    rows = list(seen.values())
+    rows = []
+    for item in repo.raw_items("recruit"):
+        add_date = crawler.time_text(item.get("addtime"), with_time=False)
+        rows.append({
+            "发布日期": crawler.time_text(item.get("addtime")),
+            "发布日期日": add_date,
+            "今日更新": bool(add_date) and add_date == today_str,
+            "标题": item.get("title", ""),
+            "单位": item.get("com_id_name", ""),
+            "原网页": item.get("httpurl") or f"https://scc.whut.edu.cn/#/recruitmentInformation/notice?type=enrollment&id={item.get('id','')}",
+            "ID": item.get("id", ""),
+            "正文": crawler.plain_text(item.get("remarks") or item.get("content") or "")[:600],
+        })
     rows.sort(key=lambda r: r["发布日期"], reverse=True)
     return rows
 
 
 def load_fairs() -> list[dict]:
-    seen: dict[str, dict] = {}
-    for path in _iter_recruit_files():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            continue
-        for f in data.get("双选会", []):
-            iid = str(f.get("id", ""))
-            if iid and iid in seen:
-                continue
-            seen[iid] = {
-                "标题": f.get("title", ""),
-                "地点": f.get("field_id_name", ""),
-                "举办时间": f"{crawler.time_text(f.get('start_time'))} 至 {crawler.time_text(f.get('end_time'))}",
-                "参会单位数": f.get("verify_count", ""),
-                "原网页": f"https://scc.whut.edu.cn/#/doubleElection/{f.get('id','')}",
-            }
-    return list(seen.values())
+    """双选会列表（统一口径：repository 合并去重）。"""
+    rows = []
+    for f in repo.raw_items("fair"):
+        rows.append({
+            "标题": f.get("title", ""),
+            "地点": f.get("field_id_name", ""),
+            "举办时间": f"{crawler.time_text(f.get('start_time'))} 至 {crawler.time_text(f.get('end_time'))}",
+            "参会单位数": f.get("verify_count", ""),
+            "原网页": f"https://scc.whut.edu.cn/#/doubleElection/{f.get('id','')}",
+        })
+    return rows
 
 
 def load_preachs(past: bool = False) -> list[dict]:
-    path = latest_preach_json()
-    if not path:
-        return []
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    """宣讲会列表：数据来自 repository（跨全部宣讲会文件合并、按 ID 去重）。"""
+    items = repo.raw_items("preach")
+    if not items:
         return []
     today = datetime.now().date()
     today_str = today.strftime("%Y-%m-%d")
@@ -393,7 +581,7 @@ def load_preachs(past: bool = False) -> list[dict]:
     work_map = _company_work_map()
     fallback = None  # 惰性导入 analyze_preach
     rows = []
-    for item in data.get("宣讲会", []):
+    for item in items:
         hold_date = item.get("hold_date", "")
         if not past and hold_date and hold_date.strip() < today_str:
             continue  # 默认只看当天及以后（过去的宣讲会隐藏）
@@ -490,19 +678,12 @@ def index():
 
 # ---------------------------------------------------------------- API：状态
 
-def _count_ids(pattern: str, key: str) -> int:
-    """跨所有匹配文件，按 id 去重后统计某类记录数量（与增量爬取去重保持一致）。"""
-    ids: set[str] = set()
-    for path in glob.glob(str(DATA / pattern)):
-        try:
-            data = json.loads(Path(path).read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            continue
-        for item in data.get(key, []) or []:
-            iid = item.get("id")
-            if iid:
-                ids.add(str(iid))
-    return len(ids)
+def _work_undetermined_count() -> int:
+    """工作地未确定的宣讲会企业数（《宣讲会_工作地流动.csv》映射缺失的企业）。"""
+    work_map = _company_work_map()
+    names = {str(item.get("com_id_name") or "").strip() for item in repo.raw_items("preach")}
+    names.discard("")
+    return sum(1 for name in names if not work_map.get(name))
 
 
 @app.route("/api/status")
@@ -510,15 +691,14 @@ def api_status():
     cfg = load_config()
     cache = load_cache()
     llm = get_llm()
-    # 跨文件按 id 去重计数，避免增量爬取后最新文件只含新增记录导致计数虚低
-    recruit_count = _count_ids("武汉理工大学招聘信息_*_原始数据.json", "招聘信息")
-    preach_count = _count_ids("宣讲会_*_原始数据.json", "宣讲会")
-    raw = latest_raw_json()  # 用于界面"数据文件"展示，取最新即可
+    summary = repo.master_summary()   # 主数据统一口径：跨全部原始文件合并 + 按 ID 去重
+    raw = latest_raw_json()           # 仅用于界面「数据文件」展示
     task_crawler = tasks.latest("抓取")
     task_analyze = tasks.latest("分析")
+    task_check = tasks.latest("宣讲会检查")
     return jsonify({
-        "has_api_key": bool(cfg.get("api_key", "").strip()),
-        "api_key_masked": (cfg.get("api_key", "")[:6] + "****") if cfg.get("api_key") else "",
+        "has_api_key": bool(llm["api_key"]),
+        "api_key_masked": _mask(llm["api_key"]),
         "model": cfg.get("model", ""),
         "provider": llm["provider"],
         "llm_model": llm["model"],
@@ -526,17 +706,43 @@ def api_status():
         "default_model": LLM_PROVIDERS[llm["provider"]].get("default_model", ""),
         "raw_file": raw.name if raw else "",
         "raw_mtime": datetime.fromtimestamp(raw.stat().st_mtime).strftime("%Y-%m-%d %H:%M") if raw else "",
-        "recruit_count": recruit_count,
-        "preach_count": preach_count,
+        "recruit_count": summary["recruit_count"],
+        "fair_count": summary["fair_count"],
+        "preach_count": summary["preach_count"],
         "analyzed_count": len(cache),
+        "unanalyzed_count": len(repo.unanalyzed(cache)),
+        "master_files": summary["files"],
+        "coverage_start": summary["coverage_start"],
+        "coverage_end": summary["coverage_end"],
+        "data_updated": summary["last_update"],
+        "running_tasks": len(tasks.running()),
         "crawler_task": tasks.public(task_crawler) if task_crawler else None,
         "analyze_task": tasks.public(task_analyze) if task_analyze else None,
-        "check_task": tasks.public(tasks.latest("宣讲会检查")) if tasks.latest("宣讲会检查") else None,
+        "check_task": tasks.public(task_check) if task_check else None,
         "outputs": {
             "csv": (DATA / analyze.CSV_NAME).exists(),
             "md": (DATA / analyze.MD_NAME).exists(),
         },
     })
+
+
+@app.route("/api/health")
+def api_health():
+    """数据健康：最近抓取/更新时间、主库记录数、覆盖日期、详情缺失、未分析企业、工作地未确定。"""
+    cache = load_cache()
+    payload = repo.health(cache=cache, work_undetermined=_work_undetermined_count())
+    hist = tasks.history_list(limit=1)
+    payload["last_task"] = hist[0] if hist else None
+    payload["analyzed_count"] = len(cache)
+    return jsonify({"ok": True, "health": payload})
+
+
+@app.route("/api/tasks")
+def api_tasks():
+    """统一任务中心：运行中的任务 + 历史任务（服务重启后仍可查看）。"""
+    limit = min(200, max(1, request.args.get("limit", 60, type=int)))
+    rows = tasks.history_list(limit=limit)
+    return jsonify({"ok": True, "running": tasks.running(), "tasks": rows, "count": len(rows)})
 
 # ---------------------------------------------------------------- API：配置
 
@@ -664,6 +870,8 @@ def api_crawl():
         return jsonify({"ok": False, "error": "开始日期格式应为 YYYY-MM-DD"}), 400
     if end and not re.match(r"^\d{4}-\d{2}-\d{2}$", end):
         return jsonify({"ok": False, "error": "结束日期格式应为 YYYY-MM-DD"}), 400
+    if start and end and start > end:
+        return jsonify({"ok": False, "error": "开始日期不能晚于结束日期"}), 400
     cmd = [sys.executable, str(WORKDIR / "crawler.py")]
     if start:
         cmd += ["--start", start]
@@ -671,7 +879,7 @@ def api_crawl():
         cmd += ["--end", end]
     cmd += ["--output", str(DATA)]
     env = dict(os.environ)
-    result = tasks.start("抓取", cmd, env)
+    result = tasks.start("抓取", cmd, env, title=f"抓取招聘信息（{start or '默认'} ~ {end or '今日'}）")
     if not result["ok"]:
         return jsonify(result), 409
     return jsonify(result)
@@ -683,7 +891,7 @@ def api_crawl_today():
     cmd = [sys.executable, str(WORKDIR / "crawler.py"),
            "--start", today, "--end", today, "--output", str(DATA)]
     env = dict(os.environ)
-    result = tasks.start("抓取", cmd, env)
+    result = tasks.start("抓取", cmd, env, title=f"抓取今日招聘（{today}）")
     if not result["ok"]:
         return jsonify(result), 409
     return jsonify(result)
@@ -704,7 +912,7 @@ def api_preach_check():
     if payload.get("all_types"):
         cmd.append("--all-types")
     env = dict(os.environ)
-    result = tasks.start("宣讲会检查", cmd, env)
+    result = tasks.start("宣讲会检查", cmd, env, title="检查宣讲会更新")
     if not result["ok"]:
         return jsonify(result), 409
     return jsonify(result)
@@ -718,10 +926,12 @@ def api_analyze():
     llm = get_llm()
     if not llm["api_key"]:
         return jsonify({"ok": False, "error": f"请先在设置中配置 {llm['label']} API Key"}), 400
-    if not latest_raw_json():
+    # 统一口径：分析范围取 repository 合并后的全部招聘信息（而非最新那个文件），
+    # 避免「最新文件只是当日小快照」导致分析样本小于页面展示范围。
+    if not repo.raw_items("recruit"):
         return jsonify({"ok": False, "error": "没有原始数据，请先运行抓取"}), 400
     limit = int(payload.get("limit") or 0)
-    cmd = [sys.executable, str(WORKDIR / "analyze.py"), "--model", llm["model"]]
+    cmd = [sys.executable, str(WORKDIR / "analyze.py"), "--model", llm["model"], "--merge"]
     if limit > 0:
         cmd += ["--limit", str(limit)]
     env = dict(os.environ)
@@ -730,7 +940,7 @@ def api_analyze():
     env["LLM_API_KEY"] = llm["api_key"]
     env["SILICONFLOW_API_KEY"] = llm["api_key"]
     env["SILICONFLOW_BASE_URL"] = llm["base_url"]
-    result = tasks.start("分析", cmd, env)
+    result = tasks.start("分析", cmd, env, title=f"AI 分析企业性质与工作地点（{llm['model']}）")
     if not result["ok"]:
         return jsonify(result), 409
     return jsonify(result)
@@ -770,7 +980,8 @@ def api_preach_flow():
         env["LLM_API_KEY"] = llm["api_key"]
         env["SILICONFLOW_API_KEY"] = llm["api_key"]
         env["SILICONFLOW_BASE_URL"] = llm["base_url"]
-    result = tasks.start("工作地流动", cmd, env)
+    title = f"宣讲会工作地流动分析（{'AI' if method == 'ai' else '离线'}）"
+    result = tasks.start("工作地流动", cmd, env, title=title)
     if not result["ok"]:
         return jsonify(result), 409
     return jsonify(result)
@@ -778,38 +989,85 @@ def api_preach_flow():
 
 @app.route("/api/task/<task_id>/log")
 def api_task_log(task_id):
-    tail = request.args.get("tail", 0, type=int)
+    """任务日志：运行中的任务取内存缓冲；历史任务（含服务重启前）回落到日志文件。"""
+    tail = request.args.get("tail", 0, type=int) or 200
     with tasks.lock:
-        task = tasks.tasks.get(task_id)
-    if not task:
+        live = tasks.tasks.get(task_id)
+    if live:
+        return jsonify({"ok": True, "task": tasks.public(live, tail=tail)})
+    record = tasks.get(task_id)
+    if not record:
         return jsonify({"ok": False, "error": "任务不存在"}), 404
-    return jsonify({"ok": True, "task": tasks.public(task, tail=tail or 200)})
+    record = dict(record)
+    record["lines"] = tasks.read_log(task_id, tail=tail)
+    return jsonify({"ok": True, "task": record})
 
 
 @app.route("/api/task/stop", methods=["POST"])
 def api_task_stop():
     payload = request.get_json(force=True, silent=True) or {}
-    task_id = payload.get("task_id", "")
+    task_id = str(payload.get("task_id", "")).strip()
+    if not task_id:
+        return jsonify({"ok": False, "error": "缺少 task_id"}), 400
     with tasks.lock:
         task = tasks.tasks.get(task_id)
-    if not task or not task["running"]:
-        return jsonify({"ok": False, "error": "任务不存在或已结束"}), 400
-    task["proc"].terminate()
-    return jsonify({"ok": True})
+        if not task or not task["running"]:
+            return jsonify({"ok": False, "error": "任务不存在或已结束"}), 400
+        task["status"] = "cancelled"
+        task["proc"].terminate()
+    return jsonify({"ok": True, "task_id": task_id, "status": "cancelled"})
 
 # ---------------------------------------------------------------- API：数据浏览
 
 @app.route("/api/recruitments")
 def api_recruitments():
+    """招聘信息列表：支持 关键词（标题/单位/正文）、单位精确、只看今日新增、排序。"""
     q = request.args.get("q", "").strip().lower()
+    unit = request.args.get("unit", "").strip()
+    today_only = request.args.get("today", "").strip().lower() in ("1", "true", "yes", "on")
+    sort = request.args.get("sort", "").strip()
     rows = load_recruitments()
+    today_count = sum(1 for r in rows if r.get("今日更新"))
+    if unit:
+        rows = [r for r in rows if r["单位"] == unit]
     if q:
-        rows = [r for r in rows if q in r["标题"].lower() or q in r["单位"].lower()]
+        rows = [r for r in rows
+                if q in r["标题"].lower() or q in r["单位"].lower() or q in r["正文"].lower()]
+    if today_only:
+        rows = [r for r in rows if r.get("今日更新")]
+    if sort == "unit":
+        rows.sort(key=lambda r: (r["单位"], r["发布日期"]))
     total = len(rows)
     page = max(1, request.args.get("page", 1, type=int))
     size = min(200, max(10, request.args.get("size", 50, type=int)))
     start = (page - 1) * size
-    return jsonify({"total": total, "page": page, "size": size, "rows": rows[start:start + size]})
+    return jsonify({"total": total, "page": page, "size": size, "today_count": today_count,
+                    "rows": rows[start:start + size]})
+
+
+@app.route("/api/actions")
+def api_actions():
+    """首页「今日行动中心」：今日新增招聘 / 近期宣讲会 / 收藏 / 待分析企业 等可点击指标。"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    recruit_rows = load_recruitments()
+    preach_rows = load_preachs(past=False)
+    favs = load_preach_favs()
+    cache = load_cache()
+    return jsonify({
+        "ok": True,
+        "today": today,
+        "today_recruit": sum(1 for r in recruit_rows if r.get("今日更新")),
+        "preach_soon3": sum(1 for r in preach_rows if r.get("3天内开始")),
+        "preach_today": sum(1 for r in preach_rows if r.get("举办日期") == today),
+        "preach_new_today": sum(1 for r in preach_rows if r.get("今日新出")),
+        "preach_upcoming": len(preach_rows),
+        "preach_favs": sum(1 for r in preach_rows if str(r.get("ID", "")) in favs),
+        "preach_favs_total": len(favs),
+        "recruit_total": len(recruit_rows),
+        "unanalyzed": len(repo.unanalyzed(cache)),
+        "analyzed": len(cache),
+        "data_updated": repo.master_summary()["last_update"],
+    })
 
 
 @app.route("/api/fairs")
@@ -1046,6 +1304,9 @@ def api_stats():
 
 ALLOWED_EXT = {"pdf", "docx", "png", "jpg", "jpeg", "bmp", "webp"}
 
+# 送入 LLM 的候选企业条数上限（受模型上下文限制；排序取自主库全量候选，避免样本偏小）
+RESUME_PROMPT_LIMIT = 80
+
 
 def save_upload(file_storage) -> Path:
     ext = Path(file_storage.filename).suffix.lower()
@@ -1090,7 +1351,10 @@ def api_resume_extract():
 
 @app.route("/api/resume/companies")
 def api_resume_companies():
-    return jsonify({"count": len(resume.build_companies(DATA))})
+    """候选企业统计（统一口径：主库全部招聘公告去重后的企业数）。"""
+    all_companies = resume.build_companies(DATA, max_items=0)
+    analyzed = sum(1 for c in all_companies if c["type"] or c["locations"])
+    return jsonify({"count": len(all_companies), "analyzed": analyzed})
 
 
 def _build_so_map() -> dict[str, str]:
@@ -1150,9 +1414,12 @@ def api_resume_recommend():
     llm = get_llm()
     if not llm["api_key"]:
         return jsonify({"ok": False, "error": f"请先在设置中配置 {llm['label']} API Key"}), 400
-    companies = resume.build_companies(DATA)
-    if not companies:
+    # 统一口径：候选企业来自主库合并后的全部招聘公告（不再是"最新那个文件"）；
+    # 送入 LLM 的条数受上下文限制，但排序基于全量，并向界面回报真实总量。
+    all_companies = resume.build_companies(DATA, max_items=0)
+    if not all_companies:
         return jsonify({"ok": False, "error": "没有可推荐的企业数据，请先运行「抓取」与「企业分析」"}), 400
+    companies = all_companies[:RESUME_PROMPT_LIMIT]
 
     model = (request.form.get("model") or "").strip() or llm["model"]
     work_place = (request.form.get("work_place") or "").strip()
@@ -1187,7 +1454,13 @@ def api_resume_recommend():
         result["note"] = note
     target_cities = resume.parse_target_cities(work_place)
     recommended_preachs = _recommend_preachs(text, target_cities, company_type)
+    summary = repo.master_summary()
     return jsonify({"ok": True, "result": result, "source": source, "companies_count": len(companies),
+                    "companies_total": len(all_companies),
+                    "data_source": {"recruit_count": summary["recruit_count"],
+                                    "coverage_start": summary["coverage_start"],
+                                    "coverage_end": summary["coverage_end"],
+                                    "updated": summary["last_update"]},
                     "recommended_preachs": recommended_preachs,
                     "target_work_place": work_place, "target_company_type": company_type,
                     "model": model, "resume_chars": len(text)})

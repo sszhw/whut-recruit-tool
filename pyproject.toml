@@ -1,0 +1,32 @@
+[project]
+name = "whut-recruit-tool"
+version = "0.2.0"
+description = "武汉理工大学校招信息采集、企业分析与投递推荐工具（本地单机 Flask + 单页前端）"
+requires-python = ">=3.10"
+# 运行期依赖见 requirements.txt（flask / requests / openpyxl / python-docx）
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "ruff>=0.5"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["app"]            # 让测试直接 import server / repository / resume
+addopts = "-q"
+filterwarnings = [
+  "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["data", "docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+  "E501",   # 长行由 line-length 控制，中文注释/字符串较宽
+  "B008",   # 保留 Flask 常见写法
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]   # 测试需先注入 sys.path 再导入应用模块

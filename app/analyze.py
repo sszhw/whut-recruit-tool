@@ -35,6 +35,7 @@ from pathlib import Path
 import requests
 
 import crawler  # 复用 plain_text 等工具函数
+import repository as repo  # 统一数据访问层：跨文件合并 + 按 ID 去重（--merge）
 
 BASE_URL = os.environ.get("LLM_BASE_URL") or os.environ.get("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
 DEFAULT_MODEL = os.environ.get("LLM_MODEL") or "Qwen/Qwen2.5-72B-Instruct"
@@ -249,6 +250,8 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=0, help="只分析前 N 家企业（0=全部）")
     parser.add_argument("--source", default="enrollment", choices=["enrollment", "preach"],
                         help="分析的数据来源：enrollment=招聘信息(默认)，preach=宣讲会")
+    parser.add_argument("--merge", action="store_true",
+                        help="合并全部同类原始数据文件（按 ID 去重）后分析，保证与页面展示口径一致")
     args = parser.parse_args()
 
     api_key = os.environ.get("SILICONFLOW_API_KEY", "").strip()
@@ -259,14 +262,26 @@ def main() -> int:
 
     workdir = Path(__file__).resolve().parent.parent / "data"
     workdir.mkdir(parents=True, exist_ok=True)
+    if args.source == "preach":
+        pattern = "宣讲会_*_原始数据.json"
+        key = "宣讲会"
+    else:
+        pattern = "武汉理工大学招聘信息_*_原始数据.json"
+        key = "招聘信息"
+
     if args.input:
         input_path = Path(args.input)
+        print(f"输入文件：{input_path.name}")
+        data = json.loads(input_path.read_text(encoding="utf-8"))
+        items = data.get(key, [])
+        input_name = input_path.name
+    elif args.merge:
+        # 统一口径：合并全部同类原始文件（按 ID 去重），避免「最新文件只是当日小快照」导致分析样本偏小
+        items = repo.raw_items_in(args.source, workdir)
+        file_count = len(repo.iter_files(pattern, workdir))
+        input_name = f"合并 {file_count} 个{key}文件（去重后 {len(items)} 条）"
+        print(f"输入：{input_name}")
     else:
-        # 按数据源选择对应的原始数据文件，避免误取只含"宣讲会"的文件导致读空"招聘信息"。
-        if args.source == "preach":
-            pattern = "宣讲会_*_原始数据.json"
-        else:
-            pattern = "武汉理工大学招聘信息_*_原始数据.json"
         candidates = sorted(glob.glob(str(workdir / pattern)), key=os.path.getmtime, reverse=True)
         if not candidates:  # 兜底：任一新旧兼容
             candidates = sorted(glob.glob(str(workdir / "*_原始数据.json")), key=os.path.getmtime, reverse=True)
@@ -274,14 +289,16 @@ def main() -> int:
             print("错误：找不到 原始数据.json，请先运行 crawler.py", file=sys.stderr)
             return 2
         input_path = Path(candidates[0])
+        print(f"输入文件：{input_path.name}")
+        data = json.loads(input_path.read_text(encoding="utf-8"))
+        items = data.get(key, [])
+        input_name = input_path.name
 
-    print(f"输入文件：{input_path.name}")
-    data = json.loads(input_path.read_text(encoding="utf-8"))
     if args.source == "preach":
-        companies = extract_preach_companies(data.get("宣讲会", []))
-        print(f"来源：宣讲会（工作地流动分析）")
+        companies = extract_preach_companies(items)
+        print("来源：宣讲会（工作地流动分析）")
     else:
-        companies = extract_companies(data.get("招聘信息", []))
+        companies = extract_companies(items)
     print(f"去重后待分析企业：{len(companies)} 家")
     if args.limit:
         companies = companies[: args.limit]
@@ -303,7 +320,7 @@ def main() -> int:
         time.sleep(0.3)
     save_cache(cache_path, cache)
 
-    stats = build_outputs(workdir, companies, cache, args.model, input_path.name, args.source)
+    stats = build_outputs(workdir, companies, cache, args.model, input_name, args.source)
     print(f"\n完成。国企/央企系 {stats['state_owned']}/{stats['total']} 家")
     print(f"输出：{Path(stats['csv']).name}、{Path(stats['md']).name}、{cache_path.name}")
     return 0
