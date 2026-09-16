@@ -256,13 +256,12 @@
 <!-- ================= 抓取 ================= -->
 <section id="tab-crawl">
   <div class="card" style="border-color:var(--accent2)">
-    <h2>🕷️ 一键抓取今日招聘</h2>
+    <h2>🔄 更新招聘信息（增量）</h2>
     <div class="row">
-      <div><label>今日日期</label><input type="date" id="todayDate" readonly></div>
-      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnCrawlToday" onclick="startCrawlToday()">开始抓取今日</button></div>
-      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost red" id="btnCrawlTodayStop" style="display:none" onclick="stopTask(state.crawlerTask)">停止</button></div>
+      <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn green" id="btnRecruitUpdate" onclick="startRecruitUpdate()">开始更新</button></div>
+      <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn ghost red" id="btnRecruitUpdateStop" style="display:none" onclick="stopTask(state.recruitTask)">停止</button></div>
     </div>
-    <p class="hint">只抓取今天发布的招聘信息（单日，速度快）。抓取完成后，「招聘信息」页会展示最新一次抓取的数据。</p>
+    <p class="hint">抓取学校网站<b>最新</b>招聘公告与双选会，与本地数据<b>按 ID 比对</b>，只把新增记录<b>合并进主库</b>（不再新建单日快照文件）；完成后「招聘信息」页与统计自动刷新。与每日 09:00 计划任务同一套逻辑。</p>
   </div>
   <div class="card">
     <h2>🕷️ 抓取武汉理工就业网招聘信息（按日期范围）</h2>
@@ -517,7 +516,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const state = { cPage: 1, rPage: 1, pPage: 1, crawlerTask: null, analyzeTask: null, checkTask: null, pollTimer: null };
+const state = { cPage: 1, rPage: 1, pPage: 1, crawlerTask: null, recruitTask: null, analyzeTask: null, checkTask: null, pollTimer: null };
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -592,13 +591,17 @@ async function refreshStatus(){
     syncModelSel(s.llm_model, s.models, s.default_model);
     syncResumeModelSel(s.llm_model, s.models, s.default_model);
     syncVisionModelSel(s.llm_model, s.models, s.default_model);
-    state.crawlerTask = s.crawler_task; state.analyzeTask = s.analyze_task; state.checkTask = s.check_task;
-    renderTask($('crawlLog'), $('crawlStatus'), $('btnCrawlStop'), s.crawler_task);
+    state.crawlerTask = s.crawler_task; state.recruitTask = s.update_task;
+    state.analyzeTask = s.analyze_task; state.checkTask = s.check_task;
+    // 抓取页日志区展示「抓取」与「更新招聘信息」中较新的那个任务
+    const scanTask = (s.update_task && (!s.crawler_task || (s.update_task.started_at||0) >= (s.crawler_task.started_at||0)))
+      ? s.update_task : s.crawler_task;
+    renderTask($('crawlLog'), $('crawlStatus'), $('btnRecruitUpdateStop'), scanTask);
     renderTask($('analyzeLog'), $('analyzeStatus'), $('btnAnalyzeStop'), s.analyze_task);
     renderTask($('checkPreachLog'), $('checkPreachStatus'), $('btnCheckPreachStop'), s.check_task);
     // stat cards —— 只在首次生成 DOM，之后仅更新文本，避免每次内联重建导致整排卡片重排/soNum 被重置闪烁
     renderStatsCards(s);
-    const running = (s.crawler_task&&s.crawler_task.running)||(s.analyze_task&&s.analyze_task.running)||(s.check_task&&s.check_task.running);
+    const running = (s.crawler_task&&s.crawler_task.running)||(s.update_task&&s.update_task.running)||(s.analyze_task&&s.analyze_task.running)||(s.check_task&&s.check_task.running);
     clearInterval(state.pollTimer);
     if (running) state.pollTimer = setInterval(pollTasks, 2000);
     loadStats(true);
@@ -640,6 +643,7 @@ function renderTask(logEl, statusEl, stopBtn, task){
 async function pollTasks(){
   for (const [id, logEl, statusEl, stopBtn] of [
       [state.crawlerTask?.id, $('crawlLog'), $('crawlStatus'), $('btnCrawlStop')],
+      [state.recruitTask?.id, $('crawlLog'), $('crawlStatus'), $('btnRecruitUpdateStop')],
       [state.analyzeTask?.id, $('analyzeLog'), $('analyzeStatus'), $('btnAnalyzeStop')],
       [state.checkTask?.id, $('checkPreachLog'), $('checkPreachStatus'), $('btnCheckPreachStop')]]){
     if (!id) continue;
@@ -808,18 +812,22 @@ async function startCrawl(){
 async function loadCrawlDates(){
   try{
     const d = await (await fetch('/api/crawl/dates')).json();
-    if (d.today) $('todayDate').value = d.today;
     if (d.start && $('crawlStart').value === '2026-06-01') $('crawlStart').value = d.start;
     if (d.end) $('crawlEnd').value = d.end;
   }catch(e){}
 }
-async function startCrawlToday(){
-  $('btnCrawlToday').disabled = true;
-  const r = await (await fetch('/api/crawl/today',{method:'POST'})).json();
-  $('btnCrawlToday').disabled = false;
-  if (!r.ok){ toast(r.error||'启动失败', true); return; }
-  toast('已开始抓取今日招聘'); state.crawlerTask = r.task; $('crawlLog').textContent='';
-  clearInterval(state.pollTimer); state.pollTimer = setInterval(pollTasks, 2000);
+// 更新招聘信息：抓最新列表 → 按 ID 比对 → 只把新增记录合并进主库（与每日计划任务同一逻辑）
+async function startRecruitUpdate(){
+  const btn = $('btnRecruitUpdate'); btn.disabled = true;
+  try{
+    const r = await (await fetch('/api/recruit/update',{method:'POST'})).json();
+    if (!r.ok){ toast(r.error||'启动失败', true); return; }
+    toast('已开始更新招聘信息（增量合并进主库）');
+    state.recruitTask = r.task; $('crawlLog').textContent='';
+    clearInterval(state.pollTimer); state.pollTimer = setInterval(pollTasks, 2000);
+    loadTaskCenter();
+  }catch(e){ toast('启动异常', true); }
+  finally{ btn.disabled = false; }
 }
 async function startAnalyze(){
   const body = { limit: parseInt($('analyzeLimit').value||'0',10) };

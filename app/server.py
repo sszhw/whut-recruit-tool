@@ -50,7 +50,8 @@ TASK_HISTORY_PATH = DATA / "任务历史.json"     # 后台任务历史（服务
 TASK_LOG_DIR = DATA / "任务日志"               # 每个任务一份独立日志文件
 TASK_HISTORY_MAX = 200                         # 历史记录上限
 # 任务 ID 前缀（ASCII，避免中文出现在 URL / 文件名 / HTML id 中）
-KIND_SLUGS = {"抓取": "crawl", "分析": "analyze", "宣讲会检查": "preach-check", "工作地流动": "flow"}
+KIND_SLUGS = {"抓取": "crawl", "招聘更新": "recruit-update", "分析": "analyze",
+              "宣讲会检查": "preach-check", "工作地流动": "flow"}
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
@@ -704,6 +705,7 @@ def api_status():
     summary = repo.master_summary()   # 主数据统一口径：跨全部原始文件合并 + 按 ID 去重
     raw = latest_raw_json()           # 仅用于界面「数据文件」展示
     task_crawler = tasks.latest("抓取")
+    task_update = tasks.latest("招聘更新")
     task_analyze = tasks.latest("分析")
     task_check = tasks.latest("宣讲会检查")
     return jsonify({
@@ -727,6 +729,7 @@ def api_status():
         "data_updated": summary["last_update"],
         "running_tasks": len(tasks.running()),
         "crawler_task": tasks.public(task_crawler) if task_crawler else None,
+        "update_task": tasks.public(task_update) if task_update else None,
         "analyze_task": tasks.public(task_analyze) if task_analyze else None,
         "check_task": tasks.public(task_check) if task_check else None,
         "outputs": {
@@ -894,17 +897,21 @@ def api_crawl():
         return jsonify(result), 409
     return jsonify(result)
 
-@app.route("/api/crawl/today", methods=["POST"])
-def api_crawl_today():
-    """一键抓取今日（当天）的招聘信息。"""
-    today = datetime.now().strftime("%Y-%m-%d")
-    cmd = [sys.executable, str(WORKDIR / "crawler.py"),
-           "--start", today, "--end", today, "--output", str(DATA)]
+@app.route("/api/recruit/update", methods=["POST"])
+def api_recruit_update():
+    """增量更新招聘信息（招聘公告 + 双选会）。
+
+    抓取学校网站最新列表，与本地已有数据**按 ID 比对**，只把新增记录合并进主库
+    （`check_recruit_update.py`，与每日 09:00 计划任务同一套逻辑）。
+    与「按日期范围抓取」不同：不新建单日快照文件，因此页面/分析/推荐的数据口径不会被打散。
+    """
+    cmd = [sys.executable, str(WORKDIR / "check_recruit_update.py")]
     env = dict(os.environ)
-    result = tasks.start("抓取", cmd, env, title=f"抓取今日招聘（{today}）")
+    result = tasks.start("招聘更新", cmd, env, title="更新招聘信息（增量合并进主库）")
     if not result["ok"]:
         return jsonify(result), 409
     return jsonify(result)
+
 
 @app.route("/api/crawl/dates")
 def api_crawl_dates():
