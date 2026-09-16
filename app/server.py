@@ -536,9 +536,7 @@ def _iter_recruit_files() -> list[Path]:
     return repo.iter_files(repo.RECRUIT_GLOB)
 
 
-def load_recruitments() -> list[dict]:
-    """招聘信息列表（统一口径：repository 跨全部原始文件合并、按 ID 去重）。"""
-    today_str = datetime.now().strftime("%Y-%m-%d")
+def _build_recruit_rows(today_str: str) -> list[dict]:
     rows = []
     for item in repo.raw_items("recruit"):
         add_date = crawler.time_text(item.get("addtime"), with_time=False)
@@ -556,18 +554,30 @@ def load_recruitments() -> list[dict]:
     return rows
 
 
+def load_recruitments() -> list[dict]:
+    """招聘信息列表（统一口径：repository 跨全部原始文件合并、按 ID 去重）。
+
+    派生结果按「数据文件签名 + 当天日期」缓存，避免每次请求重复清洗 2000+ 条正文。
+    """
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    return repo.cached_derived("recruit_rows", "recruit",
+                               lambda: _build_recruit_rows(today_str), extra=today_str)
+
+
 def load_fairs() -> list[dict]:
     """双选会列表（统一口径：repository 合并去重）。"""
-    rows = []
-    for f in repo.raw_items("fair"):
-        rows.append({
-            "标题": f.get("title", ""),
-            "地点": f.get("field_id_name", ""),
-            "举办时间": f"{crawler.time_text(f.get('start_time'))} 至 {crawler.time_text(f.get('end_time'))}",
-            "参会单位数": f.get("verify_count", ""),
-            "原网页": f"https://scc.whut.edu.cn/#/doubleElection/{f.get('id','')}",
-        })
-    return rows
+    def build() -> list[dict]:
+        rows = []
+        for f in repo.raw_items("fair"):
+            rows.append({
+                "标题": f.get("title", ""),
+                "地点": f.get("field_id_name", ""),
+                "举办时间": f"{crawler.time_text(f.get('start_time'))} 至 {crawler.time_text(f.get('end_time'))}",
+                "参会单位数": f.get("verify_count", ""),
+                "原网页": f"https://scc.whut.edu.cn/#/doubleElection/{f.get('id','')}",
+            })
+        return rows
+    return repo.cached_derived("fair_rows", "fair", build)
 
 
 def load_preachs(past: bool = False) -> list[dict]:

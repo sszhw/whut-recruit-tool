@@ -99,6 +99,44 @@ def test_companies_dedupe_count_and_longest_text(make_recruit):
     assert [c["name"] for c in repo.companies(max_items=1)] == ["东风汽车"]
 
 
+def test_companies_result_is_cached(make_recruit):
+    """企业清单按数据签名缓存：同一份数据返回同一对象，避免重复清洗正文。"""
+    make_recruit("2026-09-01_至_2026-09-01", [recruit_item("1", name="企业甲")], mtime=1_700_000_000)
+    first = repo.companies()
+    assert first is repo.companies()
+    make_recruit("2026-09-02_至_2026-09-02", [recruit_item("2", name="企业乙")], mtime=1_700_100_000)
+    assert {c["name"] for c in repo.companies()} == {"企业甲", "企业乙"}
+    assert len(repo.companies(max_items=1)) == 1          # 截断不影响缓存本体
+    assert len(repo.companies()) == 2
+
+
+def test_cached_derived_reuses_and_invalidates(make_recruit):
+    """通用派生缓存：签名相同复用、数据变化失效、extra 参与签名。"""
+    calls: list[int] = []
+
+    def build() -> list[str]:
+        calls.append(1)
+        return [c["name"] for c in repo.companies()]
+
+    make_recruit("2026-09-01_至_2026-09-01", [recruit_item("1", name="企业甲")], mtime=1_700_000_000)
+    a = repo.cached_derived("names", "recruit", build)
+    b = repo.cached_derived("names", "recruit", build)
+    assert a is b and len(calls) == 1
+
+    repo.cached_derived("names", "recruit", build, extra="2026-09-16")   # extra 变化 → 重算
+    assert len(calls) == 2
+
+    make_recruit("2026-09-02_至_2026-09-02", [recruit_item("2", name="企业乙")], mtime=1_700_100_000)
+    assert sorted(repo.cached_derived("names", "recruit", build, extra="2026-09-16")) == ["企业乙", "企业甲"]
+    assert len(calls) == 3
+
+
+def test_cached_derived_rejects_kind_name(make_recruit):
+    import pytest
+    with pytest.raises(ValueError):
+        repo.cached_derived("recruit", "recruit", lambda: [])
+
+
 def test_unanalyzed_and_health(make_recruit):
     make_recruit("2026-09-01_至_2026-09-01", [
         recruit_item("1", name="已分析企业"),

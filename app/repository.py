@@ -43,7 +43,7 @@ KINDS: dict[str, tuple[str, str]] = {
 }
 
 _lock = threading.Lock()
-_cache: dict[str, tuple[tuple, Any]] = {}
+_cache: dict[str, tuple[tuple, Any]] = {}     # cache_key -> (文件签名(+extra), 结果)
 
 
 # ---------------------------------------------------------------- 文件与读取
@@ -111,6 +111,26 @@ def raw_items(kind: str) -> list[dict]:
     if kind not in KINDS:
         raise KeyError(f"未知数据类型：{kind}")
     return _cached(kind, _build_merged(kind))
+
+
+def cached_derived(name: str, kind: str, builder, extra: str = "") -> Any:
+    """按 kind 的数据文件签名，缓存任意派生结果（builder 无参、只读原始数据）。
+
+    例：把「原始记录 → 页面行」的映射缓存起来，避免每次请求重复做文本清洗 / 字典构造。
+    extra 会把结果相关的外部变量（如「今天」的日期）纳入签名，避免跨天复用过期结果。
+    """
+    if name in KINDS:
+        raise ValueError(f"缓存名与原始数据类型冲突：{name}")
+    pattern, _key = KINDS[kind]
+    sig = _signature(iter_files(pattern)) + ((extra,) if extra else ())
+    with _lock:
+        hit = _cache.get(name)
+        if hit and hit[0] == sig:
+            return hit[1]
+    value = builder()
+    with _lock:
+        _cache[name] = (sig, value)
+    return value
 
 
 def source_files(kind: str) -> list[Path]:
@@ -203,12 +223,8 @@ def master_summary() -> dict:
 
 # ---------------------------------------------------------------- 企业清单
 
-def companies(max_items: int = 0) -> list[dict]:
-    """从合并后的招聘信息里汇总企业清单（企业分析 / 投递推荐共用同一份）。
-
-    每项：{name, title, text, count}。text 取该公司所有公告中最长的一篇正文前 300 字。
-    返回按「公告数多的优先」排序；max_items=0 表示不截断。
-    """
+def _build_companies() -> list[dict]:
+    """从合并后的招聘信息里汇总企业清单（企业分析 / 投递推荐共用同一份）。"""
     bucket: dict[str, dict] = {}
     for item in raw_items("recruit"):
         name = str(item.get("com_id_name") or "").strip()
@@ -221,8 +237,17 @@ def companies(max_items: int = 0) -> list[dict]:
         body = crawler.plain_text(item.get("content") or item.get("remarks") or "")
         if body and len(body) > len(row["text"]):
             row["text"] = body[:300]
-    ordered = sorted(bucket.values(), key=lambda r: (-r["count"], r["name"]))
-    return ordered[:max_items] if max_items else ordered
+    return sorted(bucket.values(), key=lambda r: (-r["count"], r["name"]))
+
+
+def companies(max_items: int = 0) -> list[dict]:
+    """企业清单（缓存派生结果，避免每次请求重复清洗 2000+ 条公告正文）。
+
+    每项：{name, title, text, count}。text 取该公司所有公告中最长的一篇正文前 300 字。
+    返回按「公告数多的优先」排序；max_items=0 表示不截断。
+    """
+    rows = cached_derived("companies", "recruit", _build_companies)
+    return rows[:max_items] if max_items else rows
 
 
 def company_names() -> list[str]:
