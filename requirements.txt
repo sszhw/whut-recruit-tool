@@ -2,3 +2,4 @@ flask>=2.0
 requests>=2.25
 openpyxl>=3.0
 python-docx>=0.8.11
+PyMuPDF>=1.24        # 简历 PDF 文字提取 / 扫描件渲染（resume.py 的 fitz）

@@ -73,10 +73,11 @@ def refresh_work_flow(merged_items: list[dict]) -> int:
     seen: dict[str, str] = {}
     if flow_path.exists():
         try:
-            for row in csv.DictReader(open(flow_path, encoding="utf-8-sig")):
-                name = (row.get("单位名称") or "").strip()
-                if name:
-                    seen[name] = row.get("工作地城市", "未确定")
+            with flow_path.open("r", encoding="utf-8-sig", newline="") as f:
+                for row in csv.DictReader(f):
+                    name = (row.get("单位名称") or "").strip()
+                    if name:
+                        seen[name] = row.get("工作地城市", "未确定")
         except (OSError, csv.Error):
             seen = {}
     new_rows = []
@@ -133,8 +134,7 @@ def main() -> int:
             merged[str(i.get("id"))] = i
         merged_items = list(merged.values())
         merged_items.sort(key=lambda x: (str(x.get("hold_date", "")), str(x.get("hold_starttime", ""))))
-        raw_path.write_text(json.dumps({"宣讲会": merged_items}, ensure_ascii=False, indent=2),
-                            encoding="utf-8")
+        crawler.write_json(raw_path, {"宣讲会": merged_items})
         rows = [preach_row(i) for i in merged_items]
         csv_path = DATA / f"宣讲会_{YEAR}年线下.csv"
         if rows:

@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import csv
 import html
 import json
+import os
 import re
 import sys
 import time
@@ -270,6 +271,17 @@ def list_preach_year(
     return list({str(item.get("id")): item for item in result}.values())
 
 
+def write_json(path: Path, data: Any, indent: int = 2) -> None:
+    """原子写 JSON：先写同目录临时文件再 os.replace 替换。
+
+    直接 write_text 覆盖写时若进程被停止（任务中心的「停止」在 Windows 上是硬杀进程），
+    主库 JSON 会被截断损坏。原子替换保证任一时刻磁盘上的文件都是完整版本。
+    """
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=indent), encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     fields = list(rows[0]) if rows else ["发布日期", "标题"]
     with path.open("w", encoding="utf-8-sig", newline="") as file:
@@ -424,11 +436,8 @@ def main() -> int:
     write_csv(output / f"{prefix}_双选会.csv", fair_rows)
     write_csv(output / f"{prefix}_宣讲会_{args.preach_year}年.csv", preach_rows)
     write_markdown(output / f"{prefix}.md", args.start, args.end, recruitment_rows, fair_rows, preach_rows)
-    (output / f"{prefix}_原始数据.json").write_text(
-        json.dumps({"招聘信息": recruitment, "双选会": fairs, "宣讲会": preachs},
-                   ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    write_json(output / f"{prefix}_原始数据.json",
+               {"招聘信息": recruitment, "双选会": fairs, "宣讲会": preachs})
     print(f"完成：招聘信息 {len(recruitment)} 条，双选会 {len(fairs)} 条，宣讲会 {len(preachs)} 条。")
     print(f"输出目录：{output}")
     return 0

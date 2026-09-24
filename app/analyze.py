@@ -129,7 +129,7 @@ def load_cache(path: Path) -> dict:
 
 
 def save_cache(path: Path, cache: dict) -> None:
-    path.write_text(json.dumps(cache, ensure_ascii=False, indent=1), encoding="utf-8")
+    crawler.write_json(path, cache, indent=1)
 
 
 def call_api(api_key: str, model: str, name: str, text: str, max_retries: int = 3) -> dict:

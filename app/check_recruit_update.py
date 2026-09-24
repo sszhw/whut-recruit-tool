@@ -124,7 +124,7 @@ def main() -> int:
         data = json.loads(raw_path.read_text(encoding="utf-8"))
         data["招聘信息"] = merged_rec_list
         data["双选会"] = merged_fair_list
-        raw_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        crawler.write_json(raw_path, data)
 
         # 刷新派生 CSV（含原有全部，供查看/备份）
         r_rows = [recruitment_row(i) for i in merged_rec_list]
@@ -145,7 +145,7 @@ def main() -> int:
                 r.get("发布日期", ""), r.get("标题", ""), r.get("地点", "")] if x))
         print(f"[6] 已更新 {raw_path.name}（招聘 {len(merged_rec_list)} 条，双选会 {len(merged_fair_list)} 条）")
     else:
-        print("[5] 数据无变化，未写入；当前 {raw_path.name} 招聘 {len(existing['招聘信息'])} 条，"
+        print(f"[5] 数据无变化，未写入；当前 {raw_path.name} 招聘 {len(existing['招聘信息'])} 条，"
               f"双选会 {len(existing['双选会'])} 条")
     return 0
 

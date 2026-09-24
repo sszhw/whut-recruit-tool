@@ -29,6 +29,9 @@ preach_update_log.txt
 任务历史.json
 任务日志/
 
+# 本地 AI 助手工作记录（不入库）
+.workbuddy/
+
 # 系统文件
 .DS_Store
 Thumbs.db

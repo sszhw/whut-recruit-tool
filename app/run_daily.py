@@ -38,15 +38,36 @@ def decode_lenient(line: bytes) -> str:
             return line.decode("utf-8", errors="replace")
 
 
+RUN_BLOCK_MARK = "===="       # 每次运行以 "==== 时间 (每日更新) ====" 开头
+KEEP_RUNS = 20                # 日志只保留最近 N 次运行，避免文件无限增长
+
+
 def read_old_log() -> str:
-    """读取历史日志并尽量还原可读内容（逐行 utf-8→gbk 容错）。"""
+    """读取历史日志（逐行 utf-8→gbk 容错），并只保留最近 KEEP_RUNS 次运行。"""
     if not LOG.exists():
         return ""
     data = LOG.read_bytes()
     if data.startswith(b"\xef\xbb\xbf"):  # 去掉已有 BOM
         data = data[3:]
     lines = data.splitlines()
-    return "\n".join(decode_lenient(line) for line in lines)
+    text = "\n".join(decode_lenient(line) for line in lines)
+    return _keep_recent_runs(text)
+
+
+def _keep_recent_runs(text: str) -> str:
+    """按「运行块」截断：只保留最近 KEEP_RUNS 次运行的日志。"""
+    blocks: list[str] = []
+    current: list[str] = []
+    for line in text.splitlines():
+        if line.startswith(RUN_BLOCK_MARK) and "(每日更新)" in line and current:
+            blocks.append("\n".join(current))
+            current = [line]
+        else:
+            current.append(line)
+    if current:
+        blocks.append("\n".join(current))
+    kept = blocks[-KEEP_RUNS:] if len(blocks) > KEEP_RUNS else blocks
+    return "\n\n".join(kept)
 
 
 def run(script: str, label: str, buf: list[str]) -> int:

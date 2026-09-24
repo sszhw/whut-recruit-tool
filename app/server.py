@@ -49,6 +49,7 @@ import resume   # noqa: E402  简历解析 + 投递推荐
 TASK_HISTORY_PATH = DATA / "任务历史.json"     # 后台任务历史（服务重启后仍可查看）
 TASK_LOG_DIR = DATA / "任务日志"               # 每个任务一份独立日志文件
 TASK_HISTORY_MAX = 200                         # 历史记录上限
+TASK_LOG_MAX = 200                             # 任务日志文件保留上限（超出按修改时间清理）
 # 任务 ID 前缀（ASCII，避免中文出现在 URL / 文件名 / HTML id 中）
 KIND_SLUGS = {"抓取": "crawl", "招聘更新": "recruit-update", "分析": "analyze",
               "宣讲会检查": "preach-check", "工作地流动": "flow"}
@@ -97,7 +98,7 @@ def load_config() -> dict:
 
 
 def save_config(cfg: dict) -> None:
-    CONFIG_PATH.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    crawler.write_json(CONFIG_PATH, cfg)
 
 
 def get_api_key() -> str:
@@ -306,15 +307,30 @@ class TaskManager:
         rows = data.get("tasks") if isinstance(data, dict) else data
         return [r for r in (rows or []) if isinstance(r, dict)]
 
+    def _cleanup_logs(self) -> None:
+        """调用方需持有 lock：清理超出上限的任务日志文件（仍在运行的任务日志不删）。"""
+        try:
+            active = {Path(t.get("log_file") or "").name for t in self.tasks.values()
+                      if t.get("log_file")}
+            logs = sorted(TASK_LOG_DIR.glob("*.log"), key=os.path.getmtime, reverse=True)
+            for path in logs[TASK_LOG_MAX:]:
+                if path.name in active:
+                    continue
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+        except OSError:
+            pass
+
     def _save_history(self) -> None:
         """调用方需持有 lock。"""
         try:
             TASK_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-            TASK_HISTORY_PATH.write_text(
-                json.dumps({"tasks": self.history[:TASK_HISTORY_MAX]}, ensure_ascii=False, indent=2),
-                encoding="utf-8")
+            crawler.write_json(TASK_HISTORY_PATH, {"tasks": self.history[:TASK_HISTORY_MAX]})
         except OSError:
             pass
+        self._cleanup_logs()
 
     def _snapshot(self, task: dict) -> dict:
         """把运行中的任务转成可持久化的记录（不含子进程句柄与日志正文）。"""
@@ -510,17 +526,36 @@ def latest_preach_json() -> Path | None:
     return _newest_glob("宣讲会_*_原始数据.json")
 
 
+WORK_FLOW_CSV = DATA / "宣讲会_工作地流动.csv"
+_work_map_cache: tuple[str, dict[str, list[str]]] | None = None   # (CSV 签名, 映射)
+
+
+def _work_flow_signature() -> str:
+    """《宣讲会_工作地流动.csv》的签名（mtime+size），用于缓存失效判断。"""
+    try:
+        st = WORK_FLOW_CSV.stat()
+    except OSError:
+        return "-"
+    return f"{st.st_mtime_ns}:{st.st_size}"
+
+
 def _company_work_map() -> dict[str, list[str]]:
     """单位名称 → 工作地城市列表。
 
     优先读取本项目已生成的《宣讲会_工作地流动.csv》（457 家单位均已映射）。
     文件缺失时返回空 dict，由调用方回退到 analyze_preach.infer_work_cities 逐条推断。
+
+    结果按 CSV 签名缓存：数据健康 / 宣讲会列表 / 筛选器等多个接口都会读它，
+    避免每次请求重复解析同一份 CSV。
     """
-    csv_path = DATA / "宣讲会_工作地流动.csv"
+    global _work_map_cache
+    sig = _work_flow_signature()
+    if _work_map_cache and _work_map_cache[0] == sig:
+        return _work_map_cache[1]
     mapping: dict[str, list[str]] = {}
-    if csv_path.exists():
+    if WORK_FLOW_CSV.exists():
         try:
-            with csv_path.open("r", encoding="utf-8-sig", newline="") as f:
+            with WORK_FLOW_CSV.open("r", encoding="utf-8-sig", newline="") as f:
                 for row in csv.DictReader(f):
                     name = (row.get("单位名称") or "").strip()
                     if not name:
@@ -529,6 +564,7 @@ def _company_work_map() -> dict[str, list[str]]:
                     mapping[name] = cities
         except (OSError, csv.Error):
             mapping = {}
+    _work_map_cache = (sig, mapping)
     return mapping
 
 
@@ -581,21 +617,15 @@ def load_fairs() -> list[dict]:
     return repo.cached_derived("fair_rows", "fair", build)
 
 
-def load_preachs(past: bool = False) -> list[dict]:
-    """宣讲会列表：数据来自 repository（跨全部宣讲会文件合并、按 ID 去重）。"""
-    items = repo.raw_items("preach")
-    if not items:
-        return []
-    today = datetime.now().date()
-    today_str = today.strftime("%Y-%m-%d")
+def _build_preach_rows(today_str: str) -> list[dict]:
+    """构造全部宣讲会行（不过滤过去的场次）。开销较大，由 load_preachs 走缓存调用。"""
+    today = datetime.strptime(today_str, "%Y-%m-%d").date()
     soon_end = (today + timedelta(days=3)).strftime("%Y-%m-%d")
     work_map = _company_work_map()
     fallback = None  # 惰性导入 analyze_preach
     rows = []
-    for item in items:
+    for item in repo.raw_items("preach"):
         hold_date = item.get("hold_date", "")
-        if not past and hold_date and hold_date.strip() < today_str:
-            continue  # 默认只看当天及以后（过去的宣讲会隐藏）
         start = item.get("hold_starttime", "")
         end = item.get("hold_endtime", "")
         period = f"{hold_date} {start}~{end}".strip(" ~")
@@ -652,6 +682,23 @@ def load_preachs(past: bool = False) -> list[dict]:
     return rows
 
 
+def load_preachs(past: bool = False) -> list[dict]:
+    """宣讲会列表：数据来自 repository（跨全部宣讲会文件合并、按 ID 去重）。
+
+    行构建（含工作地 CSV 映射 / 离线推断 / 正文清洗）按
+    「数据文件签名 + 当天日期 + 《宣讲会_工作地流动.csv》签名」缓存，
+    避免列表、筛选器、导出、推荐、行动中心等每个接口都全量重算一次。
+    """
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    extra = f"{today_str}|{_work_flow_signature()}"
+    all_rows = repo.cached_derived("preach_rows", "preach",
+                                   lambda: _build_preach_rows(today_str), extra=extra)
+    if past:
+        return list(all_rows)
+    # 默认只看当天及以后（过去的宣讲会隐藏）
+    return [r for r in all_rows if not (r["举办日期"] and r["举办日期"].strip() < today_str)]
+
+
 def load_preach_favs() -> set[str]:
     """读取收藏的宣讲会 ID 集合。"""
     if not FAV_PATH.exists():
@@ -664,8 +711,8 @@ def load_preach_favs() -> set[str]:
 
 
 def save_preach_favs(ids: set[str]) -> None:
-    """持久化收藏的宣讲会 ID 集合。"""
-    FAV_PATH.write_text(json.dumps({"ids": sorted(ids)}, ensure_ascii=False, indent=2), encoding="utf-8")
+    """持久化收藏的宣讲会 ID 集合（原子写，防止并发请求写坏收藏文件）。"""
+    crawler.write_json(FAV_PATH, {"ids": sorted(ids)})
 
 
 def load_cache() -> dict:
