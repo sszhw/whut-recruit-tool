@@ -5,8 +5,8 @@
 避免 .bat 的 echo 用 GBK、Python 用 UTF-8 导致的编码混杂乱码。
 
 流程（依次运行，输出全部追加到 <项目根>/preach_update_log.txt）：
-    1. check_recruit_update.py —— 学校网站新增的企业招聘信息 / 双选会（增量合并写回原始 JSON）
-    2. check_preach_update.py  —— 宣讲会更新；其内部 refresh_work_flow() 会对「未分析企业」
+    1. check_update.py --kind recruit —— 学校网站新增的企业招聘信息 / 双选会（增量合并写回原始 JSON）
+    2. check_update.py --kind preach  —— 宣讲会更新；其内部 _refresh_work_flow() 会对「未分析企业」
        增量做工作地流动（轨迹流动）推断，并刷新《宣讲会_工作地流动.csv》
 
 退出码：0 = 成功；非 0 = 其中某一步出错（仍继续跑后续步骤）。
@@ -70,13 +70,14 @@ def _keep_recent_runs(text: str) -> str:
     return "\n\n".join(kept)
 
 
-def run(script: str, label: str, buf: list[str]) -> int:
+def run(script: str, label: str, buf: list[str], args: list[str] | None = None) -> int:
     buf.append(f"---- {label} ----")
     env = dict(os.environ)
     env["PYTHONUTF8"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
     try:
-        proc = subprocess.run([PY, str(SCRIPT_DIR / script)],
+        cmd = [PY, str(SCRIPT_DIR / script)] + (args or [])
+        proc = subprocess.run(cmd,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               cwd=str(SCRIPT_DIR), env=env)
     except Exception as exc:
@@ -98,8 +99,8 @@ def main() -> int:
         buf.append("")
     buf.append(f"==== {datetime.now().strftime('%Y/%m/%d %H:%M:%S')} (每日更新) ====")
 
-    rc_recruit = run("check_recruit_update.py", "学校网站新增：招聘信息 / 双选会更新", buf)
-    rc_preach = run("check_preach_update.py", "宣讲会更新（含未分析企业的工作地流动分析）", buf)
+    rc_recruit = run("check_update.py", "学校网站新增：招聘信息 / 双选会更新", buf, ["--kind", "recruit"])
+    rc_preach = run("check_update.py", "宣讲会更新（含未分析企业的工作地流动分析）", buf, ["--kind", "preach"])
 
     content = "\n".join(buf) + "\n"
     # 统一写 UTF-8 + BOM，记事本/别处查看都不会再乱码

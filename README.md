@@ -40,10 +40,8 @@ whut-recruit-tool/
 │   ├── analyze.py                  # 企业性质 + 工作地点 AI 分析
 │   ├── analyze_preach.py           # 宣讲会工作地流动分析
 │   ├── resume.py                   # 简历解析 + 投递推荐
-│   ├── check_recruit_update.py     # 招聘 + 双选会 增量更新
-│   ├── check_preach_update.py      # 宣讲会 增量更新
-│   ├── run_daily.py                # 每日更新调度
-│   └── _run_preach.py              # 宣讲会抓取辅助脚本
+│   ├── check_update.py             # 增量更新统一入口（招聘+双选会 / 宣讲会，--kind 区分）
+│   └── run_daily.py                # 每日更新调度
 ├── scripts/                        # 【可移植批处理】
 │   ├── start_server.bat            # 启动 Web 界面
 │   └── check_daily.bat             # 每日增量更新（可挂计划任务）

@@ -2,7 +2,7 @@
 
 覆盖点：
 - 路由表里该有的端点都在、「一键抓取今日」下线后不能再被访问到（404 → 统一 JSON 错误）；
-- 「更新招聘信息（增量）」端点确实以 `check_recruit_update.py` 起后台任务，kind＝招聘更新；
+- 「更新招聘信息（增量）」端点确实以 `check_update.py --kind recruit` 起后台任务，kind＝招聘更新；
 - `/api/status` 暴露 `update_task`，供前端把更新任务渲染到抓取页日志区。
 """
 
@@ -45,7 +45,8 @@ def test_recruit_update_starts_incremental_update_script(monkeypatch):
     assert resp.status_code == 200
     assert resp.get_json()["ok"] is True
     assert captured["kind"] == "招聘更新"
-    assert captured["cmd"][-1].endswith("check_recruit_update.py")
+    assert captured["cmd"][-2:] == ["--kind", "recruit"]
+    assert captured["cmd"][-3].endswith("check_update.py")
     assert "更新招聘信息" in captured["title"]
 
 

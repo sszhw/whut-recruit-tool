@@ -24,6 +24,7 @@ config.json
 
 # 收藏 / 日志 / 后台任务记录
 收藏_宣讲会.json
+服务日志.jsonl
 preach_update_log.txt
 *.log
 任务历史.json

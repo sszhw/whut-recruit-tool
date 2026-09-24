@@ -184,7 +184,7 @@ def main() -> int:
     else:
         candidates = sorted(DATA.glob("宣讲会_*_原始数据.json"), key=os.path.getmtime, reverse=True)
         if not candidates:
-            print("错误：找不到 宣讲会_*_原始数据.json，请先运行 _run_preach.py 或 crawler.py", file=sys.stderr)
+            print("错误：找不到 宣讲会_*_原始数据.json，请先运行 check_update.py --kind preach 或 crawler.py", file=sys.stderr)
             return 2
         input_path = candidates[0]
 

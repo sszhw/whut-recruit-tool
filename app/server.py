@@ -20,17 +20,18 @@ import csv
 import glob
 import io
 import json
+import logging
 import os
 import re
-import subprocess
 import sys
 import threading
 import time
+import uuid
 from collections import Counter
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, request, send_file
+from flask import Flask, g, jsonify, request, send_file
 from werkzeug.exceptions import HTTPException
 
 SCRIPT_DIR = Path(__file__).resolve().parent          # 代码所在目录（运行工具/）
@@ -42,20 +43,82 @@ CACHE_PATH = DATA / "企业分析_缓存.json"
 FAV_PATH = DATA / "收藏_宣讲会.json"
 
 import analyze  # noqa: E402  复用 analyze.py 的工具函数
-import crawler  # noqa: E402  复用 time_text / plain_text
+import crawler  # noqa: E402  复用 time_text / plain_text / write_json
+import exports  # noqa: E402  导出（Excel / CSV / ICS）
+import providers  # noqa: E402  LLM 厂商预设与配置解析
 import repository as repo  # noqa: E402  统一数据访问层（跨文件合并 + ID 去重 + 缓存）
 import resume   # noqa: E402  简历解析 + 投递推荐
+import taskcenter  # noqa: E402  后台任务中心（状态机 / 输出采集 / 历史落盘）
+
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024           # 单请求体上限 20MB（简历 / 报告导入）
 
 TASK_HISTORY_PATH = DATA / "任务历史.json"     # 后台任务历史（服务重启后仍可查看）
 TASK_LOG_DIR = DATA / "任务日志"               # 每个任务一份独立日志文件
 TASK_HISTORY_MAX = 200                         # 历史记录上限
 TASK_LOG_MAX = 200                             # 任务日志文件保留上限（超出按修改时间清理）
 # 任务 ID 前缀（ASCII，避免中文出现在 URL / 文件名 / HTML id 中）
-KIND_SLUGS = {"抓取": "crawl", "招聘更新": "recruit-update", "分析": "analyze",
-              "宣讲会检查": "preach-check", "工作地流动": "flow"}
+KIND_SLUGS = taskcenter.KIND_SLUGS   # 任务 ID 前缀表（实现在 taskcenter）
 
 app = Flask(__name__)
 app.json.ensure_ascii = False
+# 上传体积上限：简历 / 报告导入走内存缓存，超限直接 413，避免大文件撑爆内存
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
+
+
+# ---------------------------------------------------------------- 结构化日志
+# 每个请求一行 JSON（JSON Lines）落盘到 data/服务日志.jsonl，带请求号 rid / 方法 / 路径 / 状态码 / 耗时。
+# 控制台只打印 ASCII 摘要——Windows 控制台是 GBK，直接输出中文会抛 UnicodeEncodeError。
+LOG_PATH = DATA / "服务日志.jsonl"
+LOG_MAX_BYTES = 2 * 1024 * 1024          # 单文件上限，超出滚动保留一份旧日志
+_LOG_LOCK = threading.Lock()
+logger = logging.getLogger("whut")
+
+
+def log_event(event: str, **fields) -> None:
+    """写一条结构化日志。fields 会被 JSON 序列化，非可序列化对象自动转 str。"""
+    rec = {"ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S.") + f"{datetime.now().microsecond // 1000:03d}",
+           "event": event}
+    rec.update(fields)
+    try:
+        line = json.dumps(rec, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        return
+    try:
+        with _LOG_LOCK:
+            LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            if LOG_PATH.exists() and LOG_PATH.stat().st_size > LOG_MAX_BYTES:
+                try:
+                    LOG_PATH.replace(LOG_PATH.with_name(LOG_PATH.stem + ".old.jsonl"))
+                except OSError:
+                    LOG_PATH.unlink(missing_ok=True)
+            with LOG_PATH.open("a", encoding="utf-8") as f:
+                f.write(line + "\n")
+    except OSError:
+        pass
+    try:  # 控制台摘要：只输出 ASCII 字段，避免 GBK 终端乱码
+        summary = " ".join(f"{k}={v}" for k, v in fields.items()
+                           if isinstance(v, (int, float)) or (isinstance(v, str) and v.isascii()))
+        print(f"[{event}] {summary}", flush=True)
+    except (OSError, UnicodeEncodeError):
+        pass
+
+
+@app.before_request
+def _request_begin() -> None:
+    g.rid = uuid.uuid4().hex[:8]
+    g.t0 = time.perf_counter()
+
+
+@app.after_request
+def _request_end(resp):
+    rid = getattr(g, "rid", "-")
+    t0 = getattr(g, "t0", None)
+    ms = round((time.perf_counter() - t0) * 1000, 1) if t0 is not None else -1
+    resp.headers["X-Request-Id"] = rid
+    if not request.path.endswith((".ico", ".css", ".js", ".png", ".svg")):
+        log_event("request", rid=rid, method=request.method, path=request.path,
+                  status=resp.status_code, ms=ms)
+    return resp
 
 
 # ---------------------------------------------------------------- 统一错误响应
@@ -64,19 +127,31 @@ app.json.ensure_ascii = False
 def _handle_http_error(err: HTTPException):
     """统一 JSON 错误响应：/api/* 的 4xx/5xx 一律返回 {ok:false, error}，前端可直接提示。"""
     detail = err.description or err.name
+    code = err.code or 500
+    if code >= 500:
+        log_event("error", rid=getattr(g, "rid", "-"), method=request.method,
+                  path=request.path, status=code, err=str(detail))
     if request.path.startswith("/api/"):
-        return jsonify({"ok": False, "error": f"{err.code} {err.name}：{detail}"}), err.code
+        return jsonify({"ok": False, "error": f"{code} {err.name}：{detail}"}), code
     return err
 
 
 @app.errorhandler(Exception)
 def _handle_unexpected(err: Exception):
-    """未捕获异常统一转成 JSON（同时写入服务端日志），避免前端拿到 HTML 错误页。"""
+    """未捕获异常统一转成 JSON + 记日志。
+
+    注意：不向客户端回显异常细节（可能包含本地路径、配置片段等），只返回请求号 rid，
+    用户可用 rid 在 data/服务日志.jsonl 中定位完整堆栈。
+    """
     if isinstance(err, HTTPException):
         return _handle_http_error(err)
-    app.logger.exception("未处理的异常：%s %s", request.method, request.path)
+    rid = getattr(g, "rid", "-")
+    app.logger.exception("未处理的异常 rid=%s path=%s", rid, request.path)
+    log_event("error", rid=rid, method=request.method, path=request.path,
+              status=500, err=repr(err))
     if request.path.startswith("/api/"):
-        return jsonify({"ok": False, "error": f"服务内部错误：{err}"}), 500
+        return jsonify({"ok": False, "error": f"服务内部错误，详情见服务端日志（请求号 {rid}）",
+                        "rid": rid}), 500
     return "服务内部错误，请查看服务端日志", 500
 
 # ---------------------------------------------------------------- 配置管理
@@ -105,400 +180,31 @@ def get_api_key() -> str:
     return (load_config().get("api_key") or "").strip()
 
 
-def _mask(v: str) -> str:
-    v = (v or "").strip()
-    if not v:
-        return ""
-    return (v[:6] + "****") if len(v) > 6 else (v[:2] + "****")
-
-
-# 预设供应商：每个厂家独立配置（api_key / model / base_url 各存一份，互不覆盖）。
-# base_url_field 缺省时回落到 base_url；context_window 仅作展示默认值；docs_url 为「前往官网/文档」。
-LLM_PROVIDERS = {
-    "deepseek": {"label": "DeepSeek", "logo": "🐳",
-                 "desc": "deepseek · DeepSeek · OpenAI 兼容格式",
-                 "base_url": "https://api.deepseek.com",
-                 "api_key_field": "deepseek_api_key", "model_field": "deepseek_model",
-                 "base_url_field": "deepseek_base_url",
-                 "default_model": "deepseek-chat",
-                 "models": ["deepseek-chat", "deepseek-reasoner"],
-                 "context_window": 65536,
-                 "docs_url": "https://api-docs.deepseek.com/zh-cn/",
-                 "compute_url": "https://api.deepseek.com/chat/completions"},
-    "siliconflow": {"label": "硅基流动 SiliconFlow", "logo": "🌟",
-                    "desc": "siliconflow · 硅基流动 · OpenAI 兼容格式",
-                    "base_url": "https://api.siliconflow.cn/v1",
-                    "api_key_field": "api_key", "model_field": "model",
-                    "base_url_field": "siliconflow_base_url",
-                    "default_model": "Qwen/Qwen2.5-72B-Instruct",
-                    "models": ["Qwen/Qwen2.5-72B-Instruct", "Qwen/Qwen2.5-32B-Instruct",
-                               "Qwen/Qwen2.5-14B-Instruct", "Qwen/Qwen2.5-7B-Instruct",
-                               "deepseek-ai/DeepSeek-V3", "deepseek-ai/DeepSeek-R1"],
-                    "context_window": 65536,
-                    "docs_url": "https://cloud.siliconflow.cn/account/ak",
-                    "compute_url": "https://api.siliconflow.cn/v1/chat/completions"},
-    "moonshot": {"label": "Kimi / Moonshot", "logo": "🌙",
-                 "desc": "moonshot · Kimi · OpenAI 兼容格式",
-                 "base_url": "https://api.moonshot.cn/v1",
-                 "api_key_field": "moonshot_api_key", "model_field": "moonshot_model",
-                 "base_url_field": "moonshot_base_url",
-                 "default_model": "moonshot-v1-8k",
-                 "models": ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
-                 "context_window": 128000,
-                 "docs_url": "https://platform.moonshot.cn/docs/",
-                 "compute_url": "https://api.moonshot.cn/v1/chat/completions"},
-    "dashscope": {"label": "阿里云百炼 DashScope", "logo": "☁️",
-                  "desc": "dashscope · 阿里云百炼 · OpenAI 兼容格式",
-                  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-                  "api_key_field": "dashscope_api_key", "model_field": "dashscope_model",
-                  "base_url_field": "dashscope_base_url",
-                  "default_model": "qwen-plus",
-                  "models": ["qwen-max", "qwen-plus", "qwen-turbo", "qwen2.5-72b-instruct"],
-                  "context_window": 128000,
-                  "docs_url": "https://help.aliyun.com/zh/model-studio/",
-                  "compute_url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"},
-    "volcengine": {"label": "火山方舟", "logo": "🌋",
-                   "desc": "volcengine · 火山方舟 · OpenAI 兼容格式",
-                   "base_url": "https://ark.cn-beijing.volces.com/api/v3",
-                   "api_key_field": "volcengine_api_key", "model_field": "volcengine_model",
-                   "base_url_field": "volcengine_base_url",
-                   "default_model": "doubao-pro-32k", "models": [],
-                   "context_window": 32768,
-                   "docs_url": "https://www.volcengine.com/product/ark",
-                   "compute_url": "https://ark.cn-beijing.volces.com/api/v3/chat/completions"},
-    "qianfan": {"label": "百度智能云千帆", "logo": "🦆",
-                "desc": "qianfan · 百度千帆 · OpenAI 兼容格式",
-                "base_url": "https://qianfan.baidubce.com/v2",
-                "api_key_field": "qianfan_api_key", "model_field": "qianfan_model",
-                "base_url_field": "qianfan_base_url",
-                "default_model": "ernie-4.0-8k", "models": [],
-                "context_window": 32768,
-                "docs_url": "https://cloud.baidu.com/product/wenxinworkshop",
-                "compute_url": "https://qianfan.baidubce.com/v2/chat/completions"},
-    "stepfun": {"label": "阶跃星辰", "logo": "📶",
-                "desc": "stepfun · 阶跃星辰 · OpenAI 兼容格式",
-                "base_url": "https://api.stepfun.com/v1",
-                "api_key_field": "stepfun_api_key", "model_field": "stepfun_model",
-                "base_url_field": "stepfun_base_url",
-                "default_model": "step-1-8k",
-                "models": ["step-1-8k", "step-2-16k"],
-                "context_window": 32768,
-                "docs_url": "https://platform.stepfun.com/",
-                "compute_url": "https://api.stepfun.com/v1/chat/completions"},
-    "modelscope": {"label": "魔搭 ModelScope", "logo": "🧩",
-                   "desc": "modelscope · 魔搭 · OpenAI 兼容格式",
-                   "base_url": "https://api-inference.modelscope.cn/v1",
-                   "api_key_field": "modelscope_api_key", "model_field": "modelscope_model",
-                   "base_url_field": "modelscope_base_url",
-                   "default_model": "qwen2.5-72b-instruct", "models": [],
-                   "context_window": 32768,
-                   "docs_url": "https://modelscope.cn/",
-                   "compute_url": "https://api-inference.modelscope.cn/v1/chat/completions"},
-    "sensenova": {"label": "商汤日日新 SenseNova", "logo": "🎨",
-                  "desc": "sensenova · 商汤日日新 · OpenAI 兼容格式",
-                  "base_url": "https://api.sensenova.cn/compatible-mode/v1",
-                  "api_key_field": "sensenova_api_key", "model_field": "sensenova_model",
-                  "base_url_field": "sensenova_base_url",
-                  "default_model": "sensechat-5", "models": [],
-                  "context_window": 32768,
-                  "docs_url": "https://platform.sensenova.cn/",
-                  "compute_url": "https://api.sensenova.cn/compatible-mode/v1/chat/completions"},
-    "hunyuan": {"label": "腾讯混元", "logo": "💠",
-                "desc": "hunyuan · 腾讯混元 · OpenAI 兼容格式",
-                "base_url": "https://api.hunyuan.cloud.tencent.com/v1",
-                "api_key_field": "hunyuan_api_key", "model_field": "hunyuan_model",
-                "base_url_field": "hunyuan_base_url",
-                "default_model": "hunyuan-turbo", "models": [],
-                "context_window": 32768,
-                "docs_url": "https://cloud.tencent.com/product/hunyuan",
-                "compute_url": "https://api.hunyuan.cloud.tencent.com/v1/chat/completions"},
-    "minimax": {"label": "MiniMax", "logo": "🅼",
-                "desc": "minimax · MiniMax 开放平台 · OpenAI 兼容格式",
-                "base_url": "https://api.minimax.chat/v1",
-                "api_key_field": "minimax_api_key", "model_field": "minimax_model",
-                "base_url_field": "minimax_base_url",
-                "default_model": "MiniMax-Text-01", "models": [],
-                "context_window": 32768,
-                "docs_url": "https://platform.minimaxi.com/",
-                "compute_url": "https://api.minimax.chat/v1/chat/completions"},
-    "local": {"label": "本地部署 · Local", "logo": "🖥️",
-              "desc": "local · OpenAI 兼容（任意 vLLM/Ollama/LM Studio 等）",
-              "base_url": "", "api_key_field": "local_api_key", "model_field": "local_model",
-              "base_url_field": "local_base_url",
-              "default_model": "", "models": [], "context_window": 128000,
-              "docs_url": "", "compute_url": ""},
-    "custom": {"label": "自定义配置", "logo": "🛠️",
-               "desc": "custom · 任意 OpenAI 兼容接口",
-               "base_url": "", "api_key_field": "custom_api_key", "model_field": "custom_model",
-               "base_url_field": "custom_base_url",
-               "default_model": "", "models": [], "context_window": 128000,
-               "docs_url": "", "compute_url": ""},
-}
+# LLM 厂商预设与解析见 providers.py；此处仅重导出以兼容既有引用
+LLM_PROVIDERS = providers.LLM_PROVIDERS
+_mask = providers.mask
 
 
 def get_llm() -> dict:
-    """按当前配置的厂商，返回 base_url / api_key / model / label（各厂商字段独立，互不覆盖）。"""
-    cfg = load_config()
-    provider = cfg.get("provider", "siliconflow")
-    if provider not in LLM_PROVIDERS:
-        provider = "siliconflow"
-    conf = LLM_PROVIDERS[provider]
-    api_key = (cfg.get(conf["api_key_field"], "") or "").strip()
-    model = (cfg.get(conf["model_field"], "") or "").strip() or conf["default_model"]
-    saved = (cfg.get(conf.get("base_url_field") or "", "") or "").strip()
-    base_url = (saved or conf["base_url"]).rstrip("/")
-    return {"provider": provider, "label": conf["label"], "base_url": base_url,
-            "api_key": api_key, "model": model}
+    """按当前配置的厂商返回 base_url / api_key / model / label。"""
+    return providers.resolve(load_config())
 
 
-# ---------------------------------------------------------------- 后台任务
-
-_PROGRESS_PAIR = re.compile(r"(\d+)\s*/\s*(\d+)")
-_PROGRESS_STEP = re.compile(r"^\s*\[(\d+)\]")
-_ERROR_HINTS = ("错误", "失败", "Traceback", "Error", "error", "Exception", "未设置")
 
 
-def _parse_progress(lines: list[str]) -> dict:
-    """从任务输出里推断进度：优先 `[3/120]` / `已抓取详情 3/120`，其次 `[3]` 阶段号。"""
-    for line in reversed(lines[-80:]):
-        m = re.search(r"\[(\d+)\s*/\s*(\d+)\]", line)
-        if m:
-            done, total = int(m.group(1)), int(m.group(2))
-            if total > 0:
-                return {"done": done, "total": total, "percent": min(100, round(done * 100 / total))}
-        m = _PROGRESS_PAIR.search(line)
-        if m:
-            done, total = int(m.group(1)), int(m.group(2))
-            if total > 0 and done <= total:
-                return {"done": done, "total": total, "percent": min(100, round(done * 100 / total))}
-        m = _PROGRESS_STEP.search(line)
-        if m:
-            return {"done": int(m.group(1)), "total": 0, "percent": 0}
-    return {"done": 0, "total": 0, "percent": 0}
+# ---------------------------------------------------------------- 后台任务（实现见 taskcenter.py）
+# 任务状态机 / 输出采集 / 历史落盘与 HTTP 层解耦，放在 taskcenter.py；
+# 这里只做装配：把本项目的数据目录与上限注入进去（路径取自本模块变量，测试可替换）。
+_parse_progress = taskcenter.parse_progress   # 兼容旧引用（测试直接调用 server._parse_progress）
+_error_summary = taskcenter.error_summary
 
 
-def _error_summary(lines: list[str]) -> str:
-    for line in reversed(lines[-40:]):
-        text = line.strip()
-        if text and any(h in text for h in _ERROR_HINTS):
-            return text[:200]
-    return ""
-
-
-class TaskManager:
-    """后台任务：运行状态在内存，历史记录落盘（服务重启后仍可查看/回看日志）。
-
-    任务记录字段：状态机 queued → running → succeeded / failed / cancelled，
-    含进度、成功/失败摘要、开始结束时间与耗时、日志文件路径。
-    """
+class TaskManager(taskcenter.TaskManager):
+    """绑定本项目数据目录的任务管理器。"""
 
     def __init__(self) -> None:
-        self.lock = threading.Lock()
-        self.tasks: dict[str, dict] = {}
-        self.history: list[dict] = self._load_history()
-
-    # ---------------- 历史记录落盘
-
-    def _load_history(self) -> list[dict]:
-        try:
-            data = json.loads(TASK_HISTORY_PATH.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-            return []
-        rows = data.get("tasks") if isinstance(data, dict) else data
-        return [r for r in (rows or []) if isinstance(r, dict)]
-
-    def _cleanup_logs(self) -> None:
-        """调用方需持有 lock：清理超出上限的任务日志文件（仍在运行的任务日志不删）。"""
-        try:
-            active = {Path(t.get("log_file") or "").name for t in self.tasks.values()
-                      if t.get("log_file")}
-            logs = sorted(TASK_LOG_DIR.glob("*.log"), key=os.path.getmtime, reverse=True)
-            for path in logs[TASK_LOG_MAX:]:
-                if path.name in active:
-                    continue
-                try:
-                    path.unlink()
-                except OSError:
-                    pass
-        except OSError:
-            pass
-
-    def _save_history(self) -> None:
-        """调用方需持有 lock。"""
-        try:
-            TASK_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-            crawler.write_json(TASK_HISTORY_PATH, {"tasks": self.history[:TASK_HISTORY_MAX]})
-        except OSError:
-            pass
-        self._cleanup_logs()
-
-    def _snapshot(self, task: dict) -> dict:
-        """把运行中的任务转成可持久化的记录（不含子进程句柄与日志正文）。"""
-        return {
-            "id": task["id"], "kind": task["kind"], "title": task.get("title") or task["kind"],
-            "status": task.get("status", "queued"), "exit_code": task.get("exit_code"),
-            "started": task.get("started"), "finished": task.get("finished"),
-            "started_at": task.get("started_at"), "duration": task.get("duration"),
-            "progress": _parse_progress(task.get("lines") or []),
-            "error": task.get("error", ""),
-            "log_file": Path(task["log_file"]).name if task.get("log_file") else "",
-        }
-
-    def _sync(self, task: dict) -> None:
-        """调用方需持有 lock：把内存任务同步进历史列表并落盘。"""
-        snap = self._snapshot(task)
-        for i, row in enumerate(self.history):
-            if row.get("id") == snap["id"]:
-                self.history[i] = snap
-                break
-        else:
-            self.history.insert(0, snap)
-        self.history = self.history[:TASK_HISTORY_MAX]
-        self._save_history()
-
-    # ---------------- 启动 / 收集输出
-
-    def start(self, kind: str, cmd: list[str], env: dict, title: str = "") -> dict:
-        with self.lock:
-            for task in self.tasks.values():
-                if task["kind"] == kind and task["running"]:
-                    return {"ok": False, "error": f"已有{kind}任务在运行", "task": self._public_nolock(task)}
-            now = time.time()
-            # 毫秒 + 冲突自增，确保同一秒内启动的不同类型任务不会共用 ID（否则内存记录与日志文件会互相覆盖）
-            base = f"{KIND_SLUGS.get(kind, 'task')}_{int(now * 1000)}"
-            task_id = base
-            seq = 1
-            while task_id in self.tasks or any(r.get("id") == task_id for r in self.history):
-                seq += 1
-                task_id = f"{base}_{seq}"
-            env = dict(env)
-            env["PYTHONUNBUFFERED"] = "1"  # 让子进程 stdout 实时刷新，界面日志即时可见
-            # 强制子进程以 UTF-8 输出。Windows 中文环境下 Python 默认用 GBK(cp936) 写 stdout，
-            # 而本进程按 utf-8 解码（errors="replace"），会导致中文全部变成 � 乱码。
-            env["PYTHONIOENCODING"] = "utf-8"
-            env["PYTHONUTF8"] = "1"
-            proc = subprocess.Popen(
-                cmd, cwd=str(WORKDIR), env=env,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, encoding="utf-8", errors="replace", bufsize=1,
-            )
-            try:
-                TASK_LOG_DIR.mkdir(parents=True, exist_ok=True)
-            except OSError:
-                pass
-            log_file = TASK_LOG_DIR / f"{task_id}.log"
-            try:
-                log_handle = log_file.open("w", encoding="utf-8")
-            except OSError:
-                log_handle = None
-            task = {"id": task_id, "kind": kind, "title": title or kind, "running": True,
-                    "status": "running", "exit_code": None, "started": datetime.now().strftime("%H:%M:%S"),
-                    "started_at": now, "proc": proc, "lines": [], "log_file": log_file,
-                    "log_handle": log_handle, "error": "", "_last_sync": now}
-            self.tasks[task_id] = task
-            self._sync(task)
-        threading.Thread(target=self._pump, args=(task,), daemon=True).start()
-        return {"ok": True, "task": self.public(task)}
-
-    def _pump(self, task: dict) -> None:
-        proc = task["proc"]
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            line = line.rstrip("\r\n")
-            if not line:
-                continue
-            with self.lock:
-                task["lines"].append(line)
-                if len(task["lines"]) > 5000:
-                    del task["lines"][:2500]
-                handle = task.get("log_handle")
-                if handle:
-                    try:
-                        handle.write(line + "\n")
-                        handle.flush()
-                    except (OSError, ValueError):
-                        task["log_handle"] = None
-                # 进度最多每 3 秒落盘一次，避免高频写文件
-                now = time.time()
-                if now - task.get("_last_sync", now) > 3:
-                    task["_last_sync"] = now
-                    self._sync(task)
-        proc.wait()
-        with self.lock:
-            task["running"] = False
-            task["exit_code"] = proc.returncode
-            task["finished"] = datetime.now().strftime("%H:%M:%S")
-            task["duration"] = round(time.time() - float(task.get("started_at") or time.time()), 1)
-            cancelled = task.get("status") == "cancelled"
-            task["status"] = "cancelled" if cancelled else ("succeeded" if proc.returncode == 0 else "failed")
-            if proc.returncode != 0 and not cancelled:
-                task["error"] = _error_summary(task["lines"]) or f"退出码 {proc.returncode}"
-            handle = task.get("log_handle")
-            if handle:
-                try:
-                    handle.close()
-                except (OSError, ValueError):
-                    pass
-                task["log_handle"] = None
-            self._sync(task)
-
-    def _public_nolock(self, task: dict, tail: int = 0) -> dict:
-        # 调用方可能已持有 lock（Lock 不可重入），故单独提供无锁版本
-        lines = task["lines"][-tail:] if tail else list(task["lines"])
-        return {"id": task["id"], "kind": task["kind"], "title": task.get("title") or task["kind"],
-                "running": task["running"], "status": task.get("status", "running"),
-                "exit_code": task["exit_code"], "started": task.get("started"),
-                "finished": task.get("finished"), "started_at": task.get("started_at"),
-                "duration": task.get("duration"), "progress": _parse_progress(task["lines"]),
-                "error": task.get("error", ""),
-                "log_file": Path(task["log_file"]).name if task.get("log_file") else "",
-                "lines": lines}
-
-    def public(self, task: dict, tail: int = 0) -> dict:
-        with self.lock:
-            return self._public_nolock(task, tail)
-
-    def latest(self, kind: str) -> dict | None:
-        with self.lock:
-            candidates = [t for t in self.tasks.values() if t["kind"] == kind]
-        return max(candidates, key=lambda t: t["started_at"]) if candidates else None
-
-    def running(self) -> list[dict]:
-        with self.lock:
-            tasks = [t for t in self.tasks.values() if t["running"]]
-        return [self.public(t) for t in tasks]
-
-    def get(self, task_id: str) -> dict | None:
-        """先查内存运行态，再回落到历史记录（服务重启后仍可取到）。"""
-        with self.lock:
-            task = self.tasks.get(task_id)
-            if task:
-                return self._public_nolock(task)
-            for row in self.history:
-                if row.get("id") == task_id:
-                    return dict(row)
-        return None
-
-    def read_log(self, task_id: str, tail: int = 300) -> list[str]:
-        """读取任务日志文件（历史任务也可读）。"""
-        path = TASK_LOG_DIR / f"{task_id}.log"
-        if not path.exists():
-            return []
-        try:
-            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-        except OSError:
-            return []
-        return lines[-tail:] if tail else lines
-
-    def history_list(self, limit: int = 60) -> list[dict]:
-        """运行中的任务 + 历史任务（合并、按开始时间倒序）。"""
-        with self.lock:
-            live_ids = set(self.tasks)
-            live = [self._snapshot(t) for t in self.tasks.values()]
-            past = [dict(r) for r in self.history if r.get("id") not in live_ids]
-        rows = live + past
-        rows.sort(key=lambda r: r.get("started_at") or 0, reverse=True)
-        return rows[:limit]
+        super().__init__(history_path=TASK_HISTORY_PATH, log_dir=TASK_LOG_DIR, workdir=WORKDIR,
+                         history_max=TASK_HISTORY_MAX, log_max=TASK_LOG_MAX)
 
 
 tasks = TaskManager()
@@ -949,10 +655,10 @@ def api_recruit_update():
     """增量更新招聘信息（招聘公告 + 双选会）。
 
     抓取学校网站最新列表，与本地已有数据**按 ID 比对**，只把新增记录合并进主库
-    （`check_recruit_update.py`，与每日 09:00 计划任务同一套逻辑）。
+    （`check_update.py --kind recruit`，与每日 09:00 计划任务同一套逻辑）。
     与「按日期范围抓取」不同：不新建单日快照文件，因此页面/分析/推荐的数据口径不会被打散。
     """
-    cmd = [sys.executable, str(WORKDIR / "check_recruit_update.py")]
+    cmd = [sys.executable, str(WORKDIR / "check_update.py"), "--kind", "recruit"]
     env = dict(os.environ)
     result = tasks.start("招聘更新", cmd, env, title="更新招聘信息（增量合并进主库）")
     if not result["ok"]:
@@ -972,7 +678,7 @@ def api_crawl_dates():
 def api_preach_check():
     """检查宣讲会是否有新增（抓取今年最新列表 vs 已有缓存），后台任务 + 实时日志。"""
     payload = request.get_json(force=True, silent=True) or {}
-    cmd = [sys.executable, str(WORKDIR / "check_preach_update.py")]
+    cmd = [sys.executable, str(WORKDIR / "check_update.py"), "--kind", "preach"]
     if payload.get("all_types"):
         cmd.append("--all-types")
     env = dict(os.environ)
@@ -1678,14 +1384,9 @@ def api_import_report():
                     "total": len(cache), "bad_rows": parsed["bad_rows"]})
 
 
-_PREACH_FAV_HEADERS = ["宣讲时间", "举办日期", "单位名称", "宣讲会地点", "城市",
-                       "线下/线上", "标题", "公司地点（工作地）", "链接"]
-
-
-def _preach_fav_row(r: dict) -> list[str]:
-    return [r.get("宣讲时间", ""), r.get("举办日期", ""), r.get("单位名称", ""),
-            r.get("宣讲会地点", ""), r.get("城市", ""), r.get("线下/线上", ""),
-            r.get("标题", ""), r.get("公司地点", ""), r.get("原网页", "")]
+# 导出表头与行转换见 exports.py（此处重导出以兼容既有引用）
+_PREACH_FAV_HEADERS = exports.PREACH_FAV_HEADERS
+_preach_fav_row = exports.preach_fav_row
 
 
 @app.route("/api/preach/favs/export")
@@ -1699,146 +1400,21 @@ def api_export_preach_favs():
         return jsonify({"ok": False, "error": "尚无收藏的宣讲会"}), 404
     fmt = datetime.now().strftime("%Y%m%d")
     try:
-        from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Font, PatternFill
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "收藏宣讲会"
-        header_fill = PatternFill("solid", fgColor="4F8EF7")
-        header_font = Font(bold=True, color="FFFFFF")
-        ws.append(_PREACH_FAV_HEADERS)
-        for c in ws[1]:
-            c.fill = header_fill
-            c.font = header_font
-            c.alignment = Alignment(horizontal="center", vertical="center")
-        ws.freeze_panes = "A2"
-        for r in matched:
-            ws.append(_preach_fav_row(r))
-        for col in ws.columns:
-            width = max(len(str(c.value or "")) for c in col) + 4
-            ws.column_dimensions[col[0].column_letter].width = min(max(width, 10), 60)
-        for row in ws.iter_rows(min_row=2):
-            cell = row[8]
-            if cell.value:
-                try:
-                    cell.hyperlink = cell.value
-                    cell.style = "Hyperlink"
-                except Exception:
-                    pass
-        bio = io.BytesIO()
-        wb.save(bio)
-        bio.seek(0)
-        return send_file(bio,
-                         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        bio = exports.build_preach_favs_xlsx(matched)
+        return send_file(bio, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                          as_attachment=True, download_name=f"收藏宣讲会_{fmt}.xlsx")
-    except Exception:
-        msg = io.StringIO()
-        msg.write("\ufeff")  # UTF-8 BOM，Excel 识别中文
-        w = csv.writer(msg)
-        w.writerow(_PREACH_FAV_HEADERS)
-        for r in matched:
-            w.writerow(_preach_fav_row(r))
-        resp = Response(msg.getvalue(), mimetype="text/csv; charset=utf-8")
-        resp.headers["Content-Disposition"] = f"attachment; filename=收藏宣讲会_{fmt}.csv"
-        return resp
+    except Exception:      # openpyxl 缺失或写表失败 → 降级为 CSV
+        bio = exports.build_preach_favs_csv(matched)
+        return send_file(bio, mimetype="text/csv; charset=utf-8",
+                         as_attachment=True, download_name=f"收藏宣讲会_{fmt}.csv")
 
 
-def _ics_escape(value: str) -> str:
-    """转义 ICS 文本值中的反斜杠 / 分号 / 逗号。"""
-    return (str(value)
-            .replace("\\", "\\\\")
-            .replace(";", "\\;")
-            .replace(",", "\\,"))
+# ICS 日历生成见 exports.py（此处重导出以兼容既有引用）
+_ics_escape = exports.ics_escape
+_ics_fold = exports.ics_fold
+_preach_ics_event = exports.preach_ics_event
 
 
-def _ics_fold(line: str, limit: int = 74) -> str:
-    """ICS 行按 75 字节（含换行）上限折行，续行以空格开头。"""
-    if len(line.encode("utf-8")) <= limit:
-        return line
-    out: list[str] = []
-    cur = ""
-    cur_bytes = 0
-    for ch in line:
-        b = len(ch.encode("utf-8"))
-        if cur_bytes + b > limit:
-            out.append(cur)
-            cur = " " + ch
-            cur_bytes = 1 + b
-        else:
-            cur += ch
-            cur_bytes += b
-    if cur:
-        out.append(cur)
-    return "\r\n".join(out)
-
-
-def _preach_ics_event(r: dict) -> str:
-    """把一场宣讲会转换成一个完整的 VEVENT 块。"""
-    name = str(r.get("单位名称", "")).strip()
-    title = str(r.get("标题", "")).strip()
-    summary = name if not title or title == name else f"{name}（{title}）"
-    location = str(r.get("宣讲会地点", "")).strip()
-    url = str(r.get("原网页", "")).strip()
-    online = str(r.get("线下/线上", "")).strip()
-
-    hold_date = str(r.get("举办日期", "")).strip()
-    start_time = str(r.get("开始时间", "")).strip()
-    end_time = str(r.get("结束时间", "")).strip()
-
-    # 事件时间：默认用当地时间（浮动时间），无具体时刻则以全天事件呈现
-    try:
-        if hold_date and start_time:
-            start_dt = datetime.strptime(f"{hold_date} {start_time}", "%Y-%m-%d %H:%M")
-            if end_time:
-                end_dt = datetime.strptime(f"{hold_date} {end_time}", "%Y-%m-%d %H:%M")
-                if end_dt <= start_dt:
-                    end_dt = start_dt + timedelta(hours=1)
-            else:
-                end_dt = start_dt + timedelta(hours=1)
-            dtstart = f"DTSTART:{start_dt.strftime('%Y%m%dT%H%M%S')}"
-            dtend = f"DTEND:{end_dt.strftime('%Y%m%dT%H%M%S')}"
-        else:
-            d = hold_date.replace("-", "") or "19700101"
-            dtstart = f"DTSTART;VALUE=DATE:{d}"
-            dtend = f"DTEND;VALUE=DATE:{d}"
-    except ValueError:
-        d = hold_date.replace("-", "") or "19700101"
-        dtstart = f"DTSTART;VALUE=DATE:{d}"
-        dtend = f"DTEND;VALUE=DATE:{d}"
-
-    uid_base = str(r.get("ID", "")) or url or name
-    uid = re.sub(r"[^A-Za-z0-9._-]", "-", uid_base) + "-whutrecruit"
-    dtstamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-
-    desc_parts = []
-    if title and title != name:
-        desc_parts.append(f"宣讲标题：{title}")
-    if title is not None and title == name:
-        desc_parts.append(f"单位名称：{name}")
-    if location:
-        desc_parts.append(f"地点：{location}")
-    if online:
-        desc_parts.append(f"形式：{online}")
-    if url:
-        desc_parts.append(f"链接：{url}")
-    description = "；".join(desc_parts) or summary
-
-    lines = [
-        "BEGIN:VEVENT",
-        f"UID:{uid}",
-        f"DTSTAMP:{dtstamp}",
-        dtstart,
-        dtend,
-        f"SUMMARY:{_ics_escape(summary)}",
-        f"DESCRIPTION:{_ics_escape(description)}",
-    ]
-    if location:
-        lines.append(f"LOCATION:{_ics_escape(location)}")
-    if url:
-        lines.append(f"URL:{url}")
-    lines.append("TRANSP:OPAQUE")
-    lines.append("END:VEVENT")
-    return lines
 
 
 @app.route("/api/preach/favs/export-ics")
@@ -1851,21 +1427,7 @@ def api_export_preach_favs_ics():
     if not matched:
         return jsonify({"ok": False, "error": "尚无收藏的宣讲会"}), 404
     fmt = datetime.now().strftime("%Y%m%d")
-    blocks: list[list[str]] = [[
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "PRODID:-//WHUT Recruit Tool//收藏宣讲会//CN",
-        "CALSCALE:GREGORIAN",
-        "METHOD:PUBLISH",
-        "X-WR-CALNAME:WHUT 宣讲会收藏",
-    ]]
-    for r in matched:
-        blocks.append(_preach_ics_event(r))
-    blocks.append(["END:VCALENDAR"])
-    body_lines = [folded for block in blocks for folded in (_ics_fold(line) for line in block)]
-    body = "\r\n".join(body_lines) + "\r\n"
-    bio = io.BytesIO(body.encode("utf-8"))
-    bio.seek(0)
+    bio = io.BytesIO(exports.build_preach_ics(matched))
     return send_file(bio, mimetype="text/calendar",
                      as_attachment=True, download_name=f"收藏宣讲会_{fmt}.ics")
 
@@ -1878,6 +1440,13 @@ def main() -> int:
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
     print(f"启动界面：http://{args.host}:{args.port}")
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        # 本服务无鉴权：配置、API Key、抓取/删除操作对任何能访问该地址的人开放
+        print("⚠️  安全警告：当前监听非本地地址，服务无鉴权，同网段任何人都可以读取配置、"
+              "修改 API Key 并触发抓取/导出任务。")
+        print("    确认你处于可信网络，否则请改回 --host 127.0.0.1")
+    if args.debug:
+        print("⚠️  debug 模式已开启：异常会在浏览器显示堆栈，且代码改动会自动重载，请勿在公共环境使用。")
     app.run(host=args.host, port=args.port, debug=args.debug, threaded=True)
     return 0
 
