@@ -121,8 +121,10 @@
     background: var(--preview-bg); padding: 10px 12px; border-radius: 8px; max-height: 200px; overflow-y: auto; }
   .body-preview.show { display: block; }
   .toast { position: fixed; top: 18px; right: 18px; background: var(--toast-bg); border: 1px solid var(--toast-border);
-    padding: 12px 20px; border-radius: 10px; z-index: 99; display: none; max-width: 360px; color: var(--toast-text);
-    box-shadow: var(--shadow); }
+    padding: 12px 20px; border-radius: 10px; z-index: 99; max-width: 360px; color: var(--toast-text);
+    box-shadow: var(--shadow); opacity: 0; visibility: hidden; transform: translateX(20px);
+    transition: opacity .3s var(--ease-out), transform .3s var(--ease-out), visibility .3s; }
+  .toast.show { opacity: 1; visibility: visible; transform: none; }
   .toast.err { border-color: var(--danger); }
   .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--muted); border-top-color: var(--accent);
     border-radius: 50%; animation: sp 1s linear infinite; vertical-align: -2px; margin-right: 6px; }
@@ -166,6 +168,101 @@
   .tasklog { display: none; margin-top: 8px; max-height: 240px; overflow: auto; background: var(--preview-bg);
     border-radius: 8px; padding: 9px 11px; font: 11.5px/1.6 ui-monospace,Consolas,monospace; white-space: pre-wrap; word-break: break-all; }
   .tasklog.show { display: block; }
+
+  /* ===================== 动效系统（Motion.Lab 精选） ===================== */
+  :root { --ease-out: cubic-bezier(.22,1,.36,1); --ease-spring: cubic-bezier(.34,1.56,.64,1); }
+  /* 无障碍：系统开启「减弱动态效果」时，全部动效瞬时完成 */
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0ms !important;
+      animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  }
+
+  /* ① 页面切换：模块错落上滑淡入（fade-in-up + stagger-fade） */
+  section.active > * { animation: secIn .45s var(--ease-out) both; }
+  section.active > *:nth-child(2) { animation-delay: .05s; }
+  section.active > *:nth-child(3) { animation-delay: .10s; }
+  section.active > *:nth-child(4) { animation-delay: .15s; }
+  section.active > *:nth-child(5) { animation-delay: .20s; }
+  section.active > *:nth-child(6) { animation-delay: .25s; }
+  section.active > *:nth-child(n+7) { animation-delay: .30s; }
+  @keyframes secIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  /* ② 指标卡：hover 轻浮起；数字等宽（count-up 滚动时不抖动） */
+  .stat { transition: transform .18s var(--ease-out), border-color .18s; }
+  .stat:hover { transform: translateY(-2px); }
+  .stat .num { font-variant-numeric: tabular-nums; }
+  #healthBox > .stat { animation: rowIn .4s var(--ease-out) both; }
+  #healthBox > .stat:nth-child(2) { animation-delay: .04s; }
+  #healthBox > .stat:nth-child(3) { animation-delay: .08s; }
+  #healthBox > .stat:nth-child(4) { animation-delay: .12s; }
+  #healthBox > .stat:nth-child(5) { animation-delay: .16s; }
+  #healthBox > .stat:nth-child(6) { animation-delay: .20s; }
+  #healthBox > .stat:nth-child(7) { animation-delay: .24s; }
+  #healthBox > .stat:nth-child(8) { animation-delay: .28s; }
+  #healthBox > .stat:nth-child(n+9) { animation-delay: .30s; }
+
+  /* ③ 统计条形图：条目错落淡入 + 填充条 scaleX 生长（性能优于 width 动画） */
+  .bar-row { animation: rowIn .35s var(--ease-out) both; }
+  .bar-row:nth-child(2) { animation-delay: .03s; }
+  .bar-row:nth-child(3) { animation-delay: .06s; }
+  .bar-row:nth-child(4) { animation-delay: .09s; }
+  .bar-row:nth-child(5) { animation-delay: .12s; }
+  .bar-row:nth-child(6) { animation-delay: .15s; }
+  .bar-row:nth-child(7) { animation-delay: .18s; }
+  .bar-row:nth-child(8) { animation-delay: .21s; }
+  .bar-row:nth-child(n+9) { animation-delay: .22s; }
+  .bar-fill { transform-origin: left center; animation: barGrow .7s var(--ease-out) .1s both; }
+  @keyframes barGrow { from { transform: scaleX(0); } }
+  @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  /* ④ 表格行：数据加载后轻微错落淡入 */
+  tbody tr { animation: rowIn .3s ease-out both; }
+  tbody tr:nth-child(2) { animation-delay: .02s; }
+  tbody tr:nth-child(3) { animation-delay: .04s; }
+  tbody tr:nth-child(4) { animation-delay: .06s; }
+  tbody tr:nth-child(5) { animation-delay: .08s; }
+  tbody tr:nth-child(6) { animation-delay: .10s; }
+  tbody tr:nth-child(7) { animation-delay: .12s; }
+  tbody tr:nth-child(8) { animation-delay: .14s; }
+  tbody tr:nth-child(9) { animation-delay: .16s; }
+  tbody tr:nth-child(10) { animation-delay: .18s; }
+  tbody tr:nth-child(n+11) { animation-delay: .18s; }
+
+  /* ⑤ 任务中心：抽屉弹性滑出 + 遮罩淡入 + 任务卡错落入场 + 进度条生长 */
+  .taskpanel { transition: transform .32s var(--ease-out); }
+  .taskmask { position: fixed; inset: 0; background: rgba(0,0,0,.32); z-index: 89; opacity: 0; visibility: hidden;
+    transition: opacity .25s ease, visibility .25s; }
+  .taskmask.show { opacity: 1; visibility: visible; }
+  .taskitem { animation: rowIn .3s var(--ease-out) both; }
+  .taskitem:nth-child(2) { animation-delay: .04s; }
+  .taskitem:nth-child(3) { animation-delay: .08s; }
+  .taskitem:nth-child(4) { animation-delay: .12s; }
+  .taskitem:nth-child(5) { animation-delay: .16s; }
+  .taskitem:nth-child(n+6) { animation-delay: .18s; }
+  .progress > i { transform-origin: left center; animation: barGrow .5s var(--ease-out) both; }
+
+  /* ⑥ 收藏按钮：点击时星星弹跳（zoom-bounce 弹簧曲线） */
+  .favbtn.pop { animation: pop .4s var(--ease-spring); }
+  @keyframes pop { 0% { transform: scale(.4); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
+
+  /* ⑦ 主按钮：hover 轻浮起、按压下沉 */
+  button.btn { transition: background .15s, transform .16s var(--ease-out), box-shadow .16s; }
+  button.btn:not(:disabled):hover { transform: translateY(-1px); }
+  button.btn:not(:disabled):active { transform: translateY(1px); }
+
+  /* ⑧ 展开正文 / 投递推荐结果：揭示动画 */
+  .body-preview.show { animation: rowIn .25s ease-out; }
+  #resumeResultCard { animation: secIn .45s var(--ease-out); }
+  #resumeRecs > .card, #resumePreachs > .card { animation: rowIn .4s var(--ease-out) both; }
+  #resumeRecs > .card:nth-child(2), #resumePreachs > .card:nth-child(2) { animation-delay: .05s; }
+  #resumeRecs > .card:nth-child(3), #resumePreachs > .card:nth-child(3) { animation-delay: .10s; }
+  #resumeRecs > .card:nth-child(4), #resumePreachs > .card:nth-child(4) { animation-delay: .15s; }
+  #resumeRecs > .card:nth-child(5), #resumePreachs > .card:nth-child(5) { animation-delay: .20s; }
+  #resumeRecs > .card:nth-child(6), #resumePreachs > .card:nth-child(6) { animation-delay: .25s; }
+  #resumeRecs > .card:nth-child(7), #resumePreachs > .card:nth-child(7) { animation-delay: .30s; }
+  #resumeRecs > .card:nth-child(8), #resumePreachs > .card:nth-child(8) { animation-delay: .35s; }
+  #resumeRecs > .card:nth-child(n+9), #resumePreachs > .card:nth-child(n+9) { animation-delay: .36s; }
+  /* ===================== 动效系统结束 ===================== */
 </style>
 </head>
 <body>
@@ -181,6 +278,7 @@
 </header>
 
 <!-- 统一任务中心（右侧抽屉） -->
+<div class="taskmask" id="taskMask" onclick="toggleTaskCenter(false)"></div>
 <aside id="taskPanel" class="taskpanel" aria-label="任务中心">
   <div class="taskhead">
     <b>📋 任务中心</b>
@@ -520,8 +618,27 @@ const state = { cPage: 1, rPage: 1, pPage: 1, crawlerTask: null, recruitTask: nu
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function toast(msg, err){ const t=$('toast'); t.textContent=msg; t.className='toast'+(err?' err':''); t.style.display='block';
-  clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none', 3500); }
+// ---- 动效工具（Motion.Lab count-up）：数字从当前值平滑滚动到目标值
+const REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function animateNum(el, target){
+  if (!el) return;
+  const to = Number(target);
+  if (!Number.isFinite(to) || REDUCED_MOTION){ el.textContent = target; return; }  // 非数字（日期等）直接显示
+  const prev = Number(el.dataset.v);
+  const from = Number.isFinite(prev) ? prev : 0;
+  if (from === to){ el.textContent = to; return; }
+  el.dataset.v = to;
+  const dur = 700, t0 = performance.now();
+  const tick = now => {
+    const p = Math.min(1, (now - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3);   // easeOutCubic
+    el.textContent = Math.round(from + (to - from) * e);
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+function toast(msg, err){ const t=$('toast'); t.textContent=msg; t.className='toast show'+(err?' err':'');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'), 3200); }
 function download(url){ window.location.href = url; }
 async function importReport(){
   const f = $('reportImportFile').files[0];
@@ -620,9 +737,9 @@ function renderStatsCards(s){
       <div class="stat"><div class="num" id="stRawTime">-</div><div class="lbl" id="stRawFile"></div></div>`;
     box.dataset.built = '1';
   }
-  $('stRecruit').textContent = s.recruit_count;
-  $('stPreach').textContent = s.preach_count;
-  $('stAnalyzed').textContent = s.analyzed_count;
+  animateNum($('stRecruit'), s.recruit_count);
+  animateNum($('stPreach'), s.preach_count);
+  animateNum($('stAnalyzed'), s.analyzed_count);
   $('stRawTime').textContent = s.raw_mtime || '-';
   $('stRawFile').textContent = '数据文件：' + (s.raw_file || '（未抓取）');
 }
@@ -697,7 +814,7 @@ async function loadActions(){
     const a = await (await fetch('/api/actions')).json();
     if (!a.ok) return;
     renderActionCards();
-    ACTIONS.forEach(x => { const el = $('act_'+x.key); if (el) el.textContent = (a[x.key] ?? 0); });
+    ACTIONS.forEach(x => { const el = $('act_'+x.key); if (el) animateNum(el, a[x.key] ?? 0); });
     $('actionUpdated').textContent = '数据更新：' + (a.data_updated || '未抓取') + ' · 统计日期 ' + (a.today||'');
   }catch(e){}
 }
@@ -734,12 +851,17 @@ const TASK_STATUS = {running:['run','运行中'], queued:['run','排队中'], su
                      failed:['err','失败'], cancelled:['warn2','已停止']};
 function taskStatusText(s){ const t = TASK_STATUS[s]; return t ? t[1] : (s || '-'); }
 function toggleTaskCenter(force){
-  const p = $('taskPanel');
+  const p = $('taskPanel'), m = $('taskMask');
   if (!p) return;
   const open = (force === undefined) ? !p.classList.contains('open') : !!force;
   p.classList.toggle('open', open);
+  if (m) m.classList.toggle('show', open);
   if (open) loadTaskCenter();
 }
+// Esc 键关闭任务中心抽屉
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('taskPanel') && $('taskPanel').classList.contains('open')) toggleTaskCenter(false);
+});
 function taskCard(t){
   const st = TASK_STATUS[t.status] || ['no', t.status || '-'];
   const pr = t.progress || {};
@@ -858,7 +980,7 @@ async function stopTask(task){
 async function loadStats(quiet){
   try{
     const s = await (await fetch('/api/stats')).json();
-    if ($('soNum')) $('soNum').textContent = s.state_owned;
+    if ($('soNum')) animateNum($('soNum'), s.state_owned);
     const maxT = Math.max(1, ...(s.types.map(x=>x[1])));
     $('typeBars').innerHTML = s.types.length ? s.types.map(([k,v]) =>
       `<div class="bar-row"><div class="bar-label" title="${esc(k)}">${esc(k||'（未分析）')}</div>
@@ -982,7 +1104,9 @@ function toggleFav(id, btn){
   const method = was ? 'unfav' : 'fav';
   fetch('/api/preach/'+method, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id})})
     .then(r=>r.json()).then(r=>{
-      if (r.ok){ if(was) favs.delete(String(id)); else favs.add(String(id)); btn.textContent = was?'☆':'★'; btn.classList.toggle('on', !was); toast(was?'已取消收藏':'已收藏'); if($('pFavOnly').checked) loadPreachs(state.pPage); }
+      if (r.ok){ if(was) favs.delete(String(id)); else favs.add(String(id)); btn.textContent = was?'☆':'★'; btn.classList.toggle('on', !was);
+        btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop');   // 星星弹跳反馈
+        toast(was?'已取消收藏':'已收藏'); if($('pFavOnly').checked) loadPreachs(state.pPage); }
       else toast((r.error||'操作失败'), true);
     }).catch(()=>toast('网络错误', true)).finally(()=>{ delete btn.dataset.busy; });
 }
