@@ -34,9 +34,12 @@ SLEEP_CODE = "import time; print('长任务开始', flush=True); time.sleep(30)"
 
 @pytest.fixture()
 def tm(tmp_path, monkeypatch):
+    # 路径改为显式注入（TaskManager 不再依赖某个模块的全局变量），
+    # 同时对 server 上的常量做兼容 patch：这几个断言仍以它们为基准。
     monkeypatch.setattr(server, "TASK_HISTORY_PATH", tmp_path / "任务历史.json")
     monkeypatch.setattr(server, "TASK_LOG_DIR", tmp_path / "任务日志")
-    manager = server.TaskManager()
+    manager = server.TaskManager(history_path=server.TASK_HISTORY_PATH,
+                                 log_dir=server.TASK_LOG_DIR)
     yield manager
     with manager.lock:
         for task in manager.tasks.values():
@@ -102,8 +105,9 @@ def test_history_persisted_to_disk_and_reloadable(tm):
     saved = json.loads(path.read_text(encoding="utf-8"))["tasks"]
     assert any(r["id"] == cur["id"] and r["status"] == "succeeded" for r in saved)
 
-    # 模拟服务重启：新实例只有历史记录，没有内存运行态
-    restarted = server.TaskManager()
+    # 模拟服务重启：新实例只有历史记录，没有内存运行态（注意指向同一份历史文件）
+    restarted = server.TaskManager(history_path=server.TASK_HISTORY_PATH,
+                                   log_dir=server.TASK_LOG_DIR)
     assert restarted.running() == []
     rec = restarted.get(cur["id"])
     assert rec is not None and rec["status"] == "succeeded"

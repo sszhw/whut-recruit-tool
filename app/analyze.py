@@ -35,11 +35,12 @@ from typing import Any
 import crawler  # 复用 plain_text 等工具函数
 import repository as repo  # 统一数据访问层：跨文件合并 + 按 ID 去重（--merge）
 import requests
+import settings  # 默认模型名的唯一来源（依赖方向：settings 是终点，不反向 import 业务模块）
 from utils import io as io_utils
 from utils import text as text_utils
 
 BASE_URL = os.environ.get("LLM_BASE_URL") or os.environ.get("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
-DEFAULT_MODEL = os.environ.get("LLM_MODEL") or "Qwen/Qwen2.5-72B-Instruct"
+DEFAULT_MODEL = settings.DEFAULT_MODEL   # 重导出，保留 analyze.DEFAULT_MODEL 这一既有入口
 CACHE_NAME = "企业分析_缓存.json"
 CSV_NAME = "企业分析_国企与工作地点.csv"
 MD_NAME = "企业分析报告.md"

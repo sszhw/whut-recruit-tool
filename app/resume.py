@@ -24,13 +24,16 @@ from pathlib import Path
 
 import repository as repo  # 统一数据访问层：候选企业跨全部招聘原始文件合并去重
 import requests
+import settings
 from utils import io as io_utils
 from utils import text as text_utils
 
 BASE_URL = os.environ.get("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
 # 图片/扫描件 OCR 用的视觉模型（可在界面里改）
 VISION_MODEL = os.environ.get("RESUME_VISION_MODEL", "Qwen/Qwen3-VL-32B-Instruct")
-DEFAULT_MODEL = "Qwen/Qwen2.5-72B-Instruct"
+# 默认模型名统一取自 settings（此前此处硬编码了一份，与 analyze 各写各的，
+# 结果 analyze 认 LLM_MODEL 环境变量、resume 不认，同一份配置两边模型不一致）
+DEFAULT_MODEL = settings.DEFAULT_MODEL
 
 CACHE_NAME = "企业分析_缓存.json"
 
