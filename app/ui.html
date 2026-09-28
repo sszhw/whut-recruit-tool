@@ -245,6 +245,23 @@
   .tag.ok2 { background: rgba(16,185,129,.12); color: var(--ok-text); border: 1px solid rgba(16,185,129,.3); }
   .tag.err { background: rgba(239,91,91,.14); color: var(--danger-text); border: 1px solid rgba(239,91,91,.35); }
   .tag.warn2 { background: rgba(245,166,35,.12); color: var(--warn-text); border: 1px solid rgba(245,166,35,.3); }
+  /* ---- 企业详情抽屉（点任意企业名打开：招聘公告 + 宣讲会 + 分析画像 + 投递状态） */
+  .cpdrawer { position: fixed; top: 0; right: 0; width: 560px; max-width: 96vw; height: 100vh; z-index: 92;
+    background: var(--panel); border-left: 1px solid var(--border-strong); box-shadow: var(--shadow);
+    display: flex; flex-direction: column; transform: translateX(103%); transition: transform .28s var(--ease-out); }
+  .cpdrawer.open { transform: translateX(0); }
+  .cpmask { position: fixed; inset: 0; background: rgba(0,0,0,.32); z-index: 91; opacity: 0; visibility: hidden;
+    transition: opacity .25s ease, visibility .25s; }
+  .cpmask.show { opacity: 1; visibility: visible; }
+  .cpsg { margin-bottom: 14px; }
+  .cpsg > h3 { font-size: var(--fs-md); font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+  .cpcard { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: var(--card-bg); }
+  .cpcard .hd { font-weight: 600; line-height: 1.5; }
+  .cpkv { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .cpcard input, .cpcard select { width: auto; min-width: 120px; }
+  /* 可点击的企业名：虚线下划线在三套主题下都可读（颜色一律取主题变量） */
+  .cplink { cursor: pointer; color: var(--accent-text); border-bottom: 1px dashed var(--accent); }
+  .cplink:hover { color: var(--accent-hover); border-bottom-style: solid; }
   /* ---- 统一任务中心（右侧抽屉） */
   .taskpanel { position: fixed; top: 0; right: 0; width: 470px; max-width: 94vw; height: 100vh; background: var(--panel);
     border-left: 1px solid var(--border-strong); box-shadow: var(--shadow); z-index: 90;
@@ -778,12 +795,26 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
   <div class="tasklist" id="taskList"><span class="muted small">加载中…</span></div>
 </aside>
 
-<!-- role=tablist/tab + aria-selected：屏幕阅读器可播报「选项卡 1/7，已选中」 -->
+<!-- 企业详情抽屉：点任意企业名打开，把四处散落的信息聚到一处 -->
+<div class="cpmask" id="cpMask" onclick="closeCompany()"></div>
+<aside id="cpPanel" class="cpdrawer" role="dialog" aria-modal="true" aria-hidden="true" aria-label="企业详情">
+  <div class="taskhead">
+    <b id="cpTitle">企业详情</b>
+    <span class="right">
+      <button class="btn ghost sm" onclick="openCompany(cpState.name)">刷新</button>
+      <button class="btn ghost sm" onclick="closeCompany()">关闭</button>
+    </span>
+  </div>
+  <div class="tasklist" id="cpBody"><span class="muted small">尚未选择企业</span></div>
+</aside>
+
+<!-- role=tablist/tab + aria-selected：屏幕阅读器可播报选项卡位置与选中状态 -->
 <nav role="tablist" aria-label="主功能导航">
   <button role="tab" id="tabbtn-dashboard" aria-controls="tab-dashboard" aria-selected="true" data-tab="dashboard" class="active">📊 总览</button>
   <button role="tab" id="tabbtn-crawl" aria-controls="tab-crawl" aria-selected="false" data-tab="crawl">🕷️ 抓取数据</button>
   <button role="tab" id="tabbtn-analyze" aria-controls="tab-analyze" aria-selected="false" data-tab="analyze">🤖 企业分析</button>
   <button role="tab" id="tabbtn-resume" aria-controls="tab-resume" aria-selected="false" data-tab="resume">🎯 投递推荐</button>
+  <button role="tab" id="tabbtn-board" aria-controls="tab-board" aria-selected="false" data-tab="board">投递看板</button>
   <button role="tab" id="tabbtn-recruits" aria-controls="tab-recruits" aria-selected="false" data-tab="recruits">📄 招聘信息</button>
   <button role="tab" id="tabbtn-preachs" aria-controls="tab-preachs" aria-selected="false" data-tab="preachs">🎤 宣讲会</button>
   <button role="tab" id="tabbtn-settings" aria-controls="tab-settings" aria-selected="false" data-tab="settings">⚙️ 设置</button>
@@ -1003,8 +1034,8 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
     </div>
     <div class="tablewrap">
       <table>
-        <thead><tr><th style="width:130px">发布日期</th><th>标题</th><th style="width:220px">单位</th><th style="width:60px">链接</th></tr></thead>
-        <tbody id="recruitRows"><tr><td colspan="4" class="muted">加载中…</td></tr></tbody>
+        <thead><tr><th style="width:130px">发布日期</th><th>标题</th><th style="width:220px">单位</th><th style="width:60px">链接</th><th style="width:90px">看板</th></tr></thead>
+        <tbody id="recruitRows"><tr><td colspan="5" class="muted">加载中…</td></tr></tbody>
       </table>
     </div>
     <div class="pager">
@@ -1042,8 +1073,8 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
     </div>
     <div class="tablewrap">
       <table>
-        <thead><tr><th style="width:140px">宣讲时间</th><th>单位名称</th><th style="width:200px">宣讲会地点</th><th style="width:120px">公司地点</th><th style="width:70px">线下/线上</th><th style="width:170px">提醒</th><th style="width:52px">⭐</th><th style="width:52px">链接</th></tr></thead>
-        <tbody id="preachRows"><tr><td colspan="8" class="muted">加载中…</td></tr></tbody>
+        <thead><tr><th style="width:140px">宣讲时间</th><th>单位名称</th><th style="width:200px">宣讲会地点</th><th style="width:120px">公司地点</th><th style="width:70px">线下/线上</th><th style="width:170px">提醒</th><th style="width:52px">⭐</th><th style="width:52px">链接</th><th style="width:90px">看板</th></tr></thead>
+        <tbody id="preachRows"><tr><td colspan="9" class="muted">加载中…</td></tr></tbody>
       </table>
     </div>
     <div class="pager">
@@ -1075,6 +1106,45 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
     <p class="hint" id="flowStatus">-</p>
     <p class="hint">生成《宣讲会_工作地流动.csv》+《宣讲会_工作地流动报告.md》，并作为本页「公司地点」映射依据。</p>
     <pre class="log" id="flowLog">（尚未运行）</pre>
+  </div>
+</section>
+
+<!-- ================= 投递看板 ================= -->
+<section id="tab-board" role="tabpanel" aria-labelledby="tabbtn-board" tabindex="0">
+  <div class="card focus">
+    <h2>投递进度</h2>
+    <div class="grid" id="boardStageStats"><span class="muted small">加载中…</span></div>
+    <p class="hint" id="boardConversions"></p>
+  </div>
+
+  <div class="card">
+    <h2>新增跟进条目</h2>
+    <div class="row">
+      <div><label>来源</label><select id="boardSourceType"><option value="招聘">招聘信息</option><option value="宣讲会">宣讲会</option></select></div>
+      <div><label>来源记录 ID</label><input id="boardSourceId" placeholder="招聘或宣讲会 ID"></div>
+      <div><label>单位名称</label><input id="boardUnit" placeholder="如：某某科技有限公司"></div>
+      <div style="flex:2"><label>标题</label><input id="boardTitle" placeholder="招聘公告或宣讲会标题"></div>
+    </div>
+    <div class="row">
+      <div style="flex:2"><label>原文链接</label><input id="boardLink" type="url" placeholder="https://..."></div>
+      <div style="flex:2"><label>备注</label><input id="boardNewNote" placeholder="岗位、网申截止时间或待办事项"></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnBoardCreate" onclick="createBoardItem()">加入看板</button></div>
+    </div>
+    <p class="hint">也可在「招聘信息」或「宣讲会」列表中直接加入，单位、标题与链接会作为快照保留。</p>
+  </div>
+
+  <div class="card">
+    <h2>跟进列表 <span id="boardTotal" class="muted small"></span></h2>
+    <div class="toolbar">
+      <div><label>阶段筛选</label><select id="boardStageFilter" onchange="loadBoard()"><option value="">全部阶段</option></select></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost" onclick="loadBoard()">刷新</button></div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>单位 / 标题</th><th style="width:90px">来源</th><th style="width:130px">阶段</th><th>备注</th><th style="width:110px">操作</th></tr></thead>
+        <tbody id="boardRows"><tr><td colspan="5" class="muted">加载中…</td></tr></tbody>
+      </table>
+    </div>
   </div>
 </section>
 
@@ -1253,7 +1323,7 @@ function applyTheme(t){
 })();
 
 // ---- Tabs（URL hash 持久化：刷新 / 分享链接 / 前进后退都停留在当前页）
-const TABS = ['dashboard','crawl','analyze','resume','recruits','preachs','settings'];
+const TABS = ['dashboard','crawl','analyze','resume','board','recruits','preachs','settings'];
 function activateTab(tab, opts){
   opts = opts || {};
   if (TABS.indexOf(tab) < 0) tab = 'dashboard';
@@ -1271,6 +1341,7 @@ function activateTab(tab, opts){
   else if (tab==='analyze'){ loadCompanyFilters(); loadCompanies(1); }
   else if (tab==='recruits'){ loadRecruits(1); }
   else if (tab==='preachs'){ loadPreachFilters(); loadPreachFavs(); loadPreachs(1); }
+  else if (tab==='board'){ loadBoard(); }
   else if (tab==='resume'){ loadResumeCompanyCount(); }
   else if (tab==='crawl'){ loadCrawlDates(); }
 }
@@ -1684,13 +1755,228 @@ async function loadCompanies(page){
   const pages = Math.max(1, Math.ceil(r.total/r.size));
   $('cPageInfo').textContent = state.cPage+' / '+pages;
   $('companyRows').innerHTML = r.rows.length ? r.rows.map(c => `<tr>
-      <td><b>${esc(c.name)}</b></td>
+      <td><b>${companyLink(c.name)}</b></td>
       <td><span class="tag type">${esc(c.type||'-')}</span></td>
       <td><span class="tag ${c.so==='是'?'so':'no'}">${esc(c.so)}</span></td>
       <td class="muted">${esc(c.confidence||'-')}</td>
       <td>${(c.locations||[]).map(l=>`<span class="tag loc">${esc(l)}</span>`).join('')||'<span class="muted">-</span>'}</td>
       <td class="muted small">${esc(c.evidence||'')}</td></tr>`).join('')
     : '<tr><td colspan="6" class="muted">无匹配结果</td></tr>';
+}
+
+// ---- 投递看板
+const BOARD_STAGES = ['关注','投递','笔试','面试','Offer','放弃'];
+const BOARD_TRANSITIONS = {
+  '关注':['投递','放弃'], '投递':['笔试','面试','Offer','放弃'],
+  '笔试':['面试','Offer','放弃'], '面试':['Offer','放弃'], 'Offer':['放弃'], '放弃':['关注']
+};
+function boardPost(url, body){
+  return api(url, {method:'POST', retries:0, headers:{'Content-Type':'application/json'}, body:JSON.stringify(body||{})});
+}
+function ensureBoardFilters(stages){
+  const sel = $('boardStageFilter');
+  if (sel.options.length > 1) return;
+  (stages||BOARD_STAGES).forEach(s => sel.insertAdjacentHTML('beforeend', `<option value="${esc(s)}">${esc(s)}</option>`));
+}
+function boardStageOptions(item){
+  const choices = [item.stage].concat(BOARD_TRANSITIONS[item.stage]||[]);
+  return choices.map(s=>`<option value="${esc(s)}" ${s===item.stage?'selected':''}>${esc(s)}</option>`).join('');
+}
+async function loadBoard(){
+  ensureBoardFilters(BOARD_STAGES);
+  const stage = $('boardStageFilter').value;
+  setBusy($('boardRows'));
+  const [rows, stats] = await Promise.all([
+    api('/api/board/items?'+new URLSearchParams({stage})), api('/api/board/stats')
+  ]);
+  if (!rows.ok){ $('boardRows').innerHTML = '<tr><td colspan="5" class="muted">'+esc(rows.error||'加载失败')+'</td></tr>'; return; }
+  $('boardTotal').textContent = '共 '+rows.items.length+' 条';
+  ensureBoardFilters(rows.stages);
+  $('boardRows').innerHTML = rows.items.length ? rows.items.map(item=>{
+    const snap = item.snapshot || {};
+    const title = snap.title && snap.title !== snap.unit ? `<div class="small muted">${esc(snap.title)}</div>` : '';
+    const link = snap.link ? `<a href="${esc(snap.link)}" target="_blank" rel="noopener">查看原文</a>` : '';
+    return `<tr>
+      <td><b>${esc(snap.unit||snap.title||'-')}</b>${title}<div class="small">${link}</div></td>
+      <td><span class="tag no">${esc(item.source_type)}</span></td>
+      <td><select aria-label="更新阶段" onchange="changeBoardStage('${esc(item.id)}',this.value)">${boardStageOptions(item)}</select></td>
+      <td><div style="display:flex;gap:6px;align-items:center"><input id="bn-${esc(item.id)}" value="${esc(item.note||'')}" placeholder="添加备注"><button class="btn ghost sm" onclick="saveBoardNote('${esc(item.id)}')">保存</button></div></td>
+      <td><button class="btn red sm" onclick="removeBoardItem('${esc(item.id)}')">删除</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" class="muted">当前筛选下暂无条目</td></tr>';
+  if (stats.ok){
+    $('boardStageStats').innerHTML = BOARD_STAGES.map(s=>`<div class="stat"><div class="num">${stats.counts[s]||0}</div><div class="lbl">${esc(s)}</div></div>`).join('');
+    $('boardConversions').textContent = (stats.conversions||[]).map(x=>x.from+'→'+x.to+' '+x.rate+'%').join(' · ');
+  }
+}
+async function createBoardItem(){
+  const body = {
+    source_type:$('boardSourceType').value, source_id:$('boardSourceId').value.trim(),
+    snapshot:{unit:$('boardUnit').value.trim(), title:$('boardTitle').value.trim(), link:$('boardLink').value.trim()},
+    note:$('boardNewNote').value.trim()
+  };
+  const btn = $('btnBoardCreate'); btn.disabled = true;
+  const r = await boardPost('/api/board/items', body);
+  btn.disabled = false;
+  if (!r.ok) return;
+  ['boardSourceId','boardUnit','boardTitle','boardLink','boardNewNote'].forEach(id=>$(id).value='');
+  toast('已加入投递看板'); loadBoard();
+}
+async function quickAddBoard(encoded){
+  let body;
+  try{ body = JSON.parse(decodeURIComponent(encoded)); }catch(e){ toast('记录数据无效', true); return; }
+  const r = await boardPost('/api/board/items', body);
+  if (r.ok) toast('已加入投递看板');
+}
+async function changeBoardStage(id, stage){
+  const r = await boardPost('/api/board/items/'+encodeURIComponent(id)+'/status', {stage});
+  if (r.ok){ toast('阶段已更新为 '+stage); loadBoard(); }
+  else loadBoard();
+}
+async function saveBoardNote(id){
+  const r = await boardPost('/api/board/items/'+encodeURIComponent(id)+'/note', {note:$('bn-'+id).value});
+  if (r.ok){ toast('备注已保存'); loadBoard(); }
+}
+async function removeBoardItem(id){
+  if (!confirm('确定删除这条投递记录吗？')) return;
+  const r = await boardPost('/api/board/items/'+encodeURIComponent(id)+'/delete', {});
+  if (r.ok){ toast('已删除投递记录'); loadBoard(); }
+}
+function boardPayload(sourceType, row){
+  return encodeURIComponent(JSON.stringify({
+    source_type:sourceType, source_id:String(row['ID']||row['原网页']||''),
+    snapshot:{unit:row['单位']||row['单位名称']||'', title:row['标题']||'', link:row['原网页']||'',
+      date:row['发布日期']||row['举办日期']||'', location:row['宣讲会地点']||''}
+  }));
+}
+
+// ---- 企业详情抽屉（招聘公告 + 宣讲会 + 分析画像 + 投递状态 = 一家企业的全部）
+// 之前要看全一家企业得四处各搜一遍（列表 / 宣讲会 / 分析缓存 / 看板），这里一次性拼好。
+const cpState = { name:'', token:0, recruits:[], preaches:[] };
+// 企业名用 dataset 传递：写进 HTML 前已 esc()，读出来是原始文案，
+// 再 encodeURIComponent 拼 URL —— 引号或尖括号都不可能逃逸到 onclick 里。
+function companyLink(name){
+  const n = String(name || '').trim();
+  if (!n) return '<span class="muted">-</span>';
+  return `<span class="cplink" role="button" tabindex="0" title="查看「${esc(n)}」全部信息" data-n="${esc(n)}" onclick="openCompany(this.dataset.n)">${esc(n)}</span>`;
+}
+function openCompany(name){
+  const n = String(name || '').trim();
+  if (!n){ toast('企业名称为空', true); return; }
+  cpState.name = n;
+  $('cpPanel').classList.add('open'); $('cpMask').classList.add('show');
+  $('cpPanel').setAttribute('aria-hidden','false');
+  loadCompanyProfile(n);
+}
+function closeCompany(){
+  cpState.token++;                     // 让尚未返回的请求作废，避免慢响应盖掉新面板
+  $('cpPanel').classList.remove('open'); $('cpMask').classList.remove('show');
+  $('cpPanel').setAttribute('aria-hidden','true');
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('cpPanel').classList.contains('open')) closeCompany();
+});
+async function loadCompanyProfile(name){
+  const token = ++cpState.token;
+  const body = $('cpBody');
+  $('cpTitle').textContent = name;
+  body.dataset.busy = '1';
+  body.innerHTML = '<span class="sk sk-line">加载中…</span>';
+  const r = await api('/api/company/'+encodeURIComponent(name), {silent:true, retries:1});
+  if (token !== cpState.token) return;              // 抽屉已关或又点了别的企业
+  delete body.dataset.busy;
+  if (!r.ok){
+    // 明确告诉用户发生了什么，而不是留一个空白面板
+    body.innerHTML = `<div class="cpcard" style="border-color:var(--danger)">
+      <div class="hd">未加载到企业详情</div>
+      <div class="muted small" style="margin-top:6px">${esc(r.error||'未知错误')}</div>
+      <div class="hint">可能该企业已从当前数据中移除，可先在「抓取数据」里更新数据后重试。</div></div>`;
+    return;
+  }
+  cpState.recruits = r.recruitments || [];
+  cpState.preaches = r.preaches || [];
+  body.innerHTML = renderCompanyProfile(r);
+}
+function renderCompanyProfile(d){
+  const a = d.analysis || {}, st = d.stats || {};
+  const alias = (d.alias||[]).length ? `<div class="small muted">其他写法：${d.alias.map(x=>esc(x)).join(' / ')}</div>` : '';
+  const head = `<div class="cpsg"><div class="hd" style="font-size:var(--fs-xl)">${esc(d.name)}</div>${alias}
+    <div class="cpkv" style="margin-top:8px">
+      <span class="badge">${st.recruitments||0} 条公告</span>
+      <span class="badge">${st.preaches||0} 场宣讲会</span>
+      <span class="badge ${a.has?'ok':''}">${a.has?'已分析':'未分析'}</span>
+      <span class="badge ${st.board?'ok':''}">${st.board?'已在投递看板':'未加入看板'}</span>
+    </div></div>`;
+  return head + cpAnalysisCard(a) + cpBoardCard(d.board)
+    + cpRowSection('📄 招聘公告', cpState.recruits, '招聘', row => `
+        <div class="cpkv"><span class="muted small">${esc(row['发布日期'])}</span>${row['今日更新']?'<span class="tag remind">今日更新</span>':''}</div>
+        <div class="hd" style="margin-top:4px">${esc(row['标题'])}</div>`)
+    + cpRowSection('🎤 宣讲会', cpState.preaches, '宣讲会', row => `
+        <div class="cpkv"><span class="muted small">${esc(row['宣讲时间']||row['举办日期'])}</span>
+          <span class="tag ${row['线下/线上']==='线下'?'so':'no'}">${esc(row['线下/线上']||'-')}</span></div>
+        <div class="hd" style="margin-top:4px">${esc(row['标题']||d.name)}</div>
+        <div class="small muted" style="margin-top:4px">📍 ${esc(row['宣讲会地点']||'-')}
+          ${(row['work_cities']||[]).length?' · 工作地 '+esc((row['work_cities']||[]).join('、')):''}</div>`);
+}
+function cpAnalysisCard(a){
+  const tags = [];
+  if (a.company_type) tags.push(`<span class="tag type">${esc(a.company_type)}</span>`);
+  if (a.has) tags.push(`<span class="tag ${a.state_owned==='是'?'so':'no'}">${esc(a.state_owned)}</span>`);
+  if (a.confidence) tags.push(`<span class="tag loc">置信度 ${esc(a.confidence)}</span>`);
+  const locs = (a.locations||[]).length
+    ? a.locations.map(l=>`<span class="tag loc">${esc(l)}</span>`).join('') : '<span class="muted small">-</span>';
+  return `<div class="cpsg"><h3>🏷️ 企业画像</h3><div class="cpcard">
+    <div class="cpkv">${tags.join('')||'<span class="muted small">尚未分析</span>'}</div>
+    <div class="small" style="margin-top:6px">工作地：${locs}</div>
+    ${a.evidence?`<div class="small muted" style="margin-top:4px">依据：${esc(a.evidence)}</div>`:''}
+    ${!a.has?`<div class="hint">可到「企业分析」页运行分析，分析完成后自动出现在这里。</div>`:''}
+  </div></div>`;
+}
+function cpBoardCard(item){
+  if (!item) return `<div class="cpsg"><h3>🗂️ 投递状态</h3><div class="cpcard">
+    <div class="muted small">尚未加入投递看板 —— 在下方任意一条公告 / 宣讲会上点「加入看板」即可开始跟进。</div></div></div>`;
+  const snap = item.snapshot || {};
+  return `<div class="cpsg"><h3>🗂️ 投递状态</h3><div class="cpcard">
+    <div class="cpkv"><span class="tag no">${esc(item.source_type||'-')}</span><span class="hd">${esc(snap.unit||snap.title||'-')}</span></div>
+    ${snap.title&&snap.title!==snap.unit?`<div class="small muted">${esc(snap.title)}</div>`:''}
+    <div class="cpkv" style="margin-top:6px">
+      <select aria-label="更新阶段" onchange="cpChangeStage('${esc(item.id)}', this.value)">${boardStageOptions(item)}</select>
+      <input id="cp-bn-${esc(item.id)}" value="${esc(item.note||'')}" placeholder="备注">
+      <button class="btn ghost sm" onclick="cpSaveNote('${esc(item.id)}')">保存</button>
+    </div>
+    <div class="small muted" style="margin-top:4px">最近更新：${esc(item.updated_at||'-')}</div>
+  </div></div>`;
+}
+function cpRowSection(title, rows, kind, rowHtml){
+  const cards = rows.length ? rows.map((row,i)=>`<div class="cpcard">${rowHtml(row)}
+      <div class="cpkv" style="margin-top:6px">
+        ${row['原网页']?`<a href="${esc(row['原网页'])}" target="_blank" rel="noopener">原文</a>`:''}
+        <button class="btn ghost sm" onclick="cpAddBoard('${esc(kind)}',${i})">加入看板</button>
+      </div></div>`).join('')
+    : '<p class="muted small">暂无记录</p>';
+  return `<div class="cpsg"><h3>${esc(title)}</h3>${cards}</div>`;
+}
+// 三条快捷动作复用看板自己的 URL；成功后同时刷新抽屉与看板页，避免两处状态不一致
+function cpRefreshBoard(){
+  loadCompanyProfile(cpState.name);
+  if ($('boardStageFilter')) loadBoard();
+}
+async function cpAddBoard(kind, index){
+  const rows = kind === '招聘' ? cpState.recruits : cpState.preaches;
+  const row = rows && rows[index];
+  if (!row){ toast('暂无可加入的记录', true); return; }
+  const body = JSON.parse(decodeURIComponent(boardPayload(kind, row)));
+  const r = await boardPost('/api/board/items', body);
+  if (r.ok){ toast('已加入投递看板'); cpRefreshBoard(); }
+}
+async function cpChangeStage(id, stage){
+  const r = await boardPost('/api/board/items/'+encodeURIComponent(id)+'/status', {stage});
+  if (r.ok){ toast('阶段已更新为 '+stage); cpRefreshBoard(); }
+}
+async function cpSaveNote(id){
+  const el = $('cp-bn-'+id);
+  const r = await boardPost('/api/board/items/'+encodeURIComponent(id)+'/note', {note: el?el.value:''});
+  if (r.ok){ toast('备注已保存'); cpRefreshBoard(); }
 }
 
 // ---- Recruitments
@@ -1700,17 +1986,19 @@ async function loadRecruits(page){
     today:$('rToday').checked?'1':'', sort:$('rSort').value });
   setBusy($('recruitRows'));
   const r = await api('/api/recruitments?'+p);
-  if (!r.ok){ $('recruitRows').innerHTML = '<tr><td colspan="4" class="muted">' + esc(r.error||'加载失败') + '，请重试</td></tr>'; return; }
+  if (!r.ok){ $('recruitRows').innerHTML = '<tr><td colspan="5" class="muted">' + esc(r.error||'加载失败') + '，请重试</td></tr>'; return; }
   $('rTotal').textContent = '共 '+r.total+' 条' + (r.today_count ? '（今日新增 '+r.today_count+' 条）' : '');
   const pages = Math.max(1, Math.ceil(r.total/r.size));
   $('rPageInfo').textContent = state.rPage+' / '+pages;
   $('recruitRows').innerHTML = r.rows.length ? r.rows.map((x,i) => {
     const id = 'rb'+state.rPage+'_'+i;
+    const bp = boardPayload('招聘', x);
     return `<tr><td class="muted small">${esc(x['发布日期'])}</td>
       <td>${x['今日更新']?'<span class="tag remind">今日更新</span> ':''}${esc(x['标题'])}${x['正文']?`<div><span class="expand" role="button" tabindex="0" onclick="document.getElementById('${id}').classList.toggle('show')">展开正文 ▾</span><div class="body-preview" id="${id}">${esc(x['正文'])}…</div></div>`:''}</td>
-      <td class="small">${esc(x['单位']||'-')}</td>
-      <td>${x['原网页']?`<a href="${esc(x['原网页'])}" target="_blank">原文</a>`:''}</td></tr>`; }).join('')
-    : '<tr><td colspan="4" class="muted">暂无数据，请先运行抓取</td></tr>';
+      <td class="small">${x['单位']?companyLink(x['单位']):'<span class="muted">-</span>'}</td>
+      <td>${x['原网页']?`<a href="${esc(x['原网页'])}" target="_blank">原文</a>`:''}</td>
+      <td><button class="btn ghost sm" onclick="quickAddBoard('${bp}')">加入</button></td></tr>`; }).join('')
+    : '<tr><td colspan="5" class="muted">暂无数据，请先运行抓取</td></tr>';
 }
 
 // ---- Preachs (宣讲会)
@@ -1733,23 +2021,25 @@ async function loadPreachs(page){
     start:$('pstart').value, end:$('pend').value, show_past:$('pUpcoming').checked?'':'1', fav_only:$('pFavOnly').checked?'1':'', page:state.pPage, size:50 });
   setBusy($('preachRows'));
   const r = await api('/api/preachs?'+p);
-  if (!r.ok){ $('preachRows').innerHTML = '<tr><td colspan="8" class="muted">' + esc(r.error||'加载失败') + '，请重试</td></tr>'; return; }
+  if (!r.ok){ $('preachRows').innerHTML = '<tr><td colspan="9" class="muted">' + esc(r.error||'加载失败') + '，请重试</td></tr>'; return; }
   $('pTotal').textContent = '共 '+r.total+' 场';
   const pages = Math.max(1, Math.ceil(r.total/r.size));
   $('pPageInfo').textContent = state.pPage+' / '+pages;
   $('preachRows').innerHTML = r.rows.length ? r.rows.map((x,i) => {
     const id = 'pb'+state.pPage+'_'+i;
     const isOffline = x['线下/线上']==='线下';
+    const bp = boardPayload('宣讲会', x);
     return `<tr><td class="muted small">${esc(x['宣讲时间']||'-')}</td>
-      <td>${esc(x['单位名称']||'-')}${x['标题']&&x['标题']!==x['单位名称']?`<div class="small muted">${esc(x['标题'])}</div>`:''}
+      <td>${x['单位名称']?companyLink(x['单位名称']):'<span class="muted">-</span>'}${x['标题']&&x['标题']!==x['单位名称']?`<div class="small muted">${esc(x['标题'])}</div>`:''}
       ${x['正文']?`<div><span class="expand" role="button" tabindex="0" onclick="document.getElementById('${id}').classList.toggle('show')">展开详情 ▾</span><div class="body-preview" id="${id}">${esc(x['正文'])}…</div></div>`:''}</td>
       <td class="small">${esc(x['宣讲会地点']||'-')}</td>
       <td>${(x['work_cities']||[]).length? x['work_cities'].map(c=>`<span class="tag loc">${esc(c)}</span>`).join(''):'<span class="tag type">未确定</span>'}</td>
       <td><span class="tag ${isOffline?'so':'no'}">${esc(x['线下/线上']||'-')}</span></td>
       <td class="small">${(x['提醒']||[]).map(t=>`<span class="tag remind">${esc(t)}</span>`).join('')||'<span class="muted">-</span>'}</td>
       <td class="small" style="text-align:center">${favBtn(x)}</td>
-      <td>${x['原网页']?`<a href="${esc(x['原网页'])}" target="_blank">原文</a>`:''}</td></tr>`; }).join('')
-    : '<tr><td colspan="8" class="muted">暂无数据，请先运行抓取</td></tr>';
+      <td>${x['原网页']?`<a href="${esc(x['原网页'])}" target="_blank">原文</a>`:''}</td>
+      <td><button class="btn ghost sm" onclick="quickAddBoard('${bp}')">加入</button></td></tr>`; }).join('')
+    : '<tr><td colspan="9" class="muted">暂无数据，请先运行抓取</td></tr>';
 }
 
 // ---- 宣讲会收藏
@@ -1857,7 +2147,7 @@ function renderResumeResult(r){
       const cls = c.match==='高' ? 'so' : (c.match==='中' ? 'type' : '');
       return `<div class="card" style="background:var(--panel2)">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <b style="font-size:15px">${esc(c.company)}</b>
+          <b style="font-size:15px">${companyLink(c.company)}</b>
           <span class="tag ${cls}">匹配度 ${esc(c.match||'-')}</span>
           ${c.location?`<span class="tag loc">${esc(c.location)}</span>`:''}
           <span class="muted small">建议岗位：${esc(c.position||'-')}</span>
@@ -1874,7 +2164,7 @@ function renderResumeResult(r){
     return `<div class="card" style="background:var(--panel2)">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span class="muted small" style="flex-shrink:0">${esc(x['举办日期']||'-')}</span>
-        <b>${esc(x['单位名称']||'-')}</b>${so}
+        <b>${companyLink(x['单位名称'])}</b>${so}
       </div>
       <div class="small muted" style="margin-top:4px">📍 ${esc(x['宣讲会地点']||'-')} · ${esc(x['线下/线上']||'-')}</div>
       <div style="margin-top:4px">公司地点：${wc}</div>

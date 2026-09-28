@@ -30,3 +30,18 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E402"]   # 测试需先注入 sys.path 再导入应用模块
+
+[tool.pyright]
+pythonVersion = "3.10"
+pythonPlatform = "Windows"
+include = ["app"]
+exclude = ["**/__pycache__", "data", "docs"]
+# 先用 basic：本项目大量 dict[str, Any]，strict 会被淹掉
+typeCheckingMode = "basic"
+# openpyxl / python-docx 都未随包提供类型标注（无 py.typed），pyright 会把
+# Workbook() 之类推断成 Unknown，进而报出一串 "is not a known attribute of None" 的假错。
+# 在装齐类型桩之前，缺失导入只当警告，不阻塞。
+reportMissingImports = "warning"
+# 本地运行若发现依赖全解析不到，多半是 pyright 挑错了解释器，显式指定：
+#   node <workspace>/node_modules/pyright/index.js --pythonpath <装了 requirements.txt 的 python.exe>
+# 暂时不进 CI：等既有的类型问题清完再开启，否则一上来就红。

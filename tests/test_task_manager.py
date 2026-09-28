@@ -2,12 +2,16 @@
 
 注意：这里覆盖过一次真实 bug —— `start()` 在持有不可重入 Lock 时调用 `public()` 会死锁，
 因此 `test_duplicate_kind_start_does_not_deadlock` 用带超时的线程显式守护该行为。
+
+后半部分的 JSONL 用例守护另一条契约：脚本在命令行里人盯着跑时**不许**多打一行 JSON，
+只有在 stdout 被管道接管（任务中心）时才额外输出事件行。
 """
 
 from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -15,6 +19,7 @@ from pathlib import Path
 
 import pytest
 import server
+import taskcenter
 
 OK_CODE = (
     "import time\n"
@@ -30,6 +35,56 @@ FAIL_CODE = (
     "sys.exit(2)\n"
 )
 SLEEP_CODE = "import time; print('长任务开始', flush=True); time.sleep(30)"
+
+# 走 JSONL 协议的子进程：阶段 → 逐条进度 → 一行日志
+JSONL_CODE = """
+import json, time
+
+def emit(**kw):
+    print(json.dumps(kw, ensure_ascii=False), flush=True)
+
+emit(type="stage", name="抓取列表")
+for i in (1, 2, 3):
+    emit(type="progress", done=i, total=3)
+    print(f"  第{i}项完成", flush=True)
+    time.sleep(0.05)
+emit(type="log", text="汇总完成")
+"""
+# 事件行里夹一个任务中心不认识的 type（协议单向演进时旧版不该崩）
+UNKNOWN_EVENT_CODE = """
+import json
+
+print(json.dumps({"type": "heartbeat", "ts": 1}), flush=True)
+print("[2/10] 老式文本进度", flush=True)
+"""
+ERROR_EVENT_CODE = """
+import json, sys
+
+print(json.dumps({"type": "error", "message": "错误：配额已用尽"}, ensure_ascii=False), flush=True)
+sys.exit(3)
+"""
+
+
+class _FakeStream:
+    """stdout 替身：可指定 isatty，用来在进程内模拟「终端 / 管道」两种运行方式。"""
+
+    def __init__(self, tty: bool) -> None:
+        self.tty = tty
+        self.chunks: list[str] = []
+
+    def isatty(self) -> bool:
+        return self.tty
+
+    def write(self, text: str) -> int:
+        self.chunks.append(text)
+        return len(text)
+
+    def flush(self) -> None:
+        return None
+
+    @property
+    def text(self) -> str:
+        return "".join(self.chunks)
 
 
 @pytest.fixture()
@@ -175,3 +230,108 @@ def test_task_ids_are_ascii_and_unique(tm):
     assert len(set(ids)) == 3
     assert all(i.isascii() for i in ids)
     assert all(i.startswith("task_") for i in ids)     # 未登记的 kind → 兜底前缀
+
+
+# ---------------- JSONL 事件协议
+
+def test_emitter_stays_silent_on_a_terminal():
+    """命令行里人盯着跑：一行 JSON 都不该多出来（CLI 输出必须与改造前一致）。"""
+    stream = _FakeStream(tty=True)
+    emit = taskcenter.EventEmitter.for_stdout(stream=stream)
+    assert emit.enabled is False
+    emit.progress(1, 3)
+    emit.stage("抓取详情")
+    assert stream.text == ""
+
+
+def test_emitter_emits_jsonl_when_piped():
+    stream = _FakeStream(tty=False)
+    emit = taskcenter.EventEmitter.for_stdout(stream=stream)
+    assert emit.enabled is True
+    emit.progress(2, 5)
+    emit.stage("写回主库")
+    emit.log("一行日志")
+    emit.error("错误：配额不足")
+    rows = [json.loads(line) for line in stream.text.splitlines()]
+    assert [r["type"] for r in rows] == ["progress", "stage", "log", "error"]
+    assert rows[0]["done"] == 2 and rows[0]["total"] == 5
+
+
+def test_jsonl_flag_forces_events_even_on_a_terminal():
+    stream = _FakeStream(tty=True)
+    emit = taskcenter.EventEmitter.for_stdout(force=True, stream=stream)
+    emit.progress(1, 1)
+    assert json.loads(stream.text)["type"] == "progress"
+
+
+def test_bar_draws_carriage_return_only_on_terminal(capsys):
+    """进度条：终端里 \\r 原地刷新；被管道接管时只发事件，不把日志刷成几千行同一句。"""
+    terminal = taskcenter.EventEmitter.for_stdout(stream=_FakeStream(tty=True))
+    terminal.bar(2, 10, "  已读取", " 页")
+    terminal.bar_end()
+    assert capsys.readouterr().out == "\r  已读取 2/10 页\n"
+
+    piped = taskcenter.EventEmitter.for_stdout(stream=_FakeStream(tty=False))
+    piped.bar(2, 10, "  已读取", " 页")
+    piped.bar_end()
+    assert capsys.readouterr().out == ""
+
+
+def test_parse_event_rejects_non_event_lines():
+    assert taskcenter.parse_event("  已抓取详情 8/40") is None
+    assert taskcenter.parse_event("{坏掉的 JSON") is None
+    assert taskcenter.parse_event('{"done": 1}') is None          # 没有 type 字段
+    assert taskcenter.parse_event('{"type": "future", "x": 1}') == {"type": "future", "x": 1}
+
+
+def test_parse_progress_prefers_jsonl_event():
+    """结构化事件优先于文本：脚本改了 print 文案也不影响进度条。"""
+    lines = ["[1/9] 老式文本进度", '{"type": "progress", "done": 30, "total": 120}']
+    assert server._parse_progress(lines) == {"done": 30, "total": 120, "percent": 25}
+
+
+def test_parse_progress_falls_back_to_text_without_progress_event():
+    """只有 stage/log 事件（没报进度）时，文本正则必须照旧生效。"""
+    lines = ['{"type": "stage", "name": "抓取列表"}', "  已抓取详情 8/40"]
+    assert server._parse_progress(lines)["done"] == 8
+
+
+def test_unknown_event_type_never_counts_as_progress():
+    lines = ['{"type": "future", "done": 99, "total": 100}', "[2/10] 老式文本进度"]
+    assert server._parse_progress(lines) == {"done": 2, "total": 10, "percent": 20}
+
+
+def test_jsonl_task_reports_structured_progress(tm):
+    cur = run(tm, JSONL_CODE, title="JSONL 任务")
+    assert cur["status"] == "succeeded"
+    assert cur["progress"] == {"done": 3, "total": 3, "percent": 100}
+
+    lines = tm.read_log(cur["id"], tail=0)
+    assert not any(line.lstrip().startswith("{") for line in lines)   # 事件原文不进界面日志
+    assert "[阶段] 抓取列表" in lines
+    assert "  第3项完成" in lines and "汇总完成" in lines
+
+
+def test_unknown_event_type_does_not_break_task(tm):
+    """未知 type 被忽略：任务照常完成，进度回落到文本推断。"""
+    cur = run(tm, UNKNOWN_EVENT_CODE, title="未知事件")
+    assert cur["status"] == "succeeded"
+    assert cur["progress"] == {"done": 2, "total": 10, "percent": 20}
+    assert not any(line.lstrip().startswith("{") for line in cur["lines"])
+
+
+def test_jsonl_error_event_becomes_task_error(tm):
+    cur = run(tm, ERROR_EVENT_CODE, title="JSONL 错误")
+    assert cur["status"] == "failed"
+    assert cur["exit_code"] == 3
+    assert cur["error"] == "错误：配额已用尽"
+
+
+def test_cli_scripts_keep_jsonl_flag_and_help():
+    """四个 CLI 都要能 --help，且都提供 --jsonl（默认靠 tty 判定，不强制）。"""
+    app_dir = Path(server.__file__).resolve().parent
+    for name in ("crawler.py", "check_update.py", "analyze.py", "analyze_preach.py"):
+        out = subprocess.run([sys.executable, str(app_dir / name), "--help"],
+                             capture_output=True, text=True, timeout=120)
+        assert out.returncode == 0, f"{name} --help 失败：{out.stderr}"
+        assert "--jsonl" in out.stdout, f"{name} 缺少 --jsonl 开关"

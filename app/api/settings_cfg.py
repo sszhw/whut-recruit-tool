@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import llm_client
 import requests
 from flask import Blueprint, jsonify, request
 from settings import LLM_PROVIDERS, _mask, get_llm, load_config, save_config
@@ -78,15 +79,13 @@ def api_llm_test():
         return jsonify({"ok": False, "error": "未填写 API Key"})
     if not base:
         return jsonify({"ok": False, "error": "未填写 Base URL"})
-    try:
-        r = requests.post(base + "/chat/completions",
-                          headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
-                          json={"model": model, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 4},
-                          timeout=30)
-        return jsonify({"ok": r.ok, "status": r.status_code,
-                        "error": ("" if r.ok else r.text[:300])})
-    except Exception as e:  # noqa: BLE001
-        return jsonify({"ok": False, "error": str(e)})
+    # 连通性自检走统一 client：超时与错误文案与其它调用点一致（不再单独写一份 requests.post）。
+    # status 只在真的拿到 HTTP 状态码时才下发——网络层就失败时原本也是没有这个字段的。
+    res = llm_client.ping(llm_client.from_settings(base_url=base, api_key=key, model=model))
+    payload = {"ok": res["ok"], "error": res["error"]}
+    if res["status"] is not None:
+        payload["status"] = res["status"]
+    return jsonify(payload)
 
 
 @bp.route("/api/config", methods=["POST"])

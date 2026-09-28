@@ -22,6 +22,9 @@ config.json
 武汉理工大学招聘信息_*.md
 武汉理工大学招聘信息_*.json
 
+# SQLite 主库（由 JSON 原始数据导入生成，可随时用 scripts/migrate_to_sqlite.py 重建）
+*.db
+
 # 收藏 / 日志 / 后台任务记录
 收藏_宣讲会.json
 服务日志.jsonl

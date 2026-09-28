@@ -25,6 +25,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+import taskcenter  # 进度/阶段走 JSONL 事件协议上报（任务中心据此画进度条）
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent
 DATA = ROOT / "data"
@@ -175,14 +177,21 @@ def main() -> int:
     parser.add_argument("--input", default="", help="宣讲会原始数据 JSON（默认自动找 宣讲会_*_原始数据.json）")
     parser.add_argument("--method", default="offline", choices=["offline", "ai"], help="offline=离线(默认)，ai=硅基流动")
     parser.add_argument("--limit", type=int, default=0, help="只分析前 N 家（0=全部）")
+    parser.add_argument("--jsonl", action="store_true",
+                        help="强制输出 JSONL 事件行（默认：stdout 不是终端时自动开启，供任务中心解析）")
     args = parser.parse_args()
+
+    # 终端里人盯着跑 → 只输出中文；被任务中心管道接管 → 再补一行行 JSONL 事件
+    emit = taskcenter.EventEmitter.for_stdout(force=args.jsonl)
 
     if args.input:
         input_path = Path(args.input)
     else:
         candidates = sorted(DATA.glob("宣讲会_*_原始数据.json"), key=os.path.getmtime, reverse=True)
         if not candidates:
-            print("错误：找不到 宣讲会_*_原始数据.json，请先运行 check_update.py --kind preach 或 crawler.py", file=sys.stderr)
+            message = "错误：找不到 宣讲会_*_原始数据.json，请先运行 check_update.py --kind preach 或 crawler.py"
+            emit.error(message)
+            print(message, file=sys.stderr)
             return 2
         input_path = candidates[0]
 
@@ -192,13 +201,17 @@ def main() -> int:
         companies = companies[: args.limit]
     print(f"待分析企业：{len(companies)} 家（method={'离线' if args.method == 'offline' else 'AI'}）")
 
+    total = len(companies)
+    emit.stage(f"逐家推断工作地（{'离线' if args.method == 'offline' else 'AI'}）")
     rows = []
-    for c in companies:
+    for index, c in enumerate(companies, 1):
         if args.method == "ai":
             import analyze
             api_key = (os.environ.get("LLM_API_KEY") or os.environ.get("SILICONFLOW_API_KEY", "")).strip()
             if not api_key:
-                print("错误：AI 方式需要环境变量 LLM_API_KEY / SILICONFLOW_API_KEY", file=sys.stderr)
+                message = "错误：AI 方式需要环境变量 LLM_API_KEY / SILICONFLOW_API_KEY"
+                emit.error(message)
+                print(message, file=sys.stderr)
                 return 2
             res = analyze.call_api(api_key, analyze.DEFAULT_MODEL, c["name"], c["text"])
             cities = res.get("locations") or []
@@ -208,6 +221,9 @@ def main() -> int:
             evidence = "离线：依据企业名称/总部映射推断"
         rows.append({"单位名称": c["name"], "工作地城市": "、".join(cities) if cities else "未确定",
                      "判断依据": evidence})
+        emit.progress(index, total)
+
+    emit.stage("写出 CSV / 报告")
 
     # CSV
     csv_path = DATA / "宣讲会_工作地流动.csv"

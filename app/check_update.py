@@ -23,6 +23,7 @@ from datetime import datetime
 from pathlib import Path
 
 import crawler
+import taskcenter  # 进度/阶段走 JSONL 事件协议上报（任务中心据此画进度条）
 from crawler import WhutClient, fair_row, list_preach_year, preach_row, recruitment_row
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -74,7 +75,7 @@ def _choose_recruit_master(start: str, end: str) -> Path:
     return max(candidates, key=lambda p: (_count_recruit(p), _start_date(p)))
 
 
-def _update_recruit(args) -> int:
+def _update_recruit(args, emit: taskcenter.EventEmitter) -> int:
     start = datetime.strptime(args.start, "%Y-%m-%d")
     end = datetime.strptime(args.end, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
     start_ts, end_ts = int(start.timestamp()), int(end.timestamp())
@@ -84,9 +85,10 @@ def _update_recruit(args) -> int:
     print(f"[1] 已有数据：{raw_path.name}（招聘 {len(existing['招聘信息'])} 条，双选会 {len(existing['双选会'])} 条）")
 
     client = WhutClient()
+    emit.stage("抓取招聘信息/双选会列表")
     print(f"[2] 抓取招聘信息/双选会列表（{args.start} ~ {args.end}）……")
-    rec_all = client.list_all("/enrollment/getlist", args.page_size)
-    fair_all = client.list_all("/jobfair/getlist", args.page_size)
+    rec_all = client.list_all("/enrollment/getlist", args.page_size, emit=emit)
+    fair_all = client.list_all("/jobfair/getlist", args.page_size, emit=emit)
 
     rec_in_window = [i for i in rec_all if start_ts <= crawler.timestamp(i.get("addtime")) <= end_ts]
     fair_in_window = [i for i in fair_all if start_ts <= crawler.timestamp(i.get("addtime")) <= end_ts]
@@ -101,12 +103,13 @@ def _update_recruit(args) -> int:
               f"双选会 {len(existing['双选会'])} 条")
         return 0
 
+    emit.stage("补齐新增记录详情")
     if rec_new:
         rec_new.sort(key=lambda x: crawler.timestamp(x.get("addtime")), reverse=True)
-        crawler.enrich(client, rec_new, "/enrollment/detail")
+        crawler.enrich(client, rec_new, "/enrollment/detail", emit=emit)
     if fair_new:
         fair_new.sort(key=lambda x: crawler.timestamp(x.get("addtime")), reverse=True)
-        crawler.enrich(client, fair_new, "/jobfair/detail")
+        crawler.enrich(client, fair_new, "/jobfair/detail", emit=emit)
 
     merged_rec = {str(i.get("id")): i for i in existing["招聘信息"]}
     merged_fair = {str(i.get("id")): i for i in existing["双选会"]}
@@ -216,7 +219,7 @@ def _refresh_work_flow(merged_items: list[dict]) -> int:
     return len(new_rows)
 
 
-def _update_preach(args) -> int:
+def _update_preach(args, emit: taskcenter.EventEmitter) -> int:
     if args.input:
         raw_path = Path(args.input)
     else:
@@ -228,8 +231,9 @@ def _update_preach(args) -> int:
     print(f"[1] 已有数据：{raw_path.name} 共 {len(existing_items)} 场")
 
     client = WhutClient()
+    emit.stage("抓取宣讲会列表")
     print(f"[2] 抓取 {YEAR} 年宣讲会列表（{'仅线下' if not args.all_types else '线下+线上'}）……")
-    fetched = list_preach_year(client, YEAR, offline_only=not args.all_types)
+    fetched = list_preach_year(client, YEAR, offline_only=not args.all_types, emit=emit)
     print(f"[3] 网站共 {len(fetched)} 场")
 
     new_items = [i for i in fetched if str(i.get("id")) not in existing_ids]
@@ -237,7 +241,9 @@ def _update_preach(args) -> int:
 
     merged_items = existing_items
     if new_items:
-        crawler.enrich(client, new_items, "/preach/detail")
+        emit.stage("补齐新增场次详情")
+        crawler.enrich(client, new_items, "/preach/detail", emit=emit)
+        emit.stage("合并写回主库")
         merged = {str(i.get("id")): i for i in existing_items}
         for i in fetched:
             merged[str(i.get("id"))] = i
@@ -279,11 +285,16 @@ def main() -> int:
     parser.add_argument("--page-size", type=int, default=500, help="招聘：列表分页大小")
     parser.add_argument("--all-types", action="store_true", help="宣讲会：同时抓线上宣讲会")
     parser.add_argument("--input", default="", help="宣讲会：指定已有原始数据 JSON（默认自动找最新）")
+    parser.add_argument("--jsonl", action="store_true",
+                        help="强制输出 JSONL 事件行（默认：stdout 不是终端时自动开启，供任务中心解析）")
     args = parser.parse_args()
 
+    # 终端里人盯着跑 → 只输出中文；被任务中心管道接管 → 再补一行行 JSONL 事件
+    emit = taskcenter.EventEmitter.for_stdout(force=args.jsonl)
+
     if args.kind == "recruit":
-        return _update_recruit(args)
-    return _update_preach(args)
+        return _update_recruit(args, emit)
+    return _update_preach(args, emit)
 
 
 if __name__ == "__main__":

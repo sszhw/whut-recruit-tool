@@ -8,9 +8,9 @@
 
 也可以直接使用 server.py 提供的网页界面运行本分析。
 
-环境变量：
-    SILICONFLOW_API_KEY   硅基流动 API 密钥（也可写入 config.json）
-    SILICONFLOW_BASE_URL  可选，默认 https://api.siliconflow.cn/v1
+配置来源：config.json 的当前厂商（settings.get_llm），也可由环境变量兜底
+    SILICONFLOW_API_KEY / LLM_API_KEY    API 密钥（未写 config.json 时使用）
+    LLM_PROVIDER / LLM_MODEL             厂商与模型（可选）
 
 输出：
     企业分析_国企与工作地点.csv   逐企业结果
@@ -33,13 +33,16 @@ from pathlib import Path
 from typing import Any
 
 import crawler  # 复用 plain_text 等工具函数
+import llm_client  # 统一 LLM 调用：超时 / 重试 / 错误文案都收敛在这里
 import repository as repo  # 统一数据访问层：跨文件合并 + 按 ID 去重（--merge）
-import requests
 import settings  # 默认模型名的唯一来源（依赖方向：settings 是终点，不反向 import 业务模块）
+import taskcenter  # 进度/阶段走 JSONL 事件协议上报（任务中心据此画进度条）
 from utils import io as io_utils
 from utils import text as text_utils
 
-BASE_URL = os.environ.get("LLM_BASE_URL") or os.environ.get("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
+# 不再有模块级 BASE_URL：地址/Key/模型统一来自 settings 的当前厂商，
+# 此前 analyze 认 LLM_BASE_URL 而 resume 只认 SILICONFLOW_BASE_URL，
+# 同一份配置两边会解析出不同地址。
 DEFAULT_MODEL = settings.DEFAULT_MODEL   # 重导出，保留 analyze.DEFAULT_MODEL 这一既有入口
 CACHE_NAME = "企业分析_缓存.json"
 CSV_NAME = "企业分析_国企与工作地点.csv"
@@ -131,39 +134,30 @@ def save_cache(path: Path, cache: dict) -> None:
     io_utils.write_json_atomic(path, cache, indent=1)
 
 
-def call_api(api_key: str, model: str, name: str, text: str, max_retries: int = 3) -> dict:
-    user = f"企业名称：{name}\n\n招聘公告节选：\n{text if text else '（无正文）'}"
-    for attempt in range(max_retries):
-        try:
-            resp = requests.post(
-                BASE_URL + "/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": PROMPT},
-                        {"role": "user", "content": user},
-                    ],
-                    "temperature": 0.1,
-                    "max_tokens": 400,
-                },
-                timeout=90,
-            )
-            if resp.status_code == 429:
-                wait = 5 * (attempt + 1)
-                print(f"  [限流] {name}，等待 {wait}s 重试")
-                time.sleep(wait)
-                continue
-            resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"].strip()
-            return parse_json(content)
-        except requests.RequestException as exc:
-            if attempt == max_retries - 1:
-                return {"company_type": "分析失败", "is_state_owned": None, "confidence": "",
-                        "locations": [], "evidence": f"网络错误: {exc}", "_raw": ""}
-            time.sleep(3 * (attempt + 1))
+def _failed(evidence: str) -> dict:
+    """单家企业分析失败的统一返回形状（与成功结果同构，避免上层 KeyError）。"""
     return {"company_type": "分析失败", "is_state_owned": None, "confidence": "",
-            "locations": [], "evidence": "多次重试失败", "_raw": ""}
+            "locations": [], "evidence": evidence, "_raw": ""}
+
+
+def call_api(api_key: str, model: str, name: str, text: str, max_retries: int = 3) -> dict:
+    """调 LLM 分析单家企业，失败归一化成「分析失败」结构而不是抛异常。
+
+    逐家企业跑的批处理里，一家失败不该中断整批，所以这里吞掉 LLMError、
+    把原因写进 evidence 让用户能在报告里看到「为什么这家没分析出来」。
+    重试策略（429 比网络错误等得更久、401 不重试）由 llm_client 统一负责，
+    本函数不再自己写退避——原先这里只认 429 一种可重试状态码。
+    """
+    user = f"企业名称：{name}\n\n招聘公告节选：\n{text if text else '（无正文）'}"
+    config = llm_client.from_settings(api_key=api_key, model=model, max_retries=max_retries)
+    try:
+        content = llm_client.chat(
+            [{"role": "system", "content": PROMPT}, {"role": "user", "content": user}],
+            config, temperature=0.1, max_tokens=400,
+        )
+    except llm_client.LLMError as exc:
+        return _failed(f"AI 调用失败：{exc.message}")
+    return parse_json(content)
 
 
 def parse_json(content: str) -> dict:
@@ -224,7 +218,7 @@ def build_outputs(workdir: Path, companies: list[dict], cache: dict, model: str,
     md = ["# 企业性质与" + ("工作地流动" if source == "preach" else "工作地点") + "分析报告", "",
           f"- 生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}",
           f"- 数据来源：{input_name}（企业名取自公告的「单位」字段，已去重）",
-          f"- 分析模型：{model}（硅基流动 API）",
+          f"- 分析模型：{model}",
           f"- 企业总数：{len(rows)} 家，其中国企/央企系：{len(so_rows)} 家", "",
           "## 企业类型分布", "", "| 类型 | 数量 |", "|---|---:|"]
     for type_name, count in type_counts.most_common():
@@ -246,19 +240,30 @@ def build_outputs(workdir: Path, companies: list[dict], cache: dict, model: str,
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--input", default="", help="原始数据 JSON 路径（默认自动找最新的）")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"模型名（默认 {DEFAULT_MODEL}）")
+    parser.add_argument("--model", default="", help=f"模型名（默认取当前厂商配置，缺省 {DEFAULT_MODEL}）")
     parser.add_argument("--limit", type=int, default=0, help="只分析前 N 家企业（0=全部）")
     parser.add_argument("--source", default="enrollment", choices=["enrollment", "preach"],
                         help="分析的数据来源：enrollment=招聘信息(默认)，preach=宣讲会")
     parser.add_argument("--merge", action="store_true",
                         help="合并全部同类原始数据文件（按 ID 去重）后分析，保证与页面展示口径一致")
+    parser.add_argument("--jsonl", action="store_true",
+                        help="强制输出 JSONL 事件行（默认：stdout 不是终端时自动开启，供任务中心解析）")
     args = parser.parse_args()
 
-    api_key = os.environ.get("SILICONFLOW_API_KEY", "").strip()
-    if not api_key:
-        print("错误：未设置环境变量 SILICONFLOW_API_KEY。请到 https://cloud.siliconflow.cn 获取密钥后：", file=sys.stderr)
+    # 终端里人盯着跑 → 只输出中文；被任务中心管道接管 → 再补一行行 JSONL 事件
+    emit = taskcenter.EventEmitter.for_stdout(force=args.jsonl)
+
+    # 以 settings 当前厂商为准（config.json），环境变量 SILICONFLOW_API_KEY 由 load_config 兜底。
+    # 原先这里硬编码读 SILICONFLOW_API_KEY 且提示里写死「请到 cloud.siliconflow.cn」，
+    # 换厂商后提示就是错的。
+    llm = settings.get_llm()
+    if not llm["api_key"]:
+        message = f"错误：未配置 API Key（当前厂商 {llm['label']}），请到 config.json 配置或设置环境变量"
+        emit.error(message)
+        print(message + " SILICONFLOW_API_KEY / LLM_API_KEY：", file=sys.stderr)
         print('  PowerShell:  $env:SILICONFLOW_API_KEY="***"', file=sys.stderr)
         return 2
+    model = args.model or llm["model"] or DEFAULT_MODEL
 
     workdir = Path(__file__).resolve().parent.parent / "data"
     workdir.mkdir(parents=True, exist_ok=True)
@@ -286,6 +291,7 @@ def main() -> int:
         if not candidates:  # 兜底：任一新旧兼容
             candidates = sorted(glob.glob(str(workdir / "*_原始数据.json")), key=os.path.getmtime, reverse=True)
         if not candidates:
+            emit.error("错误：找不到 原始数据.json，请先运行 crawler.py")
             print("错误：找不到 原始数据.json，请先运行 crawler.py", file=sys.stderr)
             return 2
         input_path = Path(candidates[0])
@@ -310,17 +316,20 @@ def main() -> int:
     print(f"缓存已有 {len(companies) - len(todo)} 家，本次需分析 {len(todo)} 家")
 
     total = len(todo)
+    emit.stage("逐家调用大模型分析")
     for index, company in enumerate(todo, 1):
-        result = call_api(api_key, args.model, company["name"], company["text"])
+        result = call_api(llm["api_key"], model, company["name"], company["text"])
         cache[company["name"]] = result
         if index % 10 == 0 or index == total:
             save_cache(cache_path, cache)
         locs = "、".join(result.get("locations") or []) or "-"
         print(f"  [{index}/{total}] {company['name']} -> {result.get('company_type')} | {locs}")
+        emit.progress(index, total)
         time.sleep(0.3)
     save_cache(cache_path, cache)
 
-    stats = build_outputs(workdir, companies, cache, args.model, input_name, args.source)
+    emit.stage("生成 CSV / 报告")
+    stats = build_outputs(workdir, companies, cache, model, input_name, args.source)
     print(f"\n完成。国企/央企系 {stats['state_owned']}/{stats['total']} 家")
     print(f"输出：{Path(stats['csv']).name}、{Path(stats['md']).name}、{cache_path.name}")
     return 0

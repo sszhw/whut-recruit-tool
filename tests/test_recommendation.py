@@ -31,6 +31,9 @@ def test_parse_target_cities_variants():
     assert resume.parse_target_cities("") == []
 
 
+EXPLAIN_FIELDS = {"company", "match", "location", "position", "reason", "score", "breakdown", "matched"}
+
+
 def test_keyword_recommend_prefers_city_and_state_owned():
     """指定目标工作地+国企时：命中城市与性质的国企排在最前，异地企业被排除。"""
     result = resume.keyword_recommend(RESUME, _companies(), work_place="武汉", company_type="国企")
@@ -42,6 +45,11 @@ def test_keyword_recommend_prefers_city_and_state_owned():
     assert rec["location"] == "武汉"
     assert "机械" in rec["reason"] or "武汉" in rec["reason"]
     assert result["target_positions"]                            # 岗位方向由简历关键词得出
+    # 可解释性：分数、三维拆解、命中项都要带出来，前端才能画对比图
+    assert set(rec) == EXPLAIN_FIELDS
+    assert rec["score"] == 60                                    # 关键词 10 + 地点 30 + 国企 20
+    assert rec["breakdown"] == {"keyword": 10, "location": 30, "nature": 20}
+    assert rec["matched"] == {"keywords": ["机械"], "cities": ["武汉"]}
 
 
 def test_keyword_recommend_private_preference():
@@ -50,6 +58,45 @@ def test_keyword_recommend_private_preference():
     scores = {r["company"]: r["match"] for r in result["recommendations"]}
     assert "武汉某民营科技" in scores
     assert scores["武汉某民营科技"] in ("高", "中")
+
+
+def test_keyword_recommend_score_equals_breakdown_sum_and_dims_are_terms():
+    """分数恒等于三维之和；matched.keywords 是关键词原文（term），不是岗位方向。"""
+    result = resume.keyword_recommend(RESUME, _companies(), work_place="武汉", company_type="国企")
+    terms = {term for term, _ in resume.JOB_KEYWORDS}
+    positions = {pos for _, pos in resume.JOB_KEYWORDS}
+    for rec in result["recommendations"]:
+        assert rec["score"] == sum(rec["breakdown"].values())
+        assert set(rec["breakdown"]) == {"keyword", "location", "nature"}
+        assert set(rec["matched"]["keywords"]) <= terms              # 关键词原文，如「机械」
+        assert set(rec["matched"]["keywords"]).isdisjoint(positions - terms)
+        assert set(rec["matched"]["cities"]) <= {"武汉", "北京"}
+
+
+def test_keyword_recommend_sorted_by_score_desc():
+    """分数高的排前面（界面按这个顺序展示，排序口径必须就是展示的分数）。"""
+    result = resume.keyword_recommend(RESUME, _companies(), work_place="武汉", company_type="国企")
+    scores = [r["score"] for r in result["recommendations"]]
+    assert scores == sorted(scores, reverse=True)
+    assert scores[0] > scores[-1]
+
+
+def test_keyword_recommend_match_level_at_thresholds():
+    """分数恰好落在门槛上：70 判「高」、40 判「中」、30 判「低」。"""
+    text = "熟悉机械、电气、自动化、控制与电力系统"
+    comps = [
+        {"name": "高分企业", "type": "", "so": "是", "locations": ["北京"], "title": "",
+         "text": "机械 电气 自动化 控制 电力 岗位"},    # 5 关键词 50 + 国企 20 = 70
+        {"name": "中分企业", "type": "", "so": "", "locations": ["武汉"], "title": "",
+         "text": "机械 岗位"},                          # 关键词 10 + 地点 30 = 40
+        {"name": "低分企业", "type": "", "so": "是", "locations": ["上海"], "title": "",
+         "text": "机械 岗位"},                          # 关键词 10 + 国企 20 = 30（异地无地点分）
+    ]
+    result = resume.keyword_recommend(text, comps, work_place="武汉", company_type="国企")
+    levels = {r["company"]: (r["score"], r["match"]) for r in result["recommendations"]}
+    assert levels["高分企业"] == (70, "高")
+    assert levels["中分企业"] == (40, "中")
+    assert levels["低分企业"] == (30, "低")
 
 
 def test_keyword_recommend_without_location_still_filters_zero_score():

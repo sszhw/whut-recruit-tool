@@ -10,7 +10,9 @@ from __future__ import annotations
 from flask import Blueprint, Flask
 
 from api.analysis import bp as analysis_bp
+from api.board import bp as board_bp
 from api.browse import bp as browse_bp
+from api.company import bp as company_bp
 from api.crawl import bp as crawl_bp
 from api.events import bp as events_bp
 from api.exports_rt import bp as exports_bp
@@ -25,7 +27,9 @@ ALL: list[Blueprint] = [
     settings_bp,    # /api/llm/*  /api/config*
     crawl_bp,       # /api/crawl  /api/recruit/update /api/preach/check
     analysis_bp,    # /api/analyze /api/flow /api/task/*
+    board_bp,       # /api/board/*
     browse_bp,      # /api/recruitments /api/fairs /api/companies* /api/stats /api/actions
+    company_bp,     # /api/company/<企业名>
     preaches_bp,    # /api/preachs* /api/preach/fav*
     recommend_bp,   # /api/resume/*
     exports_bp,     # /api/export/* /api/import/md* /api/preach/favs/export*

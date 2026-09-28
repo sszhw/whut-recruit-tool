@@ -75,6 +75,8 @@ def recommend_preachs(text: str, target_cities: list[str], company_type: str = "
 
     匹配规则：宣讲会企业的工作地城市与目标工作地命中 → 再按企业性质（若有）过滤 → 结合日期排序。
     未填目标城市时，从简历文本里嗅探城市；仍无则展示全部有工作地映射的场次。
+
+    每条都带 `score`（与企业推荐同一套 0-100 口径）与 `matched_cities`，便于横向比较。
     """
     rows = load_preachs()
     so_map = build_so_map()
@@ -96,6 +98,11 @@ def recommend_preachs(text: str, target_cities: list[str], company_type: str = "
             continue  # 已分析出是非国企，与期望冲突，排除
         if want_private and so == "是":
             continue
+        # 与企业推荐同一套打分口径（keyword/location/nature，合计 0-100），
+        # 这样宣讲会和企业清单里的分数可以直接放在一起比较
+        sc = resume.score_company(text, {"name": r["单位名称"], "title": r.get("标题", ""),
+                                         "text": r.get("正文", ""), "locations": wc, "so": so},
+                                  target_cities, company_type)
         matched.append({
             "单位名称": r["单位名称"],
             "举办日期": r.get("举办日期", ""),
@@ -109,6 +116,8 @@ def recommend_preachs(text: str, target_cities: list[str], company_type: str = "
             "企业性质": so,
             "reason": (f"工作地 {r['公司地点']} 与目标地命中" if target_cities else "有明确工作地映射")
                       + ("，且企业性质符合期望" if (want_state or want_private) else ""),
+            "score": sc["score"],
+            "matched_cities": sc["matched"]["cities"],
         })
     matched.sort(key=lambda x: (x["举办日期"] < today, x["举办日期"]))
     return matched[:limit]
@@ -143,6 +152,9 @@ def build_recommendation(resume_text: str = "", work_place: str = "", company_ty
 
     统一口径：候选企业来自主库合并后的全部招聘公告（不再是「最新那个文件」）；
     送入 LLM 的条数受上下文限制，但排序基于全量，并向界面回报真实总量。
+
+    两条路径（AI / 离线兜底）的推荐条目都带 score/breakdown/matched，可横向比较；
+    顶层 `explain` 说明分数口径，降级时 note 换成本地规则的说法。
     """
     llm = get_llm()
     if not llm["api_key"]:
@@ -175,6 +187,9 @@ def build_recommendation(resume_text: str = "", work_place: str = "", company_ty
     return {
         "result": result,
         "source": source,
+        # 分数口径说明：界面拿它渲染「匹配分」图例，降级时口径换成本地规则的说法
+        "explain": resume.explain_meta(resume.EXPLAIN_NOTE_AI if source == "ai"
+                                       else resume.EXPLAIN_NOTE_OFFLINE),
         "companies_count": len(companies),
         "companies_total": len(all_companies),
         "data_source": {"recruit_count": summary["recruit_count"],

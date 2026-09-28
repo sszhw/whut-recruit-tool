@@ -50,6 +50,10 @@ _POST_SAFE = (
 # 在这里登记而不是"默认跳过"，是为了让新增路由时被迫想清楚它属于哪一类。
 _POST_SIDE_EFFECT = (
     "/api/analyze",          # 起 LLM 分析任务
+    "/api/board/items",      # 新增看板条目（会落盘）
+    "/api/board/items/<item_id>/delete",  # 删除看板条目（会落盘）
+    "/api/board/items/<item_id>/note",    # 更新看板备注（会落盘）
+    "/api/board/items/<item_id>/status",  # 更新看板阶段（会落盘）
     "/api/config",           # 写 config.json
     "/api/config/key",       # 写 API Key
     "/api/crawl",            # 起抓取任务

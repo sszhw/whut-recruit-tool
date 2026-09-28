@@ -15,15 +15,13 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 import re
-import time
 from pathlib import Path
 
+import llm_client  # 统一 LLM 调用：超时/重试/错误文案不再各写一份
 import repository as repo  # 统一数据访问层：候选企业跨全部招聘原始文件合并去重
-import requests
 import settings
 from utils import io as io_utils
 from utils import text as text_utils
@@ -82,31 +80,19 @@ def extract_docx(path: str) -> str:
     return "\n".join(lines).strip()
 
 
+OCR_PROMPT = ("请完整、准确地识别这张图片中的文字内容（这是一份简历）。"
+              "按原有的段落结构逐行输出，保留序号/列表/分隔符，不要添加任何解释或评论。")
+
+
 def ocr_image_bytes(api_key: str, model: str, image_bytes: bytes, mime: str = "image/png",
                     base_url: str = None) -> str:
     """用当前厂商的视觉模型识别图片里的文字。base_url 为空时用模块默认（硅基流动）。"""
-    base_url = (base_url or BASE_URL).rstrip("/")
-    prompt = ("请完整、准确地识别这张图片中的文字内容（这是一份简历）。"
-              "按原有的段落结构逐行输出，保留序号/列表/分隔符，不要添加任何解释或评论。")
-    b64 = base64.b64encode(image_bytes).decode()
-    content = [
-        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
-        {"type": "text", "content": prompt},
-    ]
-    resp = requests.post(
-        base_url + "/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": model,
-            "messages": [{"role": "user", "content": content}],
-            "temperature": 0.1,
-            "max_tokens": 2000,
-        },
-        timeout=180,
-    )
-    if resp.status_code != 200:
-        raise RuntimeError(f"视觉模型返回 {resp.status_code}: {resp.text[:200]}")
-    return resp.json()["choices"][0]["message"]["content"].strip()
+    cfg = llm_client.from_settings(base_url=base_url or BASE_URL, api_key=api_key, model=model,
+                                   # 扫描件是逐页调用的，每页都重试会把一次上传拖成好几分钟，
+                                   # 因此沿用原先「失败即抛」的语义，只发一次
+                                   max_retries=1)
+    return llm_client.chat([llm_client.vision_message(OCR_PROMPT, image_bytes, mime)],
+                           cfg, temperature=0.1, max_tokens=2000)
 
 
 def ocr_image_file(api_key: str, model: str, path: str, base_url: str = None) -> str:
@@ -227,7 +213,7 @@ def company_lines(companies: list[dict]) -> str:
 RECOMMEND_PROMPT = """你是资深的校园招聘顾问。给你一位求职者的简历及其求职要求，再给你一份正在校招的「备选企业清单」。请你：
 1. 先概括这份简历的核心信息（专业、技能、实习/项目经历、求职意向、倾向城市）；
 2. 再从中挑出最适合该求职者投递的企业，最多 10 家，按匹配度从高到低排序；
-3. 对于每家企业，说明为什么匹配（结合简历里的具体点），并给出建议投递的岗位方向。
+3. 对于每家企业，说明为什么匹配（结合简历里的具体点），给出建议投递的岗位方向，并给出一个**可横向比较的匹配分数**。
 
 【简历内容】
 {resume}
@@ -243,10 +229,37 @@ RECOMMEND_PROMPT = """你是资深的校园招聘顾问。给你一位求职者�
   "resume_summary": "一段话概括简历：专业/技能/实习/意向岗位/城市倾向",
   "target_positions": ["建议投递的岗位方向1", "岗位方向2", "岗位方向3"],
   "recommendations": [
-    {{"company": "企业名", "match": "高|中|低", "location": "工作地点", "position": "建议岗位", "reason": "为什么匹配/投它的理由"}}
+    {{"company": "企业名", "match": "高|中|低", "location": "工作地点", "position": "建议岗位",
+      "reason": "为什么匹配/投它的理由", "score": 78,
+      "breakdown": {{"major": 30, "skill": 25, "location": 20, "nature": 3}},
+      "matched": {{"keywords": ["机械", "仿真"], "cities": ["武汉"]}}}}
   ]
 }}
-规则：recommendations 最多 10 条，按匹配度排序；若某条信息未知可留空，不要编造企业名；没有合适的企业时 recommendations 返回空数组。必须严格遵从【求职要求】里的目标工作地与目标企业性质，不符合的不要推荐；若要求为空则忽略。"""
+分数规则（很重要，界面要靠它排序和画对比图）：
+- score 是 0-100 的整数，必须等于 breakdown 四项之和；
+- breakdown 各维度也是 0-100 的整数，建议上限：major 30、skill 30（合计不超过 50）、location 30、nature 20；
+- 分数必须能横向比较：同一份简历下不同企业的分差要反映真实差距，强烈匹配的给 80 以上，
+  一般的给 40~70，勉强相关的低于 40。**不要所有企业都给 90 分**，也不要全部挤在同一档；
+- matched.keywords 填简历与企业真实重合的关键词原文（如 "机械"）、cities 填命中的城市名；没有就给空数组。
+其他规则：recommendations 最多 10 条，按 score 从高到低排序；若某条信息未知可留空，不要编造企业名；没有合适的企业时 recommendations 返回空数组。必须严格遵从【求职要求】里的目标工作地与目标企业性质，不符合的不要推荐；若要求为空则忽略。"""
+
+
+# ---------------------------------------------------------------- 推荐可解释性：统一打分口径
+# AI、离线关键词兜底、宣讲会三条路径共用这套 0-100 分口径，
+# 这样「A 比 B 更值得投」才真的可比：分差来自同一套算法的重合度差异，而不是各说各话。
+MAX_SCORE = 100
+EXPLAIN_DIMENSIONS = ["keyword", "location", "nature"]
+_DIMENSION_CAPS = {"keyword": 50, "location": 30, "nature": 20}
+_KEYWORD_POINTS = 10                      # 每个命中关键词
+_NATURE_POINTS = {"state": 20, "private": 10}
+MATCH_HIGH, MATCH_MID = 70, 40            # 档位门槛：≥70 高、≥40 中、否则低
+
+EXPLAIN_NOTE = "匹配分 = keyword + location + nature，满分 100；档位：≥70 高、≥40 中、否则低。"
+EXPLAIN_NOTE_AI = (EXPLAIN_NOTE +
+                   "本结果由 AI 模型按「专业/技能/地点/企业性质」评估后折算，分数可横向比较。")
+EXPLAIN_NOTE_OFFLINE = (EXPLAIN_NOTE +
+                        "本结果由本地规则计算：命中关键词每个 +10（最多 5 个）、目标城市命中 +30、"
+                        "企业性质符合 +20（国企）/+10（非国企）。")
 
 
 def parse_target_cities(text: str) -> list[str]:
@@ -273,45 +286,27 @@ def recommend(api_key: str, model: str, resume_text: str, companies: list[dict],
     base_url 为空时用模块默认（硅基流动），可由上层传入当前配置的厂商 Base URL。"""
     if not companies:
         return {"error": "没有可推荐的企业数据，请先运行「抓取」与「企业分析」"}
-    base_url = (base_url or BASE_URL).rstrip("/")
+    cfg = llm_client.from_settings(base_url=base_url or BASE_URL, api_key=api_key, model=model,
+                                   max_retries=max_retries)
     requirements = _requirements_text(work_place, company_type)
-    user = RECOMMEND_PROMPT.format(resume=resume_text[:1800], requirements=requirements,
-                                   companies=company_lines(companies))
-    for attempt in range(max_retries):
-        try:
-            resp = requests.post(
-                base_url + "/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": "你只输出要求格式的 JSON，不输出任何额外文字。"},
-                        {"role": "user", "content": user},
-                    ],
-                    "temperature": 0.2,
-                    "max_tokens": 2000,
-                },
-                timeout=180,
-            )
-            if resp.status_code == 429:
-                wait = 5 * (attempt + 1)
-                time.sleep(wait)
-                continue
-            if resp.status_code != 200:
-                body = resp.text
-                try:
-                    msg = resp.json().get("message", body)
-                except Exception:
-                    msg = body
-                return {"error": f"硅基流动返回 {resp.status_code}：{msg[:200]}",
-                        "status_code": resp.status_code}
-            content = resp.json()["choices"][0]["message"]["content"].strip()
-            return parse_recommend_json(content)
-        except requests.RequestException as exc:
-            if attempt == max_retries - 1:
-                return {"error": f"网络错误：{exc}"}
-            time.sleep(3 * (attempt + 1))
-    return {"error": "多次重试仍失败"}
+    messages = [
+        {"role": "system", "content": "你只输出要求格式的 JSON，不输出任何额外文字。"},
+        {"role": "user", "content": RECOMMEND_PROMPT.format(resume=resume_text[:1800],
+                                                            requirements=requirements,
+                                                            companies=company_lines(companies))},
+    ]
+    try:
+        content = llm_client.chat(messages, cfg, temperature=0.2, max_tokens=2000)
+    except llm_client.LLMError as exc:
+        # 失败统一成 {"error": ...}：services 层据此降级为本地关键词匹配，
+        # 提示语里填的就是这里的归一化文案（不再写死厂商名，换厂商也不会变成假话）
+        err = {"error": exc.message}
+        if exc.status_code:
+            err["status_code"] = exc.status_code
+        return err
+    return normalize_explanations(parse_recommend_json(content), companies,
+                                  work_place=work_place, company_type=company_type,
+                                  resume_text=resume_text)
 
 
 def parse_recommend_json(content: str) -> dict:
@@ -328,6 +323,43 @@ def parse_recommend_json(content: str) -> dict:
         return data
     except json.JSONDecodeError as exc:
         return {"error": f"无法解析 AI 返回结果：{exc}", "_raw": content[:400]}
+
+
+def _as_score(value, cap: int) -> int:
+    """把任意值收敛成 [0, cap] 的整数：模型常返回字符串、小数、负数或远超上限的数。"""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0
+    return max(0, min(cap, int(value)))
+
+
+def _valid_score(value) -> bool:
+    """分数是否可直接采用：必须是 0-100 的整数。
+
+    模型给字符串、小数、负数或越界值都算「没给」——与其猜它的意思，不如整条走本地规则。
+    """
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_SCORE
+
+
+def _str_list(value) -> list[str]:
+    """只保留字符串元素的列表；模型偶尔塞对象/数字，直接给前端会渲染崩。"""
+    if not isinstance(value, list):
+        return []
+    return [str(x) for x in value if isinstance(x, str) and x.strip()]
+
+
+def match_level(score: int) -> str:
+    """档位只由分数决定。
+
+    模型经常在 reason 里写「非常匹配」却给个低分（或反过来），界面要同时展示档位和分数条，
+    两者必须自洽，所以档位一律由分数反推，模型给的 match 不参与决策。
+    """
+    return "高" if score >= MATCH_HIGH else ("中" if score >= MATCH_MID else "低")
+
+
+def explain_meta(note: str = "") -> dict:
+    """分数口径说明，界面拿它渲染图例（有哪些维度、满分多少、分数怎么来的）。"""
+    return {"dimensions": list(EXPLAIN_DIMENSIONS), "max_score": MAX_SCORE,
+            "note": note or EXPLAIN_NOTE}
 
 
 # ---------------------------------------------------------------- 本地关键词匹配（离线兜底）
@@ -366,12 +398,185 @@ def _build_reason(comp: dict, keywords: list, loc: str, wants_state: bool, wants
     return "；".join(s for s in segs if s) or "与简历部分经历相关"
 
 
+def _nature_flags(candidate: str, resume_text: str = "") -> tuple[bool, bool]:
+    """解析企业性质倾向（是否想进国企 / 是否想进非国企）。未指定时从简历里嗅探。"""
+    n = (candidate or "").lower()
+    if not n:
+        return (any(k in resume_text for k in ("国企", "央企", "编制", "稳定", "体制")),
+                any(k in resume_text for k in ("外企", "私企", "互联网", "高薪", "民企")))
+    if ("国企" in n) or ("央" in n) or ("事业" in n):
+        return True, False
+    if ("民营" in n) or ("私企" in n) or ("外企" in n) or ("互联网" in n):
+        return False, True
+    return False, False
+
+
+def score_company(resume_text: str, comp: dict, target_cities: list[str],
+                  company_type: str = "") -> dict:
+    """按统一口径给单个企业打分，返回中间结果（供离线推荐与归一化兜底共用）。
+
+    三个维度各有一个上限，加起来就是 0-100 的 `score`：
+    keyword 每个命中关键词 +10（最多 5 个 → 50）、location 命中目标城市 +30、
+    nature 企业性质符合期望 +20（国企）/+10（非国企）。
+    同一份简历下所有企业走同一套算法，所以分数差异反映的是真实重合度差异，可以横向比较。
+    企业本身不在清单里（comp 为空）时结果全 0，调用方据此判断要不要改用别的值。
+    """
+    resume_low = (resume_text or "").lower()
+    locations = [str(x) for x in (comp.get("locations") or [])]
+    blob = " ".join([str(comp.get("name") or ""), str(comp.get("type") or ""),
+                     str(comp.get("title") or ""), str(comp.get("text") or ""),
+                     " ".join(locations)]).lower()
+
+    keywords: list[str] = []
+    positions: list[str] = []
+    for term, pos in JOB_KEYWORDS:
+        if term in resume_low and term in blob:
+            keywords.append(term)
+            positions.append(pos)
+
+    cities: list[str] = []
+    for city in target_cities:
+        if any(city in work or work in city for work in locations):
+            cities.append(city)
+
+    wants_state, wants_private = _nature_flags(company_type, resume_text)
+    nature = 0
+    if wants_state and comp.get("so") == "是":
+        nature = _NATURE_POINTS["state"]
+    elif wants_private and comp.get("so") == "否":
+        nature = _NATURE_POINTS["private"]
+
+    breakdown = {
+        "keyword": min(len(keywords) * _KEYWORD_POINTS, _DIMENSION_CAPS["keyword"]),
+        "location": _DIMENSION_CAPS["location"] if cities else 0,
+        "nature": nature,
+    }
+    return {
+        "score": sum(breakdown.values()),
+        "breakdown": breakdown,
+        "matched": {"keywords": keywords, "cities": cities},
+        "matched_positions": positions,
+        "location": cities[0] if cities else "",
+    }
+
+
+def _rec_out(rec: dict, breakdown: dict, matched: dict) -> dict:
+    """推荐条目的对外形状：AI 与离线两条路径都从这里出场，字段集合因此必然一致。
+
+    分数恒等于各维度之和（维度先按各自上限夹紧），界面画条形图时才不会出现
+    「柱子加起来跟总分对不上」的错觉。
+    """
+    bd = {dim: _as_score(breakdown.get(dim, 0), _DIMENSION_CAPS[dim]) for dim in EXPLAIN_DIMENSIONS}
+    score = sum(bd.values())
+    return {
+        "company": str(rec.get("company") or ""),
+        "match": match_level(score),
+        "location": str(rec.get("location") or ""),
+        "position": str(rec.get("position") or ""),
+        "reason": str(rec.get("reason") or ""),
+        "score": score,
+        "breakdown": bd,
+        "matched": {"keywords": _str_list(matched.get("keywords")),
+                    "cities": _str_list(matched.get("cities"))},
+    }
+
+
+def _fold_breakdown(raw) -> dict | None:
+    """把模型给的 breakdown 折叠成本地口径的三个维度；缺维度或全是 0 时返回 None。
+
+    prompt 让模型按 major/skill/location/nature 四项给更细的判断，但界面只有三根柱子，
+    所以 major+skill 合并成 keyword；模型也可能直接给 keyword（幂等场景下就是自己上次的产物）。
+    三个维度缺一个就必须整条重算：只给一半维度的分数跟「全维度」的分数放一起比没有意义，
+    可比性要求同一份结果里的每条都出自同一套算法。
+    """
+    if not isinstance(raw, dict):
+        return None
+    has_keyword = any(isinstance(raw.get(k), (int, float)) and not isinstance(raw.get(k), bool)
+                      for k in ("keyword", "major", "skill"))
+    if not has_keyword or not _valid_score(raw.get("location")) or not _valid_score(raw.get("nature")):
+        return None
+    keyword = raw.get("keyword")
+    if keyword is None:
+        keyword = (_as_score(raw.get("major"), _DIMENSION_CAPS["keyword"])
+                   + _as_score(raw.get("skill"), _DIMENSION_CAPS["keyword"]))
+    bd = {
+        "keyword": _as_score(keyword, _DIMENSION_CAPS["keyword"]),
+        "location": _as_score(raw.get("location"), _DIMENSION_CAPS["location"]),
+        "nature": _as_score(raw.get("nature"), _DIMENSION_CAPS["nature"]),
+    }
+    return bd if any(bd.values()) else None
+
+
+def _clean_matched(raw) -> dict | None:
+    """matched 只保留两个字符串列表；空的或格式不对的返回 None，交给本地规则重算。"""
+    if not isinstance(raw, dict):
+        return None
+    out = {"keywords": _str_list(raw.get("keywords")), "cities": _str_list(raw.get("cities"))}
+    return out if (out["keywords"] or out["cities"]) else None
+
+
+def _find_company(name: str, by_name: dict[str, dict]) -> dict | None:
+    """按企业名找候选企业：先用全等，再退一步做包含匹配。
+
+    模型常把「某某集团」写成简称或加后缀，全等匹配会漏掉，漏了就只能靠本地规则兜底。
+    """
+    comp = by_name.get(name)
+    if comp is not None:
+        return comp
+    for full, item in by_name.items():
+        if full and (full in name or name in full):
+            return item
+    return None
+
+
+def normalize_explanations(result: dict, companies: list[dict], work_place: str = "",
+                           company_type: str = "", resume_text: str = "") -> dict:
+    """把推荐结果规范成「可比较」的形状：补齐 score/breakdown/matched，并按分数重排。
+
+    模型经常漏字段、给超范围的分数、或者在 reason 里写「高度匹配」却给个低分，
+    而界面要靠分数排序、画对比图，所以这里统一兜底：
+    - 分数缺失 / 非数字 / 越界 / breakdown 缺失 → 用本地规则重算（与离线路径同一套算法）；
+    - match 档位一律由分数推出，保证「分高的排前面、档位高的分也高」；
+    - 幂等：已经规范化的结果再跑一次，所有字段都不变。
+    """
+    if not isinstance(result, dict) or result.get("error"):
+        return result
+    recs = result.get("recommendations")
+    if not isinstance(recs, list):
+        recs = []
+        result["recommendations"] = recs
+
+    text = resume_text or str(result.get("resume_summary") or "")
+    by_name = {str(c.get("name") or "").strip(): c for c in (companies or []) if isinstance(c, dict)}
+    req_cities = parse_target_cities(work_place)
+
+    out = []
+    for rec in recs:
+        if not isinstance(rec, dict):
+            continue
+        comp = _find_company(str(rec.get("company") or "").strip(), by_name)
+        # 未填目标工作地时退回简历里提到的城市，与离线路径口径一致
+        cities = req_cities or [c for c in (comp or {}).get("locations") or [] if c and c in text]
+        offline = score_company(text, comp or {}, cities, company_type)
+        # 分数与三维拆解必须同时合法才采信模型：只信一半会出现「80 分但拆不出来」的怪结果
+        breakdown = _fold_breakdown(rec.get("breakdown"))
+        use_ai = _valid_score(rec.get("score")) and breakdown is not None
+        if not use_ai:
+            breakdown = offline["breakdown"]
+        matched = (_clean_matched(rec.get("matched")) if use_ai else None) or offline["matched"]
+        out.append(_rec_out(rec, breakdown, matched))
+
+    out.sort(key=lambda r: r["score"], reverse=True)
+    result["recommendations"] = out
+    return result
+
+
 def keyword_recommend(resume_text: str, companies: list[dict], work_place: str = "",
                       company_type: str = "", top: int = 10) -> dict:
     """无需 API 的本地关键词匹配推荐（离线兜底）。
 
     依据企业文本与简历在「岗位关键词」「工作地点城市」「企业性质倾向」上的真实重合度打分，
-    确定性、可复现。算法：重合一个关键词 +2，地点命中 +3，性质倾向 +1~2；分数≥8 高、≥4 中、否则低。
+    确定性、可复现。算法见 `score_company`：三维合计 0-100，分数≥70 高、≥40 中、否则低。
     work_place/company_type 为用户明确指定的目标工作地/企业性质，优先采用。
     """
     resume_text = resume_text or ""
@@ -381,73 +586,36 @@ def keyword_recommend(resume_text: str, companies: list[dict], work_place: str =
     pref_cities = [c for c in all_cities if c and c in resume_text]
     # 用户填写的目标工作地优先；未填则退回简历里提到的城市
     target_cities = parse_target_cities(work_place) or pref_cities
-
-    def _nature_flags(candidate: str) -> tuple[bool, bool]:
-        n = (candidate or "").lower()
-        if not n:
-            # 未指定则从简历里嗅探倾向
-            return (any(k in resume_text for k in ("国企", "央企", "编制", "稳定", "体制")),
-                    any(k in resume_text for k in ("外企", "私企", "互联网", "高薪", "民企")))
-        if ("国企" in n) or ("央" in n) or ("事业" in n):
-            return True, False
-        if ("民营" in n) or ("私企" in n) or ("外企" in n) or ("互联网" in n):
-            return False, True
-        return False, False
-
-    wants_state, wants_private = _nature_flags(company_type)
+    wants_state, wants_private = _nature_flags(company_type, resume_text)
 
     scored = []
     for comp in companies:
-        locations = comp.get("locations") or []
-        blob = " ".join([comp.get("name", ""), comp.get("type", ""), comp.get("title", ""),
-                         comp.get("text", ""), " ".join(locations)]).lower()
-        score = 0
-        matched_positions: list[str] = []
-        matched_keywords: list[str] = []
-        for term, pos in JOB_KEYWORDS:
-            if term in resume_low and term in blob:
-                score += 2
-                matched_positions.append(pos)
-                matched_keywords.append(term)
-        loc = ""
-        for city in target_cities:
-            for work in locations:
-                if city in work or work in city:
-                    score += 3
-                    loc = loc or city
-                    break
-        if wants_state and comp.get("so") == "是":
-            score += 2
-        if wants_private and comp.get("so") == "否":
-            score += 1
-        if score <= 0:
+        s = score_company(resume_text, comp, target_cities, company_type)
+        if s["score"] <= 0:
             continue
-        loc = loc or (locations[0] if locations else "")
-        scored.append({
+        locations = comp.get("locations") or []
+        loc = s["location"] or (locations[0] if locations else "")
+        scored.append(_rec_out({
             "company": comp.get("name", ""),
             "location": loc,
-            "position": matched_positions[0] if matched_positions else (comp.get("title") or "校招岗位"),
-            "reason": _build_reason(comp, matched_keywords, loc, wants_state, wants_private),
-            "match": "高" if score >= 8 else ("中" if score >= 4 else "低"),
-            "_score": score,
-        })
+            "position": s["matched_positions"][0] if s["matched_positions"]
+                        else (comp.get("title") or "校招岗位"),
+            "reason": _build_reason(comp, s["matched"]["keywords"], loc, wants_state, wants_private),
+        }, s["breakdown"], s["matched"]))
 
-    scored.sort(key=lambda x: x["_score"], reverse=True)
-    top_recs = scored[:top]
-    for r in top_recs:
-        r.pop("_score", None)
+    scored.sort(key=lambda x: x["score"], reverse=True)
 
     found_pos: list[str] = []
     for term, pos in JOB_KEYWORDS:
         if term in resume_low and pos not in found_pos:
             found_pos.append(pos)
 
-    return {
+    # 过一遍归一化：与 AI 路径共用同一个出口，两条路径对外字段集合完全一致
+    return normalize_explanations({
         "resume_summary": " ".join(resume_text.split())[:80] or "（未能识别简历内容）",
         "target_positions": found_pos[:5],
-        "recommendations": [{"company": r["company"], "match": r["match"], "location": r["location"],
-                             "position": r["position"], "reason": r["reason"]} for r in top_recs],
-    }
+        "recommendations": scored[:top],
+    }, companies, work_place=work_place, company_type=company_type, resume_text=resume_text)
 
 
 # ---------------------------------------------------------------- 命令行（便于本地测试）

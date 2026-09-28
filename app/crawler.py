@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import requests
+import taskcenter  # 进度/阶段走 JSONL 事件协议上报（taskcenter 不反向 import crawler，无环）
 from utils import io as io_utils
 from utils import text as text_utils
 
@@ -115,7 +116,9 @@ class WhutClient:
             raise RuntimeError(f"接口 {endpoint} 返回错误：{result}")
         raise RuntimeError(f"接口 {endpoint} 多次请求失败")
 
-    def list_all(self, endpoint: str, page_size: int) -> list[dict[str, Any]]:
+    def list_all(self, endpoint: str, page_size: int,
+                 emit: taskcenter.EventEmitter | None = None) -> list[dict[str, Any]]:
+        emit = emit if emit is not None else taskcenter.DISABLED_EMITTER
         first = self.post(endpoint, {"page": 1, "size": page_size})["data"]
         items = list(first.get("list") or [])
         pages = int(first.get("allpage") or 1)
@@ -123,14 +126,16 @@ class WhutClient:
         for page in range(2, pages + 1):
             data = self.post(endpoint, {"page": page, "size": page_size})["data"]
             items.extend(data.get("list") or [])
-            print(f"\r  已读取 {page}/{pages} 页", end="", flush=True)
+            emit.bar(page, pages, "  已读取", " 页")
         if pages > 1:
-            print()
+            emit.bar_end()
         # 置顶项目可能重复出现，按 id 去重。
         return list({str(item.get("id")): item for item in items}.values())
 
 
-def enrich(client: WhutClient, items: list[dict[str, Any]], endpoint: str, workers: int = 8) -> None:
+def enrich(client: WhutClient, items: list[dict[str, Any]], endpoint: str, workers: int = 8,
+           emit: taskcenter.EventEmitter | None = None) -> None:
+    emit = emit if emit is not None else taskcenter.DISABLED_EMITTER
     total = len(items)
 
     def fetch(item: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | Exception]:
@@ -148,9 +153,9 @@ def enrich(client: WhutClient, items: list[dict[str, Any]], endpoint: str, worke
                 item["detail_error"] = str(result)
             else:
                 item.update(result)
-            print(f"\r  已抓取详情 {index}/{total}", end="", flush=True)
+            emit.bar(index, total, "  已抓取详情")
     if total:
-        print()
+        emit.bar_end()
 
 
 def recruitment_row(item: dict[str, Any]) -> dict[str, Any]:
@@ -229,11 +234,13 @@ def list_preach_year(
     offline_only: bool = True,
     page_size: int = 100,
     max_pages: int = 30,
+    emit: taskcenter.EventEmitter | None = None,
 ) -> list[dict[str, Any]]:
     """抓取指定年份的宣讲会。列表按举办日期倒序，越过今年窗口后自动停止。
 
     offline_only=True 时只保留 air_type==0（线下，有实体地点）。
     """
+    emit = emit if emit is not None else taskcenter.DISABLED_EMITTER
     result: list[dict[str, Any]] = []
     total_pages = 1
     for page in range(1, max_pages + 1):
@@ -256,11 +263,11 @@ def list_preach_year(
                 continue  # 空中/线上宣讲会，排除
             result.append(item)
 
-        print(f"\r  宣讲会：已读取 {page}/{total_pages} 页，命中 {len(result)} 条", end="", flush=True)
+        emit.bar(page, total_pages, "  宣讲会：已读取", f" 页，命中 {len(result)} 条")
         if all_past:
             break
     if result:
-        print()
+        emit.bar_end()
     # 置顶可能重复，按 id 去重。
     return list({str(item.get("id")): item for item in result}.values())
 
@@ -377,7 +384,12 @@ def main() -> int:
                         help="默认只抓线下(air_type==0)宣讲会；加上此参数则同时抓空中/线上宣讲会")
     parser.add_argument("--force", action="store_true",
                         help="默认跳过已爬取过的记录（按 ID 去重）；加上此参数则强制重新抓取全部")
+    parser.add_argument("--jsonl", action="store_true",
+                        help="强制输出 JSONL 事件行（默认：stdout 不是终端时自动开启，供任务中心解析）")
     args = parser.parse_args()
+
+    # 终端里人盯着跑 → 只输出中文；被任务中心管道接管 → 再补一行行 JSONL 事件
+    emit = taskcenter.EventEmitter.for_stdout(force=args.jsonl)
 
     start = datetime.strptime(args.start, "%Y-%m-%d")
     end = datetime.strptime(args.end, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
@@ -397,30 +409,35 @@ def main() -> int:
         print(f"已存在：招聘信息 {len(existing_recruit)} 条，双选会 {len(existing_fair)} 条，"
               f"宣讲会 {len(existing_preach)} 条（本次将跳过这些 ID）")
 
+    emit.stage("读取招聘信息列表")
     print("读取招聘信息列表……")
-    recruitment_all = client.list_all("/enrollment/getlist", args.page_size)
+    recruitment_all = client.list_all("/enrollment/getlist", args.page_size, emit=emit)
     recruitment = [item for item in recruitment_all
                    if start_ts <= timestamp(item.get("addtime")) <= end_ts
                    and str(item.get("id")) not in existing_recruit]
     recruitment.sort(key=lambda x: timestamp(x.get("addtime")), reverse=True)
     print(f"  日期范围内 {len(recruitment)} 条（已跳过已爬取 {len([i for i in recruitment_all if str(i.get('id')) in existing_recruit])}），开始读取详情……")
-    enrich(client, recruitment, "/enrollment/detail")
+    enrich(client, recruitment, "/enrollment/detail", emit=emit)
 
+    emit.stage("读取双选会列表")
     print("读取双选会列表……")
-    fair_all = client.list_all("/jobfair/getlist", args.page_size)
+    fair_all = client.list_all("/jobfair/getlist", args.page_size, emit=emit)
     fairs = [item for item in fair_all
              if start_ts <= timestamp(item.get("addtime")) <= end_ts
              and str(item.get("id")) not in existing_fair]
     fairs.sort(key=lambda x: timestamp(x.get("addtime")), reverse=True)
     print(f"  日期范围内 {len(fairs)} 条，开始读取详情……")
-    enrich(client, fairs, "/jobfair/detail")
+    enrich(client, fairs, "/jobfair/detail", emit=emit)
 
+    emit.stage("读取宣讲会列表")
     print(f"读取 {args.preach_year} 年宣讲会列表（{'仅线下' if not args.all_types else '线下+线上'}）……")
-    preachs = list_preach_year(client, args.preach_year, offline_only=not args.all_types)
+    preachs = list_preach_year(client, args.preach_year, offline_only=not args.all_types, emit=emit)
     preachs = [item for item in preachs if str(item.get("id")) not in existing_preach]
     preachs.sort(key=lambda x: str(x.get("hold_date", "")) + str(x.get("hold_starttime", "")))
     print(f"  {args.preach_year} 年筛选出 {len(preachs)} 条（已跳过已爬取），开始读取详情……")
-    enrich(client, preachs, "/preach/detail")
+    enrich(client, preachs, "/preach/detail", emit=emit)
+
+    emit.stage("写出 CSV / Markdown / 原始数据")
 
     recruitment_rows = [recruitment_row(item) for item in recruitment]
     fair_rows = [fair_row(item) for item in fairs]
