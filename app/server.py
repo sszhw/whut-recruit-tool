@@ -47,8 +47,9 @@ import crawler  # noqa: E402  复用 time_text / plain_text / write_json
 import exports  # noqa: E402  导出（Excel / CSV / ICS）
 import providers  # noqa: E402  LLM 厂商预设与配置解析
 import repository as repo  # noqa: E402  统一数据访问层（跨文件合并 + ID 去重 + 缓存）
-import resume   # noqa: E402  简历解析 + 投递推荐
+import resume  # noqa: E402  简历解析 + 投递推荐
 import taskcenter  # noqa: E402  后台任务中心（状态机 / 输出采集 / 历史落盘）
+from utils import io as io_utils  # noqa: E402  容错读 + 原子写
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024           # 单请求体上限 20MB（简历 / 报告导入）
 
@@ -211,26 +212,10 @@ tasks = TaskManager()
 
 # ---------------------------------------------------------------- 数据读取
 
-def _newest_glob(pattern: str) -> Path | None:
-    """取项目根下匹配 pattern 的文件中最新的一个。"""
-    candidates = sorted(glob.glob(str(DATA / pattern)), key=os.path.getmtime, reverse=True)
-    return Path(candidates[0]) if candidates else None
-
-
-def latest_raw_json() -> Path | None:
-    """通用：任一新旧兼容（仅用于状态展示/向前兼容，精确取数请用下面的专用函数）。"""
-    return _newest_glob("*_原始数据.json")
-
-
-def latest_recruit_json() -> Path | None:
-    """招聘信息 + 双选会所在的原始数据文件。"""
-    return _newest_glob("武汉理工大学招聘信息_*_原始数据.json")
-
-
-def latest_preach_json() -> Path | None:
-    """宣讲会所在的原始数据文件。"""
-    return _newest_glob("宣讲会_*_原始数据.json")
-
+# 注：原先这里的 _newest_glob / latest_*_json 系列已被删除。
+# 「按最新那个文件取数」会导致只抓了一天小快照时，页面/分析/推荐口径不一致；
+# 展示用的「最近更新文件」改由 repository.latest_source_file() 提供，
+# 取数一律走 repository.raw_items()。
 
 WORK_FLOW_CSV = DATA / "宣讲会_工作地流动.csv"
 _work_map_cache: tuple[str, dict[str, list[str]]] | None = None   # (CSV 签名, 映射)
@@ -422,12 +407,8 @@ def save_preach_favs(ids: set[str]) -> None:
 
 
 def load_cache() -> dict:
-    if not CACHE_PATH.exists():
-        return {}
-    try:
-        return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
+    """读企业分析缓存；缺失或损坏返回 {}（实现见 utils.io.load_json_dict）。"""
+    return io_utils.load_json_dict(CACHE_PATH)
 
 # ---------------------------------------------------------------- 页面与静态
 
@@ -456,7 +437,7 @@ def api_status():
     cache = load_cache()
     llm = get_llm()
     summary = repo.master_summary()   # 主数据统一口径：跨全部原始文件合并 + 按 ID 去重
-    raw = latest_raw_json()           # 仅用于界面「数据文件」展示
+    raw = repo.latest_source_file()   # 仅用于界面「数据文件」展示，取数请用 raw_items
     task_crawler = tasks.latest("抓取")
     task_update = tasks.latest("招聘更新")
     task_analyze = tasks.latest("分析")
@@ -1015,7 +996,7 @@ def api_companies_filters():
                 loc_counter[s] += 1
     return jsonify({
         "types": [{"value": t, "count": n} for t, n in type_counter.most_common()],
-        "locations": [{"value": l, "count": n} for l, n in loc_counter.most_common()],
+        "locations": [{"value": loc, "count": n} for loc, n in loc_counter.most_common()],
     })
 
 
@@ -1255,8 +1236,9 @@ def api_export(kind):
 
 @app.route("/api/recruitments/export")
 def api_export_recruitments():
-    raw = latest_raw_json()
-    if not raw:
+    # 原先用「有没有最新原始数据文件」兜底；改成直接问主库有没有记录，
+    # 避免在没有当天快照、主库仍有历史数据时误报 404。
+    if not repo.master_summary()["recruit_count"]:
         return jsonify({"ok": False, "error": "无数据"}), 404
     csv_path = sorted(glob.glob(str(DATA / "*_招聘信息.csv")), key=os.path.getmtime, reverse=True)
     if csv_path:
@@ -1281,6 +1263,16 @@ _IMPORT_TEMPLATE = "# 企业性质与工作地点分析报告\n" + \
                    "|---|---|---|---|---|---|\n" + \
                    "| 中国建筑第三工程局 | 央企 | 是 | 高 | 武汉、深圳 | 央企子公司，总部武汉 |\n" + \
                    "| 某科技公司 | 民企 | 否 | 中 | 北京 | 民营互联网企业，总部北京 |\n"
+
+
+def _md_cell(cols: dict, cells: list[str], key: str, default: str = "") -> str:
+    """按表头列索引从 Markdown 表格行中取值。
+
+    原实现是在循环体内定义闭包 g()，既每轮重建函数对象，又会把 cols / cells
+    变成延迟绑定的闭包变量（ruff B023）。改为纯函数后行为一致且可单测。
+    """
+    i = cols.get(key) if cols else None
+    return cells[i].strip() if (i is not None and i < len(cells)) else default
 
 
 def parse_report_md(text: str) -> dict:
@@ -1314,32 +1306,34 @@ def parse_report_md(text: str) -> dict:
                     and "工作地点" in joined):
                 cols = {}
                 for i, h in enumerate(cells):
-                    if h == "企业名称": cols["name"] = i
-                    elif h in ("国企", "是否国企"): cols["so"] = i
-                    elif "类型" in h: cols["type"] = i
-                    elif "置信度" in h: cols["conf"] = i
-                    elif "工作地点" in h: cols["loc"] = i
-                    elif h in ("依据", "判断依据"): cols["evidence"] = i
+                    if h == "企业名称":
+                        cols["name"] = i
+                    elif h in ("国企", "是否国企"):
+                        cols["so"] = i
+                    elif "类型" in h:
+                        cols["type"] = i
+                    elif "置信度" in h:
+                        cols["conf"] = i
+                    elif "工作地点" in h:
+                        cols["loc"] = i
+                    elif h in ("依据", "判断依据"):
+                        cols["evidence"] = i
                 in_detail = True
             continue
 
-        def g(key, default=""):
-            i = cols.get(key) if cols else None
-            return cells[i].strip() if (i is not None and i < len(cells)) else default
-
-        name = g("name")
+        name = _md_cell(cols, cells, "name")
         if not name or name in ("企业名称",):
             continue
-        so_raw = g("so")
+        so_raw = _md_cell(cols, cells, "so")
         so = True if so_raw == "是" else (False if so_raw == "否" else None)
-        loc_str = g("loc")
+        loc_str = _md_cell(cols, cells, "loc")
         locs = [c.strip() for c in loc_str.replace("、", ",").split(",") if c.strip()] if loc_str and loc_str != "-" else []
         entries[name] = {
-            "company_type": g("type"),
+            "company_type": _md_cell(cols, cells, "type"),
             "is_state_owned": so,
-            "confidence": g("conf"),
+            "confidence": _md_cell(cols, cells, "conf"),
             "locations": locs,
-            "evidence": g("evidence"),
+            "evidence": _md_cell(cols, cells, "evidence"),
             "_raw": "",
         }
     return {"entries": entries, "meta": meta, "bad_rows": bad}

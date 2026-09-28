@@ -25,17 +25,18 @@ import csv
 import glob
 import json
 import os
-import re
 import sys
 import time
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
-
-import requests
+from typing import Any
 
 import crawler  # 复用 plain_text 等工具函数
 import repository as repo  # 统一数据访问层：跨文件合并 + 按 ID 去重（--merge）
+import requests
+from utils import io as io_utils
+from utils import text as text_utils
 
 BASE_URL = os.environ.get("LLM_BASE_URL") or os.environ.get("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
 DEFAULT_MODEL = os.environ.get("LLM_MODEL") or "Qwen/Qwen2.5-72B-Instruct"
@@ -58,8 +59,8 @@ JSON 格式：
 
 
 def truncate(text: str, limit: int = 1200) -> str:
-    text = (text or "").strip()
-    return text[:limit]
+    """裁剪正文（实现见 utils.text.truncate）。"""
+    return text_utils.truncate(text, limit=limit)
 
 
 def _join_joblist(joblist: Any) -> str:
@@ -120,16 +121,13 @@ def extract_preach_companies(items: list[dict]) -> list[dict]:
 
 
 def load_cache(path: Path) -> dict:
-    if path.exists():
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return {}
-    return {}
+    """读分析缓存；缺失或损坏返回 {}（实现见 utils.io.load_json_dict）。"""
+    return io_utils.load_json_dict(path)
 
 
 def save_cache(path: Path, cache: dict) -> None:
-    crawler.write_json(path, cache, indent=1)
+    """原子写分析缓存（实现见 utils.io.write_json_atomic）。"""
+    io_utils.write_json_atomic(path, cache, indent=1)
 
 
 def call_api(api_key: str, model: str, name: str, text: str, max_retries: int = 3) -> dict:
@@ -168,17 +166,18 @@ def call_api(api_key: str, model: str, name: str, text: str, max_retries: int = 
 
 
 def parse_json(content: str) -> dict:
+    """解析 LLM 返回的企业分析结果。
+
+    LLM 常在 JSON 外裹 ```json 代码块或解释文字，`utils.text.extract_json_object`
+    负责容错抠取；彻底解析失败时返回带「解析失败」标记的结构，交给上层降级处理。
+    """
     raw = content
-    match = re.search(r"\{.*\}", content, re.S)
-    if match:
-        content = match.group(0)
-    try:
-        data = json.loads(content)
-        data["_raw"] = ""
-        return data
-    except json.JSONDecodeError:
+    data = text_utils.extract_json_object(content)
+    if data is None:
         return {"company_type": "解析失败", "is_state_owned": None, "confidence": "",
                 "locations": [], "evidence": "", "_raw": raw[:500]}
+    data["_raw"] = ""
+    return data
 
 
 def build_outputs(workdir: Path, companies: list[dict], cache: dict, model: str, input_name: str,

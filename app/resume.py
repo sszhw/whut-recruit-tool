@@ -16,17 +16,16 @@
 from __future__ import annotations
 
 import base64
-import glob
-import io
 import json
 import os
 import re
 import time
 from pathlib import Path
 
-import requests
-
 import repository as repo  # 统一数据访问层：候选企业跨全部招聘原始文件合并去重
+import requests
+from utils import io as io_utils
+from utils import text as text_utils
 
 BASE_URL = os.environ.get("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
 # 图片/扫描件 OCR 用的视觉模型（可在界面里改）
@@ -34,7 +33,6 @@ VISION_MODEL = os.environ.get("RESUME_VISION_MODEL", "Qwen/Qwen3-VL-32B-Instruct
 DEFAULT_MODEL = "Qwen/Qwen2.5-72B-Instruct"
 
 CACHE_NAME = "企业分析_缓存.json"
-RAW_GLOB = "*_原始数据.json"
 
 # ---------------------------------------------------------------- 文字提取
 
@@ -141,30 +139,24 @@ def extract_text(api_key: str, path: str, ext: str, vision_model: str | None = N
 
 # ---------------------------------------------------------------- 汇总候选企业
 
-def latest_raw_json(workdir: Path) -> Path | None:
-    # 简历投递推荐面向"招聘信息"中的企业：优先取招聘信息原始数据文件，避免误取只含"宣讲会"的文件。
-    candidates = sorted(glob.glob(str(workdir / "武汉理工大学招聘信息_*_原始数据.json")),
-                        key=os.path.getmtime, reverse=True)
-    if not candidates:
-        candidates = sorted(glob.glob(str(workdir / RAW_GLOB)), key=os.path.getmtime, reverse=True)
-    return Path(candidates[0]) if candidates else None
+# 注：原先的 latest_raw_json() 已删除（无任何调用点）。
+# 它属于「读最新的那个原始数据文件」的旧口径，与统一后的 repository 合并去重相悖；
+# resume 的候选企业现已由 build_companies() 走 repository 全量合并提供。
 
 
 def load_cache(workdir: Path) -> dict:
-    path = workdir / CACHE_NAME
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
+    """读分析结果缓存；缺失或损坏一律返回 {}（实现见 utils.io.load_json_dict）。"""
+    return io_utils.load_json_dict(Path(workdir) / CACHE_NAME)
 
 
 def plain_text(value: str) -> str:
-    value = (value or "")
-    value = re.sub(r"(?s)<[^>]+>", "", value)
-    value = value.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-    return "\n".join(line.strip() for line in value.splitlines() if line.strip())
+    """HTML → 纯文本。
+
+    原实现只去标签并替换四个实体，比 crawler 版少掉了 script/style 剥离、
+    块级标签转换行与 \\xa0 处理——同一段正文在不同模块被洗成不同结果。
+    现统一到 `utils.text.strip_html`。
+    """
+    return text_utils.strip_html(value)
 
 
 def _merged_recruit_items(workdir: Path) -> list[dict]:

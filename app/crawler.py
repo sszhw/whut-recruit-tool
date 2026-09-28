@@ -11,20 +11,18 @@
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import csv
-import html
 import json
-import os
-import re
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import requests
-
+from utils import io as io_utils
+from utils import text as text_utils
 
 BASE_URL = "https://scc.whut.edu.cn/mobile.php"
 SITE_URL = "https://scc.whut.edu.cn"
@@ -49,16 +47,12 @@ def time_text(value: Any, with_time: bool = True) -> str:
 
 
 def plain_text(value: Any) -> str:
-    if not value:
-        return ""
-    text = str(value)
-    text = re.sub(r"(?is)<(script|style).*?>.*?</\1>", "", text)
-    text = re.sub(r"(?i)<br\s*/?>", "\n", text)
-    text = re.sub(r"(?i)</(p|div|li|tr|h[1-6])>", "\n", text)
-    text = re.sub(r"(?s)<[^>]+>", "", text)
-    text = html.unescape(text).replace("\u00a0", " ")
-    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.splitlines()]
-    return "\n".join(line for line in lines if line)
+    """HTML 富文本 → 纯文本。
+
+    实现已下沉到 `utils.text.strip_html`（该项目唯一权威实现）。
+    此处保留同名入口，避免一次性改动全部调用点；后续统一收敛时再替换。
+    """
+    return text_utils.strip_html(value)
 
 
 class WhutClient:
@@ -276,10 +270,10 @@ def write_json(path: Path, data: Any, indent: int = 2) -> None:
 
     直接 write_text 覆盖写时若进程被停止（任务中心的「停止」在 Windows 上是硬杀进程），
     主库 JSON 会被截断损坏。原子替换保证任一时刻磁盘上的文件都是完整版本。
+
+    实现见 `utils.io.write_json_atomic`，此处为向后兼容入口。
     """
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=indent), encoding="utf-8")
-    os.replace(tmp, path)
+    io_utils.write_json_atomic(path, data, indent=indent)
 
 
 def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -448,4 +442,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except KeyboardInterrupt:
         print("\n用户已中止。", file=sys.stderr)
-        raise SystemExit(130)
+        raise SystemExit(130) from None

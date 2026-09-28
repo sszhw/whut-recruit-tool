@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
-import repository as repo
 import resume
 from conftest import recruit_item, recruit_path, write_raw
 

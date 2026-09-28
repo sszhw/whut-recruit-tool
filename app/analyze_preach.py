@@ -21,7 +21,6 @@ import argparse
 import csv
 import json
 import os
-import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -120,7 +119,6 @@ def _first_city(text: str) -> str:
 
 def infer_work_cities(name: str, title: str = "", text: str = "") -> list[str]:
     """离线推断工作地：优先企业总部映射，其次从名称/文本提取城市。"""
-    sample = name + " " + title
     # 1) 企业总部映射（关键词优先）
     for keyword, cities in CORP_HQ:
         if keyword in name:
@@ -236,7 +234,7 @@ def main() -> int:
     md_path = DATA / "宣讲会_工作地流动报告.md"
     md_path.write_text("\n".join(md), encoding="utf-8")
 
-    print(f"\n=== 工作地流向（前 20 城）===")
+    print("\n=== 工作地流向（前 20 城）===")
     for loc, cnt in loc_counts.most_common(20):
         print(f"  {loc}: {cnt}")
     print(f"未确定: {unknown}")
@@ -249,4 +247,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except KeyboardInterrupt:
         print("\n用户已中止。", file=sys.stderr)
-        raise SystemExit(130)
+        raise SystemExit(130) from None

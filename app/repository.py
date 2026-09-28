@@ -137,6 +137,27 @@ def source_files(kind: str) -> list[Path]:
     return iter_files(KINDS[kind][0])
 
 
+def latest_source_file() -> Path | None:
+    """全部原始数据文件中最近修改的一个 —— **仅供界面展示**「当前数据文件」。
+
+    为什么单独标明「仅供展示」：
+    数据现在是跨全部原始文件合并去重后得到的（见 raw_items），
+    按「最新那个文件」取数正是被淘汰的旧口径——它曾在只抓了一天小快照时，
+    让企业分析和投递推荐的样本远小于页面展示范围。
+    此函数只服务于 /api/status 的 raw_file / raw_mtime 两个展示字段，
+    业务逻辑请勿使用。
+    """
+    candidates: list[Path] = []
+    for pattern, _label in KINDS.values():
+        try:
+            candidates.extend(iter_files(pattern))
+        except OSError:
+            continue
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
 def raw_items_in(kind: str, data_dir: Path) -> list[dict]:
     """指定数据目录下的合并结果（不走缓存，供 CLI / 测试使用）。"""
     if kind not in KINDS:

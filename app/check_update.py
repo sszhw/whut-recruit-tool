@@ -291,4 +291,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except KeyboardInterrupt:
         print("\n用户已中止。", file=sys.stderr)
-        raise SystemExit(130)
+        raise SystemExit(130) from None
