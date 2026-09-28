@@ -66,3 +66,36 @@ def test_no_api_module_imports_server():
             line = line.strip()
             if line.startswith(("import server", "from server")):
                 raise AssertionError(f"{path.name} 反向依赖 server：{line}")
+
+
+def test_services_do_not_know_http():
+    """services 层不得依赖 Flask——它要能脱离 Web 单测与被 CLI / 定时任务复用。
+
+    这条约束一旦破掉，业务规则就又和 request / jsonify 缠在一起，
+    「换个入口复用」会重新变成复制粘贴。
+    """
+    svc_dir = APP_DIR / "services"
+    assert svc_dir.is_dir(), "缺少 services/ 层"
+    for path in sorted(svc_dir.glob("*.py")):
+        src = path.read_text(encoding="utf-8")
+        for line in src.splitlines():
+            line = line.strip()
+            if line.startswith(("import flask", "from flask")):
+                raise AssertionError(f"services/{path.name} 依赖了 Flask：{line}")
+            # `from flask import request` 这类写法已在上面拦住，这里再挡
+            # `import flask, xxx` 的同行写法
+            if line.startswith("import ") and " flask" in line:
+                raise AssertionError(f"services/{path.name} 依赖了 Flask：{line}")
+
+
+def test_services_importable_without_flask():
+    """在没有 flask 的干净解释器里也能 import services。"""
+    code = (
+        "import sys;"
+        f"sys.path.insert(0, {str(APP_DIR)!r});"
+        "import services.preaches, services.reports, services.recommend, services.exporting;"
+        "print('OK')"
+    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=60)
+    assert out.returncode == 0, f"import services 失败：{out.stderr}"
+    assert "OK" in out.stdout

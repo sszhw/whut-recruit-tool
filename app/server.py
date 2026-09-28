@@ -17,12 +17,15 @@
            ├─ preaches.py     宣讲会筛选与收藏
            ├─ recommend.py    简历解析与投递推荐
            └─ exports_rt.py   CSV/MD/Excel/ICS 导出与报告导入
-      └─ dataloaders.py 数据读取与派生（统一走 repository）
+      └─ services/      业务规则：筛选 / 匹配 / 聚合 / 编排（不依赖 Flask）
+           └─ dataloaders.py 数据读取与派生（统一走 repository）
       └─ extensions.py  运行时共享对象（后台任务管理器）
       └─ settings.py    路径常量、配置读写、日志
 
 下方 `__all__` 里其余名字是为保持向后兼容而重导出的旧入口
-（测试与既有脚本仍通过 `server.xxx` 访问），实际实现已迁到上述模块。
+（测试与既有脚本仍通过 `server.xxx` 访问），实际实现已迁到上述模块，
+因此这里一律**从权威位置导入**，而不是从 api 转手——
+否则 api 层挪动文件时，兼容层会跟着一起失效。
 """
 
 from __future__ import annotations
@@ -33,15 +36,6 @@ import uuid
 
 import exports  # 导出相关的旧兼容引用（ICS / 收藏表头）见下方重导出
 from api import register_blueprints
-from api.exports_rt import _IMPORT_TEMPLATE, _md_cell, parse_report_md
-from api.preaches import _apply_preach_filters, _collect_preach_ids, _venue_label
-from api.recommend import (
-    ALLOWED_EXT,
-    RESUME_PROMPT_LIMIT,
-    _build_so_map,
-    _recommend_preachs,
-    save_upload,
-)
 from dataloaders import (
     load_cache,
     load_fairs,
@@ -53,6 +47,15 @@ from dataloaders import (
 )
 from extensions import KIND_SLUGS, TaskManager, _error_summary, _parse_progress, tasks
 from flask import Flask, g, jsonify, request
+from services.preaches import apply_filters, collect_ids, venue_label
+from services.recommend import (
+    ALLOWED_EXT,
+    RESUME_PROMPT_LIMIT,
+    build_so_map,
+    recommend_preachs,
+    save_upload,
+)
+from services.reports import IMPORT_TEMPLATE, md_cell, parse_report_md
 from settings import (
     CACHE_PATH,
     DATA,
@@ -85,12 +88,13 @@ __all__ = [
     "load_config", "save_config", "get_api_key", "get_llm", "log_event", "_mask", "LLM_PROVIDERS",
     # 数据读取
     "load_recruitments", "load_fairs", "load_preachs", "load_cache",
-    "load_preach_favs", "save_preach_favs", "work_undetermined_count", "_work_undetermined_count",
-    # 简历推荐
-    "save_upload", "_build_so_map", "_recommend_preachs", "ALLOWED_EXT", "RESUME_PROMPT_LIMIT",
-    # 报告导入 / 导出
-    "parse_report_md", "_md_cell", "_IMPORT_TEMPLATE",
-    "_apply_preach_filters", "_collect_preach_ids", "_venue_label",
+    "load_preach_favs", "save_preach_favs", "work_undetermined_count",
+    # 简历推荐（实现在 services.recommend）
+    "save_upload", "build_so_map", "recommend_preachs", "ALLOWED_EXT", "RESUME_PROMPT_LIMIT",
+    # 报告导入（实现在 services.reports）
+    "parse_report_md", "md_cell", "IMPORT_TEMPLATE",
+    # 宣讲会筛选（实现在 services.preaches）
+    "apply_filters", "collect_ids", "venue_label",
     # ICS / 收藏导出（原先就在此重导出）
     "_ics_escape", "_ics_fold", "_preach_ics_event", "_PREACH_FAV_HEADERS", "_preach_fav_row",
     # 路径常量（旧引用）
@@ -168,8 +172,6 @@ _ics_fold = exports.ics_fold
 _preach_ics_event = exports.preach_ics_event
 _PREACH_FAV_HEADERS = exports.PREACH_FAV_HEADERS
 _preach_fav_row = exports.preach_fav_row
-
-_work_undetermined_count = work_undetermined_count   # 兼容旧名
 
 
 def main() -> int:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import server
+from services import reports
 
 CANONICAL = """# 企业性质与工作地点分析报告
 
@@ -43,7 +43,7 @@ VARIANT = """> ⚠️ 使用提示：本文件由联网核实后重新导出
 
 
 def test_parse_canonical_report():
-    parsed = server.parse_report_md(CANONICAL)
+    parsed = reports.parse_report_md(CANONICAL)
     entries = parsed["entries"]
     assert set(entries) == {"中国建筑第三工程局", "某科技公司"}
     zj = entries["中国建筑第三工程局"]
@@ -57,14 +57,14 @@ def test_parse_canonical_report():
 
 def test_type_distribution_table_is_ignored():
     """「类型分布」表格（不含 企业名称/工作地点 列）不会被当成企业明细。"""
-    entries = server.parse_report_md(CANONICAL)["entries"]
+    entries = reports.parse_report_md(CANONICAL)["entries"]
     assert "央企" not in entries and "民企" not in entries
     assert all(name for name in entries)
 
 
 def test_parse_variant_headers_and_annotated_report():
     """表头用「是否国企 / 判断依据」、标题被改写、依据带【核查修正】也能解析。"""
-    parsed = server.parse_report_md(VARIANT)
+    parsed = reports.parse_report_md(VARIANT)
     entries = parsed["entries"]
     assert set(entries) == {"中证股转科技", "长江存储", "某无地点单位"}
     assert entries["中证股转科技"]["is_state_owned"] is True
@@ -82,17 +82,17 @@ def test_comma_and_slash_separated_locations():
 |---|---|---|---|---|---|
 | 甲 | 央企 | 是 | 高 | 武汉, 深圳、成都 | 多基地 |
 """
-    entries = server.parse_report_md(md)["entries"]
+    entries = reports.parse_report_md(md)["entries"]
     assert entries["甲"]["locations"] == ["武汉", "深圳", "成都"]
 
 
 def test_import_template_roundtrip():
     """下载的模板本身可以被导入（保证模板与解析器一致）。"""
-    parsed = server.parse_report_md(server._IMPORT_TEMPLATE)
+    parsed = reports.parse_report_md(reports.IMPORT_TEMPLATE)
     assert len(parsed["entries"]) == 2
     assert parsed["entries"]["中国建筑第三工程局"]["is_state_owned"] is True
 
 
 def test_empty_or_garbage_input():
-    assert server.parse_report_md("")["entries"] == {}
-    assert server.parse_report_md("随便一段文字\n没有表格\n")["entries"] == {}
+    assert reports.parse_report_md("")["entries"] == {}
+    assert reports.parse_report_md("随便一段文字\n没有表格\n")["entries"] == {}

@@ -30,6 +30,33 @@ _DEFAULT_ARG = "x"
 # 会打到真实外网 / 有独立容错路径的路由，不参与冒烟
 _SKIP_RULES = {"/api/llm/models/<pid>"}
 
+# 参与「空体 POST 冒烟」的路由：无副作用、不打外网。
+# 其余 POST 不在此列是因为它们会真起后台任务、写 config.json 或改收藏，
+# 冒烟测试不该产生这些副作用。
+_POST_SAFE = (
+    "/api/import/md",            # 空正文 → 400
+    "/api/preach/fav",           # 空 id → 400（在动收藏数据之前就拦下）
+    "/api/preach/unfav",
+    "/api/resume/extract",       # 无文件 → 400
+    "/api/resume/recommend",     # 测试内把 API Key 置空 → 400
+    "/api/task/stop",            # 空 task_id → 400
+)
+
+# 有副作用的 POST：会起后台任务 / 写 config.json / 改收藏 / 打外网，不参与空体冒烟。
+# 在这里登记而不是"默认跳过"，是为了让新增路由时被迫想清楚它属于哪一类。
+_POST_SIDE_EFFECT = (
+    "/api/analyze",          # 起 LLM 分析任务
+    "/api/config",           # 写 config.json
+    "/api/config/key",       # 写 API Key
+    "/api/crawl",            # 起抓取任务
+    "/api/llm/test",         # 打真实外网
+    "/api/preach/check",     # 起宣讲会检查任务
+    "/api/preach/fav-all",   # 批量改收藏（会落盘）
+    "/api/preach/flow",      # 起工作地流动分析任务
+    "/api/preach/unfav-all",  # 批量改收藏（会落盘）
+    "/api/recruit/update",   # 起增量更新任务
+)
+
 
 def _concrete_url(rule: str) -> str:
     """把 Flask 路由规则中的 <converter:name> 替换成具体值。"""
@@ -84,3 +111,38 @@ def test_root_page_serves_html():
     resp = server.app.test_client().get("/")
     assert resp.status_code == 200
     assert "text/html" in (resp.content_type or "")
+
+
+def test_post_routes_never_500(monkeypatch):
+    """POST 路由的空体冒烟：只断言「不 5xx」。
+
+    POST 的 5xx 通常不是业务错误，而是**接线错误**——例如路由传给服务的关键字
+    参数名与函数签名对不上（TypeError）。GET 冒烟遍历不到 POST，必须单独覆盖。
+
+    需要 API Key 的路由先把 Key 置空，强制走「未配置 → 400」分支：
+    既让结果确定，也避免测试真的去烧 token / 依赖外网。
+    """
+    import services.recommend as rec_svc
+
+    monkeypatch.setattr(rec_svc, "get_llm",
+                        lambda: {"api_key": "", "label": "测试厂商", "model": "m", "base_url": ""})
+    client = server.app.test_client()
+    failures: list[str] = []
+    for rule in _POST_SAFE:
+        resp = client.post(rule, json={})
+        if resp.status_code >= 500:
+            failures.append(f"{rule}  ->  HTTP {resp.status_code}")
+    assert not failures, "以下 POST 路由返回 5xx（多半是接线错误）：\n" + "\n".join(failures)
+
+
+def test_all_post_routes_are_classified():
+    """每个 POST 路由都必须明确归入「可安全冒烟」或「有副作用」两类之一。
+
+    新增 POST 路由时若忘了分类，这条会失败，逼作者想清楚它有没有副作用，
+    而不是默认被排除在冒烟之外、悄悄失去覆盖。
+    """
+    classified = set(_POST_SAFE) | set(_POST_SIDE_EFFECT)
+    actual = sorted(r.rule for r in server.app.url_map.iter_rules()
+                    if "POST" in r.methods and not r.rule.startswith("/static/"))
+    unknown = [r for r in actual if r not in classified]
+    assert not unknown, f"未分类的 POST 路由（请在 _POST_SAFE 或 _POST_SIDE_EFFECT 中登记）：{unknown}"

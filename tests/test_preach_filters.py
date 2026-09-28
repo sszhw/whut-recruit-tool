@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import server
 from conftest import preach_item
+from services import preaches as preach_svc
 
 ROWS = [
     {
@@ -29,8 +29,8 @@ ROWS = [
 def flt(**kw):
     args = {"q": "", "ptype": "", "venue": "", "work": "", "start_d": "", "end_d": ""}
     args.update(kw)
-    return server._apply_preach_filters(ROWS, args["q"], args["ptype"], args["venue"],
-                                        args["work"], args["start_d"], args["end_d"])
+    return preach_svc.apply_filters(ROWS, args["q"], args["ptype"], args["venue"],
+                                    args["work"], args["start_d"], args["end_d"])
 
 
 def test_no_filter_returns_all():
