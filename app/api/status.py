@@ -8,21 +8,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
-import analyze
 import repository as repo
 from dataloaders import load_cache, work_undetermined_count
 from extensions import tasks
 from flask import Blueprint, jsonify, request, send_file
-from settings import (
-    DATA,
-    INDEX_HTML,
-    LLM_PROVIDERS,
-    _mask,
-    get_llm,
-    load_config,
-)
+from services.status import build_status_payload, build_tasks_payload
+from settings import INDEX_HTML
 
 bp = Blueprint("status", __name__)
 
@@ -37,44 +28,9 @@ def index():
 
 @bp.route("/api/status")
 def api_status():
-    cfg = load_config()
-    cache = load_cache()
-    llm = get_llm()
-    summary = repo.master_summary()   # 主数据统一口径：跨全部原始文件合并 + 按 ID 去重
-    raw = repo.latest_source_file()   # 仅用于界面「数据文件」展示，取数请用 raw_items
-    task_crawler = tasks.latest("抓取")
-    task_update = tasks.latest("招聘更新")
-    task_analyze = tasks.latest("分析")
-    task_check = tasks.latest("宣讲会检查")
-    return jsonify({
-        "has_api_key": bool(llm["api_key"]),
-        "api_key_masked": _mask(llm["api_key"]),
-        "model": cfg.get("model", ""),
-        "provider": llm["provider"],
-        "llm_model": llm["model"],
-        "models": LLM_PROVIDERS[llm["provider"]].get("models", []),
-        "default_model": LLM_PROVIDERS[llm["provider"]].get("default_model", ""),
-        "raw_file": raw.name if raw else "",
-        "raw_mtime": datetime.fromtimestamp(raw.stat().st_mtime).strftime("%Y-%m-%d %H:%M") if raw else "",
-        "recruit_count": summary["recruit_count"],
-        "fair_count": summary["fair_count"],
-        "preach_count": summary["preach_count"],
-        "analyzed_count": len(cache),
-        "unanalyzed_count": len(repo.unanalyzed(cache)),
-        "master_files": summary["files"],
-        "coverage_start": summary["coverage_start"],
-        "coverage_end": summary["coverage_end"],
-        "data_updated": summary["last_update"],
-        "running_tasks": len(tasks.running()),
-        "crawler_task": tasks.public(task_crawler) if task_crawler else None,
-        "update_task": tasks.public(task_update) if task_update else None,
-        "analyze_task": tasks.public(task_analyze) if task_analyze else None,
-        "check_task": tasks.public(task_check) if task_check else None,
-        "outputs": {
-            "csv": (DATA / analyze.CSV_NAME).exists(),
-            "md": (DATA / analyze.MD_NAME).exists(),
-        },
-    })
+    # 构造逻辑在 services.status，与 SSE 的 status 事件同源，
+    # 保证「轮询拿到的」和「推送拿到的」永远是同一份口径
+    return jsonify(build_status_payload())
 
 
 @bp.route("/api/health")
@@ -92,5 +48,4 @@ def api_health():
 def api_tasks():
     """统一任务中心：运行中的任务 + 历史任务（服务重启后仍可查看）。"""
     limit = min(200, max(1, request.args.get("limit", 60, type=int)))
-    rows = tasks.history_list(limit=limit)
-    return jsonify({"ok": True, "running": tasks.running(), "tasks": rows, "count": len(rows)})
+    return jsonify(build_tasks_payload(limit=limit))

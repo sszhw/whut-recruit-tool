@@ -1130,7 +1130,8 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script>
-const state = { cPage: 1, rPage: 1, pPage: 1, crawlerTask: null, recruitTask: null, analyzeTask: null, checkTask: null, pollTimer: null };
+const state = { cPage: 1, rPage: 1, pPage: 1, crawlerTask: null, recruitTask: null, analyzeTask: null, checkTask: null,
+                _dataKey: undefined, _modelKey: undefined, _flowRunning: false };
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -1308,6 +1309,13 @@ function syncModelSelect(selId, model, models, defaultModel){
 function syncModelSel(model, models, defaultModel){ syncModelSelect('modelSel', model, models, defaultModel); }
 function syncResumeModelSel(model, models, defaultModel){ syncModelSelect('resumeModel', model, models, defaultModel); }
 function syncVisionModelSel(model, models, defaultModel){ syncModelSelect('visionModel', model, models, defaultModel); }
+// 数据相关的字段指纹：只有它变了才需要重新拉统计/分布。
+// 任务运行中时状态每秒都会推一次（日志在增长），若每次都 loadStats，
+// 反而比原来 15 秒轮询更费——这是 SSE 化最容易踩的反向优化。
+const DATA_KEY = s => [s.recruit_count, s.preach_count, s.fair_count,
+                       s.analyzed_count, s.data_updated].join('|');
+const MODEL_KEY = s => [s.llm_model, (s.models||[]).join(',')].join('|');
+
 async function refreshStatus(){
   try{
     const badge = $('statusBadge');
@@ -1315,15 +1323,28 @@ async function refreshStatus(){
     const s = await api('/api/status',{silent:true});
     if (!s.ok){   // 服务未就绪 / 网络不可用：明确告知，避免页面一直停在「连接中…」
       if (badge){ badge.textContent='服务未连接'; badge.className='badge no'; }
-      clearInterval(state.pollTimer); state.pollTimer = null;
       return;
     }
+    applyStatus(s);
+  }catch(e){ /* 服务未就绪 */ }
+}
+
+// 把一份状态应用到界面。/api/status 轮询与 SSE 的 status 事件共用这一份，
+// 保证「手动刷新的」和「自动推送的」渲染结果完全一致。
+function applyStatus(s){
+  try{
+    const badge = $('statusBadge');
     if (badge) badge.dataset.init = '1';
     if (s.has_api_key){ badge.textContent='API Key ✓ · '+s.api_key_masked; badge.className='badge ok'; }
     else { badge.textContent='未配置 API Key'; badge.className='badge no'; }
-    syncModelSel(s.llm_model, s.models, s.default_model);
-    syncResumeModelSel(s.llm_model, s.models, s.default_model);
-    syncVisionModelSel(s.llm_model, s.models, s.default_model);
+    // 模型下拉重建 <option> 是实打实的 DOM 重建，每秒做一次会打断用户的下拉操作
+    const mk = MODEL_KEY(s);
+    if (mk !== state._modelKey){
+      state._modelKey = mk;
+      syncModelSel(s.llm_model, s.models, s.default_model);
+      syncResumeModelSel(s.llm_model, s.models, s.default_model);
+      syncVisionModelSel(s.llm_model, s.models, s.default_model);
+    }
     state.crawlerTask = s.crawler_task; state.recruitTask = s.update_task;
     state.analyzeTask = s.analyze_task; state.checkTask = s.check_task;
     // 抓取页日志区展示「抓取」与「更新招聘信息」中较新的那个任务
@@ -1332,13 +1353,14 @@ async function refreshStatus(){
     renderTask($('crawlLog'), $('crawlStatus'), $('btnRecruitUpdateStop'), scanTask);
     renderTask($('analyzeLog'), $('analyzeStatus'), $('btnAnalyzeStop'), s.analyze_task);
     renderTask($('checkPreachLog'), $('checkPreachStatus'), $('btnCheckPreachStop'), s.check_task);
+    // 工作地流动分析：原先这里有条单独的 1.5s 轮询，现在由 status 推送驱动
+    applyFlowTask(s.flow_task);
     // stat cards —— 只在首次生成 DOM，之后仅更新文本，避免每次内联重建导致整排卡片重排/soNum 被重置闪烁
     renderStatsCards(s);
-    const running = (s.crawler_task&&s.crawler_task.running)||(s.update_task&&s.update_task.running)||(s.analyze_task&&s.analyze_task.running)||(s.check_task&&s.check_task.running);
-    clearInterval(state.pollTimer);
-    if (running) state.pollTimer = setInterval(pollTasks, 2000);
-    loadStats(true);
-  }catch(e){ /* 服务未就绪 */ }
+    // 统计/分布只在数据真的变了才重拉
+    const dk = DATA_KEY(s);
+    if (dk !== state._dataKey){ state._dataKey = dk; loadStats(true); }
+  }catch(e){ /* 渲染异常不应中断事件流 */ }
 }
 
 // 首次生成统计卡片 DOM；此后仅更新数值文本，不整体重建（消除「国企/央企系」在 - 与真实值之间跳动的闪烁）
@@ -1371,25 +1393,6 @@ function renderTask(logEl, statusEl, stopBtn, task){
     // 仅在该任务「由运行转结束」的首次刷新触发一次 refreshDataViews，避免 refreshStatus↔refreshDataViews 相互调用造成无限循环（整页高频重建/闪烁）
     if (task.exit_code===0 && statusEl.dataset.notified !== '1'){ statusEl.dataset.notified='1'; refreshDataViews(); }
   }
-}
-
-async function pollTasks(){
-  for (const [id, logEl, statusEl, stopBtn] of [
-      [state.crawlerTask?.id, $('crawlLog'), $('crawlStatus'), $('btnCrawlStop')],
-      [state.recruitTask?.id, $('crawlLog'), $('crawlStatus'), $('btnRecruitUpdateStop')],
-      [state.analyzeTask?.id, $('analyzeLog'), $('analyzeStatus'), $('btnAnalyzeStop')],
-      [state.checkTask?.id, $('checkPreachLog'), $('checkPreachStatus'), $('btnCheckPreachStop')]]){
-    if (!id) continue;
-    try{
-      const r = await api('/api/task/'+id+'/log?tail=300',{silent:true});
-      if (r.ok){ const t=r.task;
-        logEl.textContent = t.lines.join('\n'); logEl.scrollTop = logEl.scrollHeight;
-        if (t.running){ if (statusEl.dataset.state !== 'running'){ statusEl.innerHTML='<span class="spin"></span>运行中'; statusEl.dataset.state='running'; } }
-        else { statusEl.textContent='已结束，退出码 '+t.exit_code+'（'+(t.finished||'')+'）'; statusEl.dataset.state='done'; refreshStatus(); }
-      }
-    }catch(e){}
-  }
-  loadTaskCenter();
 }
 
 function refreshDataViews(){ refreshStatus(); if($('tab-analyze').classList.contains('active')){ loadCompanyFilters(); loadCompanies(state.cPage); }
@@ -1521,17 +1524,19 @@ function taskCard(t){
     <pre class="tasklog" id="log_${esc(t.id)}"></pre>
   </div>`;
 }
+// 渲染任务中心。与 applyStatus 同理：抽取出来是为了让 SSE 的 tasks 事件
+// 和 /api/tasks 轮询走同一段渲染代码。
+function applyTasks(r){
+  if (!r || !r.ok) return;
+  const badge = $('taskRunningBadge'), n = (r.running||[]).length;
+  badge.style.display = n ? '' : 'none';
+  badge.textContent = n;
+  $('taskPanelSummary').textContent = n ? (n + ' 个任务运行中') : ('历史 ' + r.count + ' 条');
+  $('taskList').innerHTML = r.tasks.length ? r.tasks.map(taskCard).join('')
+    : '<span class="muted small">暂无任务记录</span>';
+}
 async function loadTaskCenter(){
-  try{
-    const r = await api('/api/tasks',{silent:true});
-    if (!r.ok) return;
-    const badge = $('taskRunningBadge'), n = (r.running||[]).length;
-    badge.style.display = n ? '' : 'none';
-    badge.textContent = n;
-    $('taskPanelSummary').textContent = n ? (n + ' 个任务运行中') : ('历史 ' + r.count + ' 条');
-    $('taskList').innerHTML = r.tasks.length ? r.tasks.map(taskCard).join('')
-      : '<span class="muted small">暂无任务记录</span>';
-  }catch(e){}
+  try{ applyTasks(await api('/api/tasks',{silent:true})); }catch(e){}
 }
 async function showTaskLog(id){
   const el = $('log_'+id);
@@ -1567,7 +1572,7 @@ async function startCrawl(){
   $('btnCrawl').disabled = false;
   if (!r.ok){ toast(r.error||'启动失败', true); return; }
   toast('抓取任务已启动'); state.crawlerTask = r.task; $('crawlLog').textContent='';
-  clearInterval(state.pollTimer); state.pollTimer = setInterval(pollTasks, 2000);
+  refreshStatus();   // 立即刷一次给出反馈；后续由 SSE 推送
 }
 async function loadCrawlDates(){
   try{
@@ -1584,7 +1589,7 @@ async function startRecruitUpdate(){
     if (!r.ok){ toast(r.error||'启动失败', true); return; }
     toast('已开始更新招聘信息（增量合并进主库）');
     state.recruitTask = r.task; $('crawlLog').textContent='';
-    clearInterval(state.pollTimer); state.pollTimer = setInterval(pollTasks, 2000);
+    refreshStatus();   // 立即刷一次给出反馈；后续由 SSE 推送
     loadTaskCenter();
   }catch(e){ toast('启动异常', true); }
   finally{ btn.disabled = false; }
@@ -1599,7 +1604,7 @@ async function startAnalyze(){
   $('btnAnalyze').disabled = false;
   if (!r.ok){ toast(r.error||'启动失败', true); return; }
   toast('分析任务已启动'); state.analyzeTask = r.task; $('analyzeLog').textContent='';
-  clearInterval(state.pollTimer); state.pollTimer = setInterval(pollTasks, 2000);
+  refreshStatus();   // 立即刷一次给出反馈；后续由 SSE 推送
 }
 async function checkPreachUpdate(){
   $('btnCheckPreach').disabled = true;
@@ -1607,7 +1612,7 @@ async function checkPreachUpdate(){
   $('btnCheckPreach').disabled = false;
   if (!r.ok){ toast(r.error||'启动失败', true); return; }
   toast('已开始检查宣讲会更新'); state.checkTask = r.task; $('checkPreachLog').textContent='';
-  clearInterval(state.pollTimer); state.pollTimer = setInterval(pollTasks, 2000);
+  refreshStatus();   // 立即刷一次给出反馈；后续由 SSE 推送
 }
 async function stopTask(task){
   if (!task) return;
@@ -1997,17 +2002,22 @@ async function runFlow(){
   $('btnFlow').disabled = true; $('btnFlow').textContent='分析中…';
   const r = await api('/api/preach/flow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method})});
   if (!r.ok){ toast(r.error||'启动失败', true); $('btnFlow').disabled=false; $('btnFlow').textContent='开始分析'; return; }
-  $('flowLog').textContent=''; pollFlow(r.task.id);
+  $('flowLog').textContent=''; state._flowRunning = true;
+  // 不再单独轮询：flow_task 已随 /api/events 的 status 事件推送
+  refreshStatus();
 }
-function pollFlow(tid){
-  const t = setInterval(async ()=>{
-    try{
-      const r = await api('/api/task/'+tid+'/log',{silent:true});
-      if (r.ok){ $('flowLog').textContent = (r.task.lines||[]).join('\n'); $('flowStatus').textContent = r.task.running?'运行中…':'已完成';
-        if(!r.task.running){ clearInterval(t); $('btnFlow').disabled=false; $('btnFlow').textContent='开始分析'; loadFlowStatus(); toast('工作地流动分析完成'); } }
-      else clearInterval(t);
-    }catch(e){ clearInterval(t); }
-  }, 1500);
+// 由 status 推送驱动流动分析的进度。用 state._flowRunning 记住"这次是我发起的"，
+// 避免页面刚加载时看到一条历史完成记录就弹「分析完成」。
+function applyFlowTask(t){
+  if (!t) return;
+  const logEl = $('flowLog'), stEl = $('flowStatus'), btn = $('btnFlow');
+  if (!logEl || !stEl || !btn) return;
+  logEl.textContent = (t.lines||[]).join('\n'); logEl.scrollTop = logEl.scrollHeight;
+  if (t.running){ stEl.textContent = '运行中…'; return; }
+  if (!state._flowRunning) return;          // 不是本次发起的，不打扰用户
+  state._flowRunning = false;
+  btn.disabled = false; btn.textContent = '开始分析';
+  loadFlowStatus(); toast('工作地流动分析完成');
 }
 async function loadFlowStatus(){
   try{ const r = await api('/api/flow',{silent:true});
@@ -2029,8 +2039,38 @@ const initTab = (location.hash||'').replace('#','');
 if (TABS.indexOf(initTab) >= 0 && initTab !== 'dashboard') activateTab(initTab, {hash:false});
 else if (location.hash !== '#dashboard') history.replaceState(null, '', '#dashboard');
 loadTaskCenter();
-setInterval(()=>{ if(!state.pollTimer) refreshStatus(); }, 15000);
-setInterval(()=>{ if($('taskPanel').classList.contains('open')) loadTaskCenter(); }, 5000);
+
+// ---- 实时更新：SSE 优先，不可用则回落轮询
+// 原先这里有 4 组长驻定时器（任务 2s、流动分析 1.5s、状态 15s、任务中心 5s），
+// 即使什么都没发生也在反复打接口。改成一条 SSE 后，只在服务端状态真的变了才推一次。
+const RT = { es: null, timer: null };
+
+function startEventStream(){
+  if (!('EventSource' in window) || RT.es){ startFallbackPolling(); return; }
+  let es;
+  try{ es = new EventSource('/api/events'); }catch(e){ startFallbackPolling(); return; }
+  RT.es = es;
+  es.addEventListener('status', e => { try{ applyStatus(JSON.parse(e.data)); }catch(err){} });
+  es.addEventListener('tasks',  e => { try{ applyTasks(JSON.parse(e.data)); }catch(err){} });
+  es.addEventListener('ready',  () => { stopFallbackPolling(); });   // 首屏已到手，撤掉兜底轮询
+  es.addEventListener('stream_error', () => { startFallbackPolling(); });
+  // EventSource 自带重连；只有真正断到 CLOSED（服务端重启且超时）才退回轮询
+  es.onerror = () => { if (es.readyState === EventSource.CLOSED){ RT.es = null; startFallbackPolling(); } };
+  // 连上之前先用轮询顶着，避免首屏空白
+  startFallbackPolling();
+}
+
+function startFallbackPolling(){
+  if (RT.timer) return;
+  RT.timer = setInterval(()=>{
+    refreshStatus();
+    if ($('taskPanel').classList.contains('open')) loadTaskCenter();
+  }, 5000);
+}
+function stopFallbackPolling(){ clearInterval(RT.timer); RT.timer = null; }
+
+// 放在最后：RT 是 const，必须先声明再调用（TDZ）
+startEventStream();
 </script>
 </body>
 </html>

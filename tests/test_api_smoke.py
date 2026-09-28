@@ -28,7 +28,11 @@ _PATH_ARGS = {
 _DEFAULT_ARG = "x"
 
 # 会打到真实外网 / 有独立容错路径的路由，不参与冒烟
-_SKIP_RULES = {"/api/llm/models/<pid>"}
+_SKIP_RULES = {
+    "/api/llm/models/<pid>",
+    # SSE 长连接：永远不会自己结束，GET 遍历会挂住；它有 test_events_stream.py 单独覆盖
+    "/api/events",
+}
 
 # 参与「空体 POST 冒烟」的路由：无副作用、不打外网。
 # 其余 POST 不在此列是因为它们会真起后台任务、写 config.json 或改收藏，

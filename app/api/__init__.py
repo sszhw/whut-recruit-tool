@@ -12,6 +12,7 @@ from flask import Blueprint, Flask
 from api.analysis import bp as analysis_bp
 from api.browse import bp as browse_bp
 from api.crawl import bp as crawl_bp
+from api.events import bp as events_bp
 from api.exports_rt import bp as exports_bp
 from api.preaches import bp as preaches_bp
 from api.recommend import bp as recommend_bp
@@ -20,6 +21,7 @@ from api.status import bp as status_bp
 
 ALL: list[Blueprint] = [
     status_bp,      # /           首页 + /api/status /api/health /api/tasks
+    events_bp,      # /api/events SSE 推送（status / tasks）
     settings_bp,    # /api/llm/*  /api/config*
     crawl_bp,       # /api/crawl  /api/recruit/update /api/preach/check
     analysis_bp,    # /api/analyze /api/flow /api/task/*
