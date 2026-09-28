@@ -5,6 +5,12 @@
     python analyze.py                     # 分析最新的 原始数据.json
     python analyze.py --model Qwen/Qwen2.5-72B-Instruct
     python analyze.py --limit 10          # 只分析前 10 家（试跑）
+    python analyze.py --only-stale        # 只重算「过期」的企业（见下）
+    python analyze.py --force             # 忽略缓存全量重算
+
+重分析：缓存条目带 `_prompt_version`（提示词版本）与 `_source_hash`（送进 LLM 的输入文本指纹）。
+提示词改了规则、企业更新了公告、上一次分析失败、或条目缺少这两个字段（老缓存），
+都算「过期」，`--only-stale` 只重算这批，避免默认模式下旧结论永远不更新。
 
 也可以直接使用 server.py 提供的网页界面运行本分析。
 
@@ -23,6 +29,7 @@ from __future__ import annotations
 import argparse
 import csv
 import glob
+import hashlib
 import json
 import os
 import sys
@@ -60,6 +67,32 @@ JSON 格式：
 5. 工作地点从公告正文中提取实际招聘的工作城市（不是公司注册地、不是学校地点）；若正文提到多个城市全部列出；若正文无信息，可根据企业常识推断并在 confidence 中体现；完全无法判断则 locations 为空数组。
 6. 城市名写到市级，如"武汉"、"深圳"、"北京"，不要"武汉市"。
 7. 不确定时宁可填"不确定"，不要编造。"""
+
+
+def source_hash(text: str) -> str:
+    """对送进 LLM 的输入文本取指纹（sha256 前 8 位）。
+
+    用于判断「企业的公告内容是否变过」：公告一改，指纹就变，缓存里的旧结论即过期。
+    """
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()[:8]
+
+
+# 提示词版本 = PROMPT 内容的指纹。改一次 PROMPT 它就自动变，
+# 不靠人手工维护版本号——手工版本号一定会忘记改，于是旧结论永远不会被重算。
+PROMPT_VERSION = source_hash(PROMPT)
+
+# 缓存里这两类结果说明上次没分析出来（网络抖动、LLM 返回格式异常等），
+# 必须算过期，否则一次失败会永久卡住这家企业。
+FAILED_TYPES = frozenset({"分析失败", "解析失败"})
+
+# 单次 --only-stale 最多重算多少家。PROMPT 大改后会命中全部历史企业（可能上千家），
+# 不设上限用户会在不知情的情况下一次烧掉大量 token；超出的留到下次运行。
+MAX_STALE_PER_RUN = 200
+
+REASON_FAILED = "此前分析失败"
+REASON_PROMPT = "prompt 已升级"
+REASON_SOURCE = "公告内容已变化"
+REASON_UNKNOWN = "版本未知"
 
 
 def truncate(text: str, limit: int = 1200) -> str:
@@ -140,6 +173,17 @@ def _failed(evidence: str) -> dict:
             "locations": [], "evidence": evidence, "_raw": ""}
 
 
+def stamp_result(result: dict, text: str) -> dict:
+    """给分析结果打上溯源标记：用什么提示词、依据哪段文本得出的结论。
+
+    没有这两个字段就无法判断缓存是否过期（prompt 升级 / 公告变更后必须重算）。
+    只给成功结果打标：失败结果的字段形状被既有测试锁死（且失败一律重算，无需指纹）。
+    """
+    result["_prompt_version"] = PROMPT_VERSION
+    result["_source_hash"] = source_hash(text)
+    return result
+
+
 def call_api(api_key: str, model: str, name: str, text: str, max_retries: int = 3) -> dict:
     """调 LLM 分析单家企业，失败归一化成「分析失败」结构而不是抛异常。
 
@@ -157,7 +201,7 @@ def call_api(api_key: str, model: str, name: str, text: str, max_retries: int = 
         )
     except llm_client.LLMError as exc:
         return _failed(f"AI 调用失败：{exc.message}")
-    return parse_json(content)
+    return stamp_result(parse_json(content), text)
 
 
 def parse_json(content: str) -> dict:
@@ -237,6 +281,80 @@ def build_outputs(workdir: Path, companies: list[dict], cache: dict, model: str,
             "csv": str(csv_path), "md": str(md_path)}
 
 
+def stale_reason(entry: Any, text: str) -> str:
+    """判定单条缓存是否过期，返回原因（"" 表示仍然有效）。
+
+    判定顺序按「后果最严重」排：
+      1. 此前分析失败 —— 一次网络抖动留下的失败结果不该永久卡住这家企业；
+      2. prompt 版本不同 —— 规则改了，旧结论是旧口径下的判断；
+      3. 源文本不同 —— 企业更新了公告，工作地/岗位可能已变；
+      4. 缺版本字段 —— 老缓存（或反向导入的条目）无从判断，按过期处理，
+         否则历史脏数据永远清不掉。
+    """
+    if not isinstance(entry, dict):
+        # 缓存条目本身不是对象（脏数据）→ 同样无从判断，按过期处理
+        return REASON_UNKNOWN
+    if str(entry.get("company_type") or "") in FAILED_TYPES:
+        return REASON_FAILED
+    prompt_version = entry.get("_prompt_version") or ""
+    src = entry.get("_source_hash") or ""
+    if not prompt_version or not src:
+        return REASON_UNKNOWN
+    if prompt_version != PROMPT_VERSION:
+        return REASON_PROMPT
+    if src != source_hash(text):
+        return REASON_SOURCE
+    return ""
+
+
+def stale_entries(cache: dict, companies: list[dict]) -> dict:
+    """筛出缓存中需要重算的企业。
+
+    只检查「缓存里已有」的条目：压根没分析过的企业走正常的首次分析路径，
+    不属于「重算」。
+    """
+    stale: list[str] = []
+    reasons: dict[str, str] = {}
+    for company in companies:
+        name = company.get("name") or ""
+        if name not in cache:
+            continue
+        reason = stale_reason(cache.get(name), company.get("text", ""))
+        if reason:
+            stale.append(name)
+            reasons[name] = reason
+    return {"stale": stale, "reasons": reasons,
+            "prompt_version": PROMPT_VERSION, "total": len(companies)}
+
+
+def plan_todo(cache: dict, companies: list[dict], *, force: bool = False,
+              only_stale: bool = False, limit: int = MAX_STALE_PER_RUN) -> dict:
+    """决定本次要分析哪些企业，并给出重算原因分布。
+
+    - force：忽略缓存全量重算；
+    - only_stale：只重算过期条目，受 limit 上限保护（超出部分报 remaining 让用户再跑一次）；
+    - 默认：只分析缓存里没有的（保持既有语义，新增企业照旧走这条）。
+
+    单独抽成函数是为了让上面三种模式都能脱离 IO 直接单测。
+    """
+    if force:
+        return {"todo": list(companies), "reasons": {}, "counts": {}, "remaining": 0, "cap": 0}
+    if only_stale:
+        # 上限取「用户给的试跑条数」与「兜底上限」的较小者：兜底写在判定函数里，
+        # 调用方（CLI / 接口）无论传多大都绕不过去。
+        cap = min(limit, MAX_STALE_PER_RUN) if limit else MAX_STALE_PER_RUN
+        info = stale_entries(cache, companies)
+        picked = info["stale"][:cap]
+        remaining = len(info["stale"]) - len(picked)
+        by_name = {c.get("name"): c for c in companies}
+        return {"todo": [by_name[n] for n in picked],
+                "reasons": {n: info["reasons"][n] for n in picked},
+                "counts": dict(Counter(info["reasons"].values())),
+                "remaining": remaining, "cap": cap}
+    todo = [c for c in companies if c["name"] not in cache]
+    return {"todo": todo, "reasons": {}, "counts": {}, "remaining": 0, "cap": 0}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--input", default="", help="原始数据 JSON 路径（默认自动找最新的）")
@@ -246,6 +364,10 @@ def main() -> int:
                         help="分析的数据来源：enrollment=招聘信息(默认)，preach=宣讲会")
     parser.add_argument("--merge", action="store_true",
                         help="合并全部同类原始数据文件（按 ID 去重）后分析，保证与页面展示口径一致")
+    parser.add_argument("--only-stale", action="store_true",
+                        help="只重算过期条目（prompt 升级 / 公告变更 / 此前失败 / 版本未知），"
+                             f"单次最多 {MAX_STALE_PER_RUN} 家")
+    parser.add_argument("--force", action="store_true", help="忽略缓存，全量重算（优先于 --only-stale）")
     parser.add_argument("--jsonl", action="store_true",
                         help="强制输出 JSONL 事件行（默认：stdout 不是终端时自动开启，供任务中心解析）")
     args = parser.parse_args()
@@ -312,8 +434,22 @@ def main() -> int:
 
     cache_path = workdir / CACHE_NAME
     cache = load_cache(cache_path)
-    todo = [c for c in companies if c["name"] not in cache]
-    print(f"缓存已有 {len(companies) - len(todo)} 家，本次需分析 {len(todo)} 家")
+    plan = plan_todo(cache, companies, force=args.force, only_stale=args.only_stale,
+                     limit=args.limit)
+    todo = plan["todo"]
+    if args.force:
+        print(f"--force：忽略缓存，全量重算 {len(todo)} 家")
+    elif args.only_stale:
+        print(f"当前 prompt 版本 {PROMPT_VERSION}，过期 {len(todo)} 家 / 共 {len(companies)} 家")
+        # 说明「为什么这批要重算」，否则用户看不出来这次为何烧了 token
+        if plan["counts"]:
+            print("重算原因：" + "、".join(f"{reason} {count} 家"
+                                       for reason, count in
+                                       sorted(plan["counts"].items(), key=lambda kv: -kv[1])))
+        if plan["remaining"]:
+            print(f"本次上限 {plan['cap']} 家，还有 {plan['remaining']} 家待重算，请再次运行")
+    else:
+        print(f"缓存已有 {len(companies) - len(todo)} 家，本次需分析 {len(todo)} 家")
 
     total = len(todo)
     emit.stage("逐家调用大模型分析")

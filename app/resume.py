@@ -18,7 +18,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from pathlib import Path
+from typing import Any
 
 import llm_client  # 统一 LLM 调用：超时/重试/错误文案不再各写一份
 import repository as repo  # 统一数据访问层：候选企业跨全部招聘原始文件合并去重
@@ -85,7 +87,7 @@ OCR_PROMPT = ("请完整、准确地识别这张图片中的文字内容（这�
 
 
 def ocr_image_bytes(api_key: str, model: str, image_bytes: bytes, mime: str = "image/png",
-                    base_url: str = None) -> str:
+                    base_url: str | None = None) -> str:
     """用当前厂商的视觉模型识别图片里的文字。base_url 为空时用模块默认（硅基流动）。"""
     cfg = llm_client.from_settings(base_url=base_url or BASE_URL, api_key=api_key, model=model,
                                    # 扫描件是逐页调用的，每页都重试会把一次上传拖成好几分钟，
@@ -95,7 +97,7 @@ def ocr_image_bytes(api_key: str, model: str, image_bytes: bytes, mime: str = "i
                            cfg, temperature=0.1, max_tokens=2000)
 
 
-def ocr_image_file(api_key: str, model: str, path: str, base_url: str = None) -> str:
+def ocr_image_file(api_key: str, model: str, path: str, base_url: str | None = None) -> str:
     mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
             "bmp": "image/bmp", "webp": "image/webp"}.get(Path(path).suffix.lower().lstrip("."),
                                                           "image/png")
@@ -104,7 +106,7 @@ def ocr_image_file(api_key: str, model: str, path: str, base_url: str = None) ->
 
 
 def extract_text(api_key: str, path: str, ext: str, vision_model: str | None = None,
-                 base_url: str = None) -> str:
+                 base_url: str | None = None) -> str:
     """按扩展名提取文字，返回纯文本。找不到文字则返回空串。base_url 为空时用模块默认（硅基流动）。"""
     base_url = (base_url or BASE_URL).rstrip("/")
     vision_model = vision_model or VISION_MODEL
@@ -281,7 +283,7 @@ def _requirements_text(work_place: str = "", company_type: str = "") -> str:
 
 def recommend(api_key: str, model: str, resume_text: str, companies: list[dict],
               work_place: str = "", company_type: str = "",
-              top: int = 10, max_retries: int = 3, base_url: str = None) -> dict:
+              top: int = 10, max_retries: int = 3, base_url: str | None = None) -> dict:
     """调用 LLM 文本模型，返回推荐结果 JSON。失败返回 {"error": ...}。
     base_url 为空时用模块默认（硅基流动），可由上层传入当前配置的厂商 Base URL。"""
     if not companies:
@@ -300,7 +302,7 @@ def recommend(api_key: str, model: str, resume_text: str, companies: list[dict],
     except llm_client.LLMError as exc:
         # 失败统一成 {"error": ...}：services 层据此降级为本地关键词匹配，
         # 提示语里填的就是这里的归一化文案（不再写死厂商名，换厂商也不会变成假话）
-        err = {"error": exc.message}
+        err: dict[str, object] = {"error": exc.message}
         if exc.status_code:
             err["status_code"] = exc.status_code
         return err
@@ -412,7 +414,7 @@ def _nature_flags(candidate: str, resume_text: str = "") -> tuple[bool, bool]:
 
 
 def score_company(resume_text: str, comp: dict, target_cities: list[str],
-                  company_type: str = "") -> dict:
+                  company_type: str = "") -> dict[str, Any]:
     """按统一口径给单个企业打分，返回中间结果（供离线推荐与归一化兜底共用）。
 
     三个维度各有一个上限，加起来就是 0-100 的 `score`：
@@ -559,12 +561,17 @@ def normalize_explanations(result: dict, companies: list[dict], work_place: str 
         cities = req_cities or [c for c in (comp or {}).get("locations") or [] if c and c in text]
         offline = score_company(text, comp or {}, cities, company_type)
         # 分数与三维拆解必须同时合法才采信模型：只信一半会出现「80 分但拆不出来」的怪结果
-        breakdown = _fold_breakdown(rec.get("breakdown"))
-        use_ai = _valid_score(rec.get("score")) and breakdown is not None
-        if not use_ai:
-            breakdown = offline["breakdown"]
+        ai_bd = _fold_breakdown(rec.get("breakdown"))
+        use_ai = _valid_score(rec.get("score")) and ai_bd is not None
+        if use_ai:
+            bd = ai_bd or {}
+        else:
+            # score_company 必定给出 breakdown；这里用 isinstance 收窄类型，
+            # 顺带挡住「返回结构被改坏」的情形——_rec_out 对缺维度按 0 处理，不会崩。
+            offline_bd = offline["breakdown"]
+            bd = offline_bd if isinstance(offline_bd, dict) else {}
         matched = (_clean_matched(rec.get("matched")) if use_ai else None) or offline["matched"]
-        out.append(_rec_out(rec, breakdown, matched))
+        out.append(_rec_out(rec, bd, matched))
 
     out.sort(key=lambda r: r["score"], reverse=True)
     result["recommendations"] = out
@@ -635,7 +642,7 @@ def main() -> int:
         if cfg.exists():
             api_key = str(json.loads(cfg.read_text(encoding="utf-8")).get("api_key", "")).strip()
     if not api_key:
-        print("错误：未配置 API Key（写进 config.json 或设置 SILICONFLOW_API_KEY）", file=os.sys.stderr)
+        print("错误：未配置 API Key（写进 config.json 或设置 SILICONFLOW_API_KEY）", file=sys.stderr)
         return 2
 
     workdir = Path(__file__).resolve().parent.parent / "data"
@@ -650,7 +657,7 @@ def main() -> int:
         resume = extract_text(api_key, str(p), ext)
         print(f"提取到 {len(resume)} 字简历文字")
     if not resume:
-        print("错误：没有得到简历文字。请提供文件或 --text", file=os.sys.stderr)
+        print("错误：没有得到简历文字。请提供文件或 --text", file=sys.stderr)
         return 2
     print("调用模型生成推荐…")
     result = recommend(api_key, args.model, resume, companies)

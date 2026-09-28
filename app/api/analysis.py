@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Mapping
 from datetime import datetime
 
+import analyze
 import repository as repo
+from dataloaders import load_cache
 from extensions import tasks
 from flask import Blueprint, jsonify, request
 from settings import DATA, WORKDIR, get_llm
@@ -24,8 +27,12 @@ FLOW_CSV = DATA / "宣讲会_工作地流动.csv"
 FLOW_MD = DATA / "宣讲会_工作地流动报告.md"
 
 
-def _llm_env(base: dict) -> dict:
-    """把当前厂商的 Key / BaseURL / model 注入子进程环境变量。"""
+def _llm_env(base: Mapping[str, str]) -> dict[str, str]:
+    """把当前厂商的 Key / BaseURL / model 注入子进程环境变量。
+
+    入参是 Mapping 而非 dict：调用方传的是 os.environ（_Environ[str]），
+    它是 MutableMapping 但不是 dict 子类。这里只读 + dict(base) 拷贝，Mapping 足够。
+    """
     llm = get_llm()
     env = dict(base)
     env["LLM_BASE_URL"] = llm["base_url"]
@@ -51,11 +58,26 @@ def api_analyze():
     cmd = [sys.executable, str(WORKDIR / "analyze.py"), "--model", llm["model"], "--merge"]
     if limit > 0:
         cmd += ["--limit", str(limit)]
-    result = tasks.start("分析", cmd, _llm_env(os.environ),
-                         title=f"AI 分析企业性质与工作地点（{llm['model']}）")
+    # 只重算过期条目（prompt 升级 / 公告变更 / 此前失败）：默认模式会跳过全部已缓存企业，
+    # 提示词改了规则后旧结论永远不会更新，用户却以为看到的是新口径下的判断。
+    if payload.get("only_stale"):
+        cmd += ["--only-stale"]
+        title = f"重算过期企业分析（{llm['model']}）"
+    else:
+        title = f"AI 分析企业性质与工作地点（{llm['model']}）"
+    result = tasks.start("分析", cmd, _llm_env(os.environ), title=title)
     if not result["ok"]:
         return jsonify(result), 409
     return jsonify(result)
+
+
+@bp.route("/api/analyze/stale", methods=["GET"])
+def api_analyze_stale():
+    """列出需要重算的企业：先看看规模再决定要不要跑，别一上来就烧 token。"""
+    companies = analyze.extract_companies(repo.raw_items("recruit"))
+    info = analyze.stale_entries(load_cache(), companies)
+    return jsonify({"ok": True, "stale": len(info["stale"]), "reasons": info["reasons"],
+                    "prompt_version": info["prompt_version"], "total": info["total"]})
 
 
 @bp.route("/api/flow", methods=["GET"])

@@ -65,7 +65,7 @@ _bootstrap_done: dict[str, bool] = {}
 
 # ---------------------------------------------------------------- 数据源选择
 
-def _db_path(data_dir: Path) -> Path:
+def _db_path(data_dir: Path | None) -> Path:
     """库文件路径（每次现算：DATA 会被测试与 CLI 改指向别的目录）。"""
     return sqlite_store.db_path_for(data_dir or DATA)
 

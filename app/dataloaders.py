@@ -130,10 +130,14 @@ def _build_preach_rows(today_str: str) -> list[dict]:
             work_cities = analyze_preach.infer_work_cities(name, title, text)
         work_cities = [c for c in work_cities if c and c != "未确定"]
         # 提醒标注：今日新出(addtime==今天) / 3天内开始(举办日期在未来3天内)
-        try:
-            add_date = datetime.fromtimestamp(int(item.get("addtime"))).strftime("%Y-%m-%d")
-        except (TypeError, ValueError, OSError, OverflowError):
-            add_date = ""
+        # addtime 缺失/非数字时留空，不要回退成 0——那会显示成 1970 年的假日期
+        add_date = ""
+        raw_add = item.get("addtime")
+        if raw_add:
+            try:
+                add_date = datetime.fromtimestamp(int(raw_add)).strftime("%Y-%m-%d")
+            except (TypeError, ValueError, OSError, OverflowError):
+                add_date = ""
         new_today = bool(add_date) and add_date == today_str
         soon3 = bool(hold_date) and today_str <= hold_date <= soon_end
         reminds = []

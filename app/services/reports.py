@@ -33,7 +33,7 @@ IMPORT_TEMPLATE = "# 企业性质与工作地点分析报告\n" + \
                   "| 某科技公司 | 民企 | 否 | 中 | 北京 | 民营互联网企业，总部北京 |\n"
 
 
-def md_cell(cols: dict, cells: list[str], key: str, default: str = "") -> str:
+def md_cell(cols: dict | None, cells: list[str], key: str, default: str = "") -> str:
     """按表头列索引从 Markdown 表格行中取值。
 
     原实现是在循环体内定义闭包 g()，既每轮重建函数对象，又会把 cols / cells
@@ -103,6 +103,11 @@ def parse_report_md(text: str) -> dict:
             "locations": locs,
             "evidence": md_cell(cols, cells, "evidence"),
             "_raw": "",
+            # 导入的条目没有「送进 LLM 的源文本」，无从校验是否过期：
+            # _source_hash 留空 → analyze.stale_entries 按「版本未知」判为需重算，
+            # 避免手写 / 外部生成的结果被当成当前提示词口径下的结论长期沿用。
+            "_prompt_version": analyze.PROMPT_VERSION,
+            "_source_hash": "",
         }
     return {"entries": entries, "meta": meta, "bad_rows": bad}
 

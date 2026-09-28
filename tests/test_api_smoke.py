@@ -62,6 +62,7 @@ _POST_SIDE_EFFECT = (
     "/api/preach/fav-all",   # 批量改收藏（会落盘）
     "/api/preach/flow",      # 起工作地流动分析任务
     "/api/preach/unfav-all",  # 批量改收藏（会落盘）
+    "/api/prefs",            # 写 data/求职偏好.json（用户数据，冒烟不该动它）
     "/api/recruit/update",   # 起增量更新任务
 )
 

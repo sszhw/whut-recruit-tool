@@ -2,6 +2,10 @@
 
 安全性说明：配置页列出的 Key 一律经 `_mask()` 脱敏回显，
 日志也不记录完整密钥；`config.json` 已在 .gitignore 中排除。
+
+开了钥匙串（`WHUT_KEYRING=1` / `use_keyring`）时，Key 还会额外存一份进系统钥匙串，
+本模块只回报它「存在钥匙串里还是文件里」（`settings.keyring_status`），
+**任何情况下都不回显明文**。
 """
 
 from __future__ import annotations
@@ -9,7 +13,7 @@ from __future__ import annotations
 import llm_client
 import requests
 from flask import Blueprint, jsonify, request
-from settings import LLM_PROVIDERS, _mask, get_llm, load_config, save_config
+from settings import LLM_PROVIDERS, _mask, get_llm, keyring_status, load_config, save_config
 
 bp = Blueprint("settings", __name__)
 
@@ -38,6 +42,9 @@ def api_llm_catalog():
         "providers": providers,
         "current": {"provider": llm["provider"], "model": llm["model"],
                     "label": llm["label"], "base_url": llm["base_url"]},
+        # 让设置页能显示「Key 存在系统钥匙串里 / 存在 config.json 里」，
+        # 用户才知道自己开了钥匙串之后到底生效没有
+        "keyring": keyring_status(cfg),
     })
 
 
@@ -107,12 +114,16 @@ def api_config():
     if "base_url" in payload and str(payload["base_url"]).strip():
         cfg[conf.get("base_url_field") or ""] = str(payload["base_url"]).strip()
     save_config(cfg)
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "keyring": keyring_status()})
 
 
 @bp.route("/api/config/key", methods=["POST", "DELETE"])
 def api_config_key_delete():
-    """删除某厂商已保存的 API Key（仅清空本机 config.json 中的密钥，不影响 Base URL/模型）。"""
+    """删除某厂商已保存的 API Key。
+
+    开了钥匙串时两边一起清：只清 config.json 的话，钥匙串里那份下次读取又会冒出来，
+    删除看起来像没生效。
+    """
     payload = request.get_json(force=True, silent=True) or {}
     cfg = load_config()
     provider = str(payload.get("provider") or "").strip() or cfg.get("provider", "siliconflow")
@@ -121,4 +132,4 @@ def api_config_key_delete():
         return jsonify({"ok": False, "error": "未知厂商"}), 404
     cfg[conf["api_key_field"]] = ""
     save_config(cfg)
-    return jsonify({"ok": True, "provider": provider})
+    return jsonify({"ok": True, "provider": provider, "keyring": keyring_status()})

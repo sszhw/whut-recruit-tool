@@ -390,6 +390,76 @@
   #bootIndicator { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--muted); }
   #bootIndicator .sk-line::before { width: 11px; height: 11px; margin-top: -5px; }
 
+  /* ===================== 宣讲会周日历 / 冲突提醒 / 上手向导 =====================
+     配色一律取主题变量（--accent / --danger / --card-bg …），三套主题通用。 */
+  /* ---- 视图切换（列表 / 周日历） */
+  .pcview { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .pcview-btn { border-radius: 999px; }
+  .pcview-btn.on { background: var(--panel2); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  /* ---- 时间冲突提醒条：有冲突才出现，无冲突时整条不渲染（不占用版面） */
+  .pcbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    background: var(--panel2); border: 1px solid var(--danger); border-radius: var(--radius);
+    padding: 10px var(--sp-4); margin-bottom: 12px; font-size: var(--fs-md); }
+  .pcbar b { color: var(--danger-text); font-variant-numeric: tabular-nums; }
+  .pcbar .pcbar-more { margin-left: auto; }
+  .pcclist { margin-bottom: 12px; }
+  .pccard { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+    margin-bottom: 8px; background: var(--card-bg); }
+  .pccard-h { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  /* 列表里撞车的场次：左侧一道警示竖条，不打乱整行配色 */
+  tr.pcrow-conflict > td { box-shadow: inset 3px 0 0 var(--danger); }
+  /* ---- 周日历：7 列 × 时间轴（每天一列，列内按时段绝对定位） */
+  .pcw-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .pcw-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg); }
+  /* --pcw-hour-px 由 JS 按 PCW_HOUR_PX 写入，保证刻度与卡片的像素计算同源 */
+  .pcw-grid { display: flex; min-width: 700px;
+    --pcw-dh-h: 42px; --pcw-hour-px: 52px; --pcw-tbd-px: 96px; }
+  .pcw-gutter { flex: 0 0 54px; }
+  .pcw-days { flex: 1; min-width: 0; }
+  .pcw-days-h, .pcw-days-b { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); }
+  .pcw-dh { height: var(--pcw-dh-h); display: flex; align-items: center; gap: 6px; padding: 0 8px;
+    border-bottom: 1px solid var(--border); font-size: var(--fs-xs); }
+  .pcw-dh-g { justify-content: flex-end; color: var(--muted2); }
+  .pcw-dh-w { font-weight: 600; color: var(--muted); }
+  .pcw-dh-d { color: var(--muted2); }
+  .pcw-dh.today .pcw-dh-w, .pcw-dh.today .pcw-dh-d { color: var(--accent-text); }
+  .pcw-h { height: var(--pcw-hour-px); color: var(--muted2); font-size: 11px; text-align: right;
+    padding-right: 8px; border-bottom: 1px solid var(--border); }
+  .pcw-h-tbd { height: var(--pcw-tbd-px); border-bottom: none; }
+  .pcw-col { border-left: 1px solid var(--border); min-width: 0; }
+  .pcw-lane { position: relative; border-bottom: 1px solid var(--border);
+    background-image: repeating-linear-gradient(to bottom, var(--line) 0, var(--line) 1px,
+      transparent 1px, transparent var(--pcw-hour-px)); }
+  .pcw-ev { position: absolute; overflow: hidden; border-radius: 8px; padding: 2px 5px; cursor: pointer;
+    font-size: 11px; line-height: 1.35; background: var(--panel2); border: 1px solid var(--border-strong);
+    border-left: 3px solid var(--accent); transition: box-shadow .15s, transform .15s var(--ease-out); }
+  .pcw-ev.online { border-left-color: var(--accent2); }
+  .pcw-ev.conflict { border-left-color: var(--danger); }
+  .pcw-ev:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+  .pcw-ev-t { display: block; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .pcw-ev-n { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 每列底部的「时间待定」区：解析不出时间的场次兜底放在这里，不静默丢弃 */
+  .pcw-tbd { height: var(--pcw-tbd-px); overflow-y: auto; padding: 4px 6px;
+    border-top: 1px dashed var(--border); }
+  .pcw-tbd-h { color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+  .pcw-tbd-i { display: block; cursor: pointer; font-size: 11px; padding: 2px 4px; border-radius: 6px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent-text); }
+  .pcw-tbd-i:hover { background: var(--row-hover); }
+  .pcw-empty, .pcw-nodate { border: 1px dashed var(--border-strong); border-radius: 10px;
+    padding: var(--sp-4); color: var(--muted); font-size: var(--fs-md); margin-top: 12px; }
+  .pcw-nodate .pcw-tbd-i { display: inline-block; margin-right: 6px; }
+  /* ---- 上手向导（三步卡片） */
+  .pcstep { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .pcstep:last-child { border-bottom: none; }
+  .pcstep-flag { flex: 0 0 auto; width: 22px; text-align: center; color: var(--muted2); }
+  .pcstep.done .pcstep-flag { color: var(--ok-text); }
+  .pcstep-main { flex: 1; min-width: 0; }
+  .pcstep.done .pcstep-main b { color: var(--muted); }
+  @media (max-width: 640px){
+    .pcw-grid { min-width: 640px; }
+    .pcstep { flex-wrap: wrap; }
+  }
+
   /* ===================== 响应式 ===================== */
   /* 平板 / 窄窗口（≤900px）：收紧留白，宽表格改为横向滚动而非压扁列 */
   @media (max-width: 900px){
@@ -824,6 +894,16 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
 <!-- ================= 总览 ================= -->
 <section id="tab-dashboard" role="tabpanel" aria-labelledby="tabbtn-dashboard" tabindex="0" class="active">
 
+  <!-- ⓪ 上手向导：新环境（三步没走完）才出现，全部完成或手动关闭后不再打扰 -->
+  <div class="card" id="setupGuide" style="display:none">
+    <h2>🚀 三步开始使用 <span id="setupGuideProgress" class="muted small"></span></h2>
+    <div id="setupGuideSteps"><span class="muted small">加载中…</span></div>
+    <div class="row" style="margin-top:12px">
+      <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn ghost sm" id="btnDismissGuide" onclick="dismissSetupGuide()">不再显示</button></div>
+    </div>
+    <p class="hint">按顺序走完这三项，就能用上企业分析、投递推荐与时间冲突检测。三步都完成后这张卡片会自动消失。</p>
+  </div>
+
   <!-- ① 状态条：一行说清「数据到什么时候 + 现在要做什么」 -->
   <div class="statusbar">
     <span><span class="sb-k">数据更新</span><b id="sbUpdate">加载中…</b></span>
@@ -1050,6 +1130,23 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
 <section id="tab-preachs" role="tabpanel" aria-labelledby="tabbtn-preachs" tabindex="0">
   <div class="card">
     <h2>🎤 宣讲会列表 <span id="pTotal" class="muted small"></span></h2>
+
+    <!-- 视图切换：默认列表（不打扰既有习惯） -->
+    <div class="pcview" role="group" aria-label="宣讲会视图切换">
+      <button type="button" class="btn ghost sm pcview-btn on" id="pcViewList" aria-pressed="true" onclick="setPreachView('list')">📋 列表</button>
+      <button type="button" class="btn ghost sm pcview-btn" id="pcViewWeek" aria-pressed="false" onclick="setPreachView('week')">📅 周日历</button>
+      <span class="muted small">周日历按开始时间把本周场次摆到周一 ~ 周日七列上</span>
+    </div>
+
+    <!-- 时间冲突提醒条：无冲突时整条不显示 -->
+    <div class="pcbar" id="preachConflictBar" role="status" style="display:none">
+      <span aria-hidden="true">⚠️</span>
+      <span>你有 <b id="preachConflictCount">0</b> 处时间冲突（收藏 + 当前可见场次，同一天且时间段重叠）</span>
+      <button type="button" class="btn ghost sm pcbar-more" id="preachConflictToggle" onclick="togglePreachConflictList()">查看冲突</button>
+    </div>
+    <div class="pcclist" id="preachConflictList" style="display:none"></div>
+
+    <div id="preachListView">
     <div class="toolbar">
       <div style="flex:2"><label>搜索单位 / 标题 / 地点 / 城市 / 公司地点</label><input id="pq" placeholder="如：比亚迪、马房山、东风厅、北京" onkeydown="if(event.key==='Enter')loadPreachs(1)"></div>
       <div><label>举办时间从</label><input type="date" id="pstart" onchange="loadPreachs(1)"></div>
@@ -1081,6 +1178,20 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
       <button class="btn ghost" onclick="loadPreachs(state.pPage-1)">上一页</button>
       <span id="pPageInfo" class="muted small"></span>
       <button class="btn ghost" onclick="loadPreachs(state.pPage+1)">下一页</button>
+    </div>
+    </div><!-- /#preachListView -->
+
+    <!-- 周日历视图：7 列 × 时间轴 -->
+    <div id="preachWeekView" style="display:none">
+      <div class="pcw-head">
+        <button type="button" class="btn ghost sm" onclick="shiftPreachWeek(-1)">← 上一周</button>
+        <button type="button" class="btn ghost sm" onclick="shiftPreachWeek(0)">本周</button>
+        <button type="button" class="btn ghost sm" onclick="shiftPreachWeek(1)">下一周 →</button>
+        <span class="pcw-range" id="pcwRange">-</span>
+        <span class="muted small">沿用上方「搜索 / 公司地点 / 宣讲会地点 / 线下线上」筛选，按周取该周一 ~ 周日全部场次</span>
+      </div>
+      <div id="pcwGrid"><span class="muted small">切换到周日历后加载</span></div>
+      <p class="hint">点任意场次可打开该企业详情。解析不出开始时间的场次不会消失，会列在当天格子底部的「时间待定」里。</p>
     </div>
   </div>
   <div class="card" style="border-color:var(--accent2)">
@@ -1201,7 +1312,10 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
 
 <script>
 const state = { cPage: 1, rPage: 1, pPage: 1, crawlerTask: null, recruitTask: null, analyzeTask: null, checkTask: null,
-                _dataKey: undefined, _modelKey: undefined, _flowRunning: false };
+                _dataKey: undefined, _modelKey: undefined, _flowRunning: false,
+                // 宣讲会：视图（list / week）、周日历锚点（周一）、冲突检测结果
+                pView: 'list', pWeekStart: null, pWeekRows: [],
+                pConflicts: [], pConflictIds: new Set(), pConflictUnknown: 0, pConflictOpen: false };
 
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -1340,7 +1454,7 @@ function activateTab(tab, opts){
   if (tab==='dashboard'){ loadDashboard(); }
   else if (tab==='analyze'){ loadCompanyFilters(); loadCompanies(1); }
   else if (tab==='recruits'){ loadRecruits(1); }
-  else if (tab==='preachs'){ loadPreachFilters(); loadPreachFavs(); loadPreachs(1); }
+  else if (tab==='preachs'){ loadPreachFilters(); loadPreachFavs(); refreshPreachView(); }
   else if (tab==='board'){ loadBoard(); }
   else if (tab==='resume'){ loadResumeCompanyCount(); }
   else if (tab==='crawl'){ loadCrawlDates(); }
@@ -1467,7 +1581,7 @@ function renderTask(logEl, statusEl, stopBtn, task){
 }
 
 function refreshDataViews(){ refreshStatus(); if($('tab-analyze').classList.contains('active')){ loadCompanyFilters(); loadCompanies(state.cPage); }
-  if($('tab-recruits').classList.contains('active')) loadRecruits(state.rPage); if($('tab-preachs').classList.contains('active')) loadPreachs(state.pPage); if($('tab-dashboard').classList.contains('active')) loadDashboard(); }
+  if($('tab-recruits').classList.contains('active')) loadRecruits(state.rPage); if($('tab-preachs').classList.contains('active')) refreshPreachView(); if($('tab-dashboard').classList.contains('active')) loadDashboard(); }
 
 // ---- 今日行动中心 / 数据健康 / 统一任务中心
 function goTab(tab){ activateTab(tab); }
@@ -1556,7 +1670,53 @@ async function loadHealth(){
       : '尚无任务记录';
   }catch(e){}
 }
-function loadDashboard(){ loadStats(true); loadActions(); loadHealth(); }
+function loadDashboard(){ loadStats(true); loadActions(); loadHealth(); loadSetupGuide(); }
+
+// ---- 首次使用向导（三步：配置 LLM → 抓取数据 → 企业分析）
+// 依据 /api/status 的真实状态判断完成情况：三步都完成 → 自动不再出现；
+// 手动关闭写 localStorage，避免每次刷新都弹。
+const GUIDE_DISMISS_KEY = 'setupGuideDismissed';
+function setupGuideDismissed(){ try{ return localStorage.getItem(GUIDE_DISMISS_KEY) === '1'; }catch(e){ return false; } }
+function dismissSetupGuide(){
+  try{ localStorage.setItem(GUIDE_DISMISS_KEY, '1'); }catch(e){}
+  const box = $('setupGuide'); if (box) box.style.display = 'none';
+}
+async function loadSetupGuide(){
+  const box = $('setupGuide');
+  if (!box || setupGuideDismissed()) return;
+  try{
+    const s = await api('/api/status', {silent:true, retries:0});
+    if (!s || !s.ok) return;                       // 服务没起来就先不打扰
+    const crawled = (Number(s.recruit_count)||0) + (Number(s.preach_count)||0) + (Number(s.fair_count)||0);
+    const steps = [
+      { done: !!s.has_api_key,
+        title: '① 配置 LLM API Key',
+        desc: '在「设置」里挑一家模型平台、填好 API Key —— AI 分析企业性质、工作地点与简历匹配都依赖它。',
+        tab: 'settings', action: '去设置' },
+      { done: crawled > 0,
+        title: '② 抓取招聘数据',
+        desc: '在「抓取数据」里点「开始更新」，把学校就业网的招聘公告、宣讲会、双选会拉到本地主库。',
+        tab: 'crawl', action: '去抓取' },
+      { done: (Number(s.analyzed_count)||0) > 0,
+        title: '③ 运行企业分析',
+        desc: '在「企业分析」里跑一次 AI 分析，得到企业类型、国企标记与工作地点，筛选与推荐才准。',
+        tab: 'analyze', action: '去分析' },
+    ];
+    if (steps.every(x => x.done)){ box.style.display = 'none'; return; }   // 全部完成 → 自动消失
+    const prog = $('setupGuideProgress');
+    if (prog) prog.textContent = '（已完成 ' + steps.filter(x=>x.done).length + ' / ' + steps.length + '）';
+    $('setupGuideSteps').innerHTML = steps.map(x => `<div class="pcstep${x.done?' done':''}">
+      <span class="pcstep-flag" aria-hidden="true">${x.done?'✓':'○'}</span>
+      <div class="pcstep-main">
+        <b>${esc(x.title)}</b>
+        <div class="small muted">${esc(x.desc)}</div>
+      </div>
+      ${x.done ? '<span class="tag so">已完成</span>'
+               : `<button type="button" class="btn ghost sm" onclick="goTab('${esc(x.tab)}')">${esc(x.action)} →</button>`}
+    </div>`).join('');
+    box.style.display = '';
+  }catch(e){ /* 向导失败不影响主流程 */ }
+}
 
 // ---- 统一任务中心（顶栏按钮 → 右侧抽屉）
 const TASK_STATUS = {running:['run','运行中'], queued:['run','排队中'], succeeded:['ok2','成功'],
@@ -2025,11 +2185,15 @@ async function loadPreachs(page){
   $('pTotal').textContent = '共 '+r.total+' 场';
   const pages = Math.max(1, Math.ceil(r.total/r.size));
   $('pPageInfo').textContent = state.pPage+' / '+pages;
+  await scanPreachConflicts(r.rows);          // 先算冲突，再渲染，行内才能带上冲突标记
+  renderPreachConflictBar();
   $('preachRows').innerHTML = r.rows.length ? r.rows.map((x,i) => {
     const id = 'pb'+state.pPage+'_'+i;
     const isOffline = x['线下/线上']==='线下';
     const bp = boardPayload('宣讲会', x);
-    return `<tr><td class="muted small">${esc(x['宣讲时间']||'-')}</td>
+    const cid = String(x['ID']||'');
+    const cf = !!(cid && state.pConflictIds && state.pConflictIds.has(cid));
+    return `<tr${cf?' class="pcrow-conflict"':''}><td class="muted small">${cf?'<span class="tag remind">⚠️ 冲突</span> ':''}${esc(x['宣讲时间']||'-')}</td>
       <td>${x['单位名称']?companyLink(x['单位名称']):'<span class="muted">-</span>'}${x['标题']&&x['标题']!==x['单位名称']?`<div class="small muted">${esc(x['标题'])}</div>`:''}
       ${x['正文']?`<div><span class="expand" role="button" tabindex="0" onclick="document.getElementById('${id}').classList.toggle('show')">展开详情 ▾</span><div class="body-preview" id="${id}">${esc(x['正文'])}…</div></div>`:''}</td>
       <td class="small">${esc(x['宣讲会地点']||'-')}</td>
@@ -2089,6 +2253,271 @@ async function unfavAllPreachs(){
     if (r.ok){ await loadPreachFavs(); loadPreachs(state.pPage); toast(r.removed ? '☆ 已取消收藏 '+r.removed+' 场' : '当前条件下没有已在收藏的宣讲会'); }
     else toast(r.error||'操作失败', true);
   }catch(e){ toast('网络错误', true); }
+}
+
+// ================= 宣讲会周日历 =================
+// 时间轴刻度与卡片定位共用同一组常量；--pcw-hour-px 由 JS 写进 DOM，
+// 保证 CSS 的小时线间距与 JS 的 top/height 计算不会各写一份数值而漂移。
+const PCW_HOUR_PX = 52;      // 一小时的像素高度
+const PCW_START_HOUR = 8;    // 时间轴起点（含）
+const PCW_END_HOUR = 22;     // 时间轴终点（不含）
+const PCW_TBD_PX = 96;       // 每列底部「时间待定」区高度
+const PCW_DEFAULT_MIN = 60;  // 只有开始时间时假定的时长（分钟）
+const PCW_WEEKDAY = ['周一','周二','周三','周四','周五','周六','周日'];
+const PCW_DATE_RE = /(\d{4})\s*[-\/年.]\s*(\d{1,2})\s*[-\/月.]\s*(\d{1,2})/;
+const PCW_RANGE_RE = /(\d{1,2})\s*[:：]\s*(\d{2})(?:\s*[~\-—–至到]\s*(\d{1,2})\s*[:：]\s*(\d{2}))?/;
+
+function pcwPad2(n){ return String(n).padStart(2,'0'); }
+function pcwDateStr(d){ return d.getFullYear()+'-'+pcwPad2(d.getMonth()+1)+'-'+pcwPad2(d.getDate()); }
+function pcwMinStr(m){ const v = ((m % 1440) + 1440) % 1440; return pcwPad2(Math.floor(v/60))+':'+pcwPad2(v%60); }
+function pcwMonday(d){
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay()+6)%7));   // 周一为一周起点
+  return x;
+}
+function pcwToMin(v){
+  const m = String(v ?? '').trim().match(/^(\d{1,2})\s*[:：]\s*(\d{2})/);
+  if (!m) return null;
+  const h = Number(m[1]), mi = Number(m[2]);
+  if (h > 23 || mi > 59) return null;
+  return h*60 + mi;
+}
+// 把一行宣讲会解析成 {date,start,end,timed,rangeOk}。
+// 容错优先：解析不出时间的场次照样返回 date，由调用方放进「时间待定」，绝不静默丢弃。
+// rangeOk=false 表示拿不到完整时间段 —— 这类场次不参与冲突判定，但会在界面上如实说明。
+function parsePreachSlot(row){
+  const raw = String((row && row['宣讲时间']) || '');
+  const dRaw = String((row && row['举办日期']) || '');
+  let date = '';
+  const dm = raw.match(PCW_DATE_RE) || dRaw.match(PCW_DATE_RE);
+  if (dm) date = dm[1]+'-'+pcwPad2(dm[2])+'-'+pcwPad2(dm[3]);
+  let start = pcwToMin(row && row['开始时间']);
+  let end = pcwToMin(row && row['结束时间']);
+  let rangeOk = start != null && end != null && end > start;
+  if (!rangeOk){
+    const tm = raw.replace(PCW_DATE_RE, ' ').match(PCW_RANGE_RE);
+    if (tm && tm[3] != null){
+      start = Number(tm[1])*60 + Number(tm[2]);
+      end = Number(tm[3])*60 + Number(tm[4]);
+      rangeOk = end > start;
+    }
+  }
+  const timed = !!date && start != null;
+  return { date: date, start: timed ? start : null, end: timed ? end : null,
+           timed: timed, rangeOk: rangeOk };
+}
+function pcwAddDays(d, n){ const x = new Date(d.getTime()); x.setDate(x.getDate()+n); return x; }
+function pcwDayIndex(dateStr, monStr){
+  const a = new Date(dateStr+'T00:00:00'), b = new Date(monStr+'T00:00:00');
+  const diff = Math.round((a.getTime() - b.getTime()) / 86400000);
+  return (diff >= 0 && diff <= 6) ? diff : -1;
+}
+// 同列内重叠的场次并排分道（贪心：找一条已结束的道复用）
+function pcwPackLanes(items){
+  const laneEnd = [];
+  items.forEach(o => {
+    let li = -1;
+    for (let i = 0; i < laneEnd.length; i++){ if (laneEnd[i] <= o.slot.start){ li = i; break; } }
+    if (li < 0){ laneEnd.push(o.slot.end); li = laneEnd.length - 1; }
+    else laneEnd[li] = o.slot.end;
+    o.lane = li;
+  });
+  return Math.max(1, laneEnd.length);
+}
+function refreshPreachView(){ if (state.pView === 'week') loadPreachWeek(); else loadPreachs(state.pPage); }
+function setPreachView(view){
+  state.pView = (view === 'week') ? 'week' : 'list';
+  syncPreachView();
+  refreshPreachView();
+}
+function syncPreachView(){
+  const week = state.pView === 'week';
+  const bl = $('pcViewList'), bw = $('pcViewWeek');
+  if (bl){ bl.classList.toggle('on', !week); bl.setAttribute('aria-pressed', String(!week)); }
+  if (bw){ bw.classList.toggle('on', week); bw.setAttribute('aria-pressed', String(week)); }
+  $('preachListView').style.display = week ? 'none' : '';
+  $('preachWeekView').style.display = week ? '' : 'none';
+}
+function shiftPreachWeek(delta){
+  if (delta === 0) state.pWeekStart = null;                       // 回到本周
+  else state.pWeekStart = pcwMonday(pcwAddDays(state.pWeekStart || pcwMonday(new Date()), delta*7));
+  loadPreachWeek();
+}
+async function loadPreachWeek(){
+  const mon = state.pWeekStart || pcwMonday(new Date());
+  const start = pcwDateStr(mon), end = pcwDateStr(pcwAddDays(mon, 6));
+  const range = start + ' ~ ' + end;
+  const rangeEl = $('pcwRange'); if (rangeEl) rangeEl.textContent = range;
+  const grid = $('pcwGrid');
+  setBusyBox(grid, '正在加载本周宣讲会…');
+  // size 取上限 200：一周的场次数很容易超过默认的 50
+  const p = new URLSearchParams({ q:$('pq').value.trim(), type:$('ptype').value,
+    work:$('pwork').value, venue:$('pvenue').value,
+    start:start, end:end, show_past:'1', page:1, size:200 });
+  const r = await api('/api/preachs?'+p);
+  if (!r.ok){ grid.innerHTML = '<p class="muted">' + esc(r.error||'加载失败') + '，请重试</p>'; return; }
+  const rows = r.rows || [];
+  state.pWeekRows = rows;
+  await scanPreachConflicts(rows);
+  renderPreachConflictBar();
+  renderPreachWeek(rows, mon, range);
+}
+function renderPreachWeek(rows, mon, range){
+  const grid = $('pcwGrid');
+  const list = rows || [];
+  const monStr = pcwDateStr(mon);
+  if (!list.length){
+    grid.innerHTML = `<div class="pcw-empty">本周（${esc(range)}）没有宣讲会。<br>
+      可以点「上一周 / 下一周」看看邻近两周，或到本页下方「🔄 检查宣讲会更新」抓取最新场次。</div>`;
+    return;
+  }
+  const buckets = PCW_WEEKDAY.map(()=>[]);
+  const undated = [];
+  list.forEach(x => {
+    const slot = parsePreachSlot(x);
+    const idx = slot.date ? pcwDayIndex(slot.date, monStr) : -1;
+    if (idx < 0) undated.push(x);            // 日期落在这一周之外或解析不出 → 兜底列出
+    else buckets[idx].push({ row:x, slot:slot });
+  });
+  const todayStr = isoDay(0);
+  const head = PCW_WEEKDAY.map((w,i) => {
+    const ds = pcwDateStr(pcwAddDays(mon, i));
+    return `<div class="pcw-dh${ds === todayStr ? ' today' : ''}">
+      <span class="pcw-dh-w">${esc(w)}</span><span class="pcw-dh-d">${esc(ds.slice(5))}</span></div>`;
+  }).join('');
+  const cols = buckets.map(items => {
+    const timed = items.filter(o=>o.slot.timed).sort((a,b)=>a.slot.start-b.slot.start);
+    const tbd = items.filter(o=>!o.slot.timed);
+    const lanes = pcwPackLanes(timed);
+    const w = 100 / lanes;
+    const evs = timed.map(o => {
+      const s = o.slot;
+      const s0 = Math.max(PCW_START_HOUR*60, Math.min(PCW_END_HOUR*60 - 5, s.start));
+      const e0 = Math.max(s0 + 5, Math.min(PCW_END_HOUR*60, s.end == null ? s.start + PCW_DEFAULT_MIN : s.end));
+      const top = ((s0 - PCW_START_HOUR*60) / 60) * PCW_HOUR_PX;
+      const h = Math.max(24, ((e0 - s0) / 60) * PCW_HOUR_PX - 2);
+      const name = String(o.row['单位名称']||'').trim() || '（未标注单位）';
+      const cid = String(o.row['ID']||'');
+      const cf = !!(cid && state.pConflictIds && state.pConflictIds.has(cid));
+      const kind = o.row['线下/线上'] === '线上' ? 'online' : 'offline';
+      return `<div class="pcw-ev ${kind}${cf?' conflict':''}" role="button" tabindex="0"
+        style="top:${top.toFixed(1)}px;height:${h.toFixed(1)}px;left:${(o.lane*w).toFixed(3)}%;width:${w.toFixed(3)}%"
+        data-n="${esc(name)}" onclick="openCompany(this.dataset.n)"
+        title="${esc(name)}｜${esc(s.date)} ${pcwMinStr(s0)}-${pcwMinStr(e0)}｜${esc(o.row['宣讲会地点']||'-')}">
+        <span class="pcw-ev-t">${esc(pcwMinStr(s0))}</span>
+        <span class="pcw-ev-n">${esc(name)}</span></div>`;
+    }).join('');
+    const tbdHtml = tbd.length ? tbd.map(o => {
+      const name = String(o.row['单位名称']||'').trim() || '（未标注单位）';
+      return `<div class="pcw-tbd-i" role="button" tabindex="0" data-n="${esc(name)}"
+        onclick="openCompany(this.dataset.n)" title="${esc(name)}｜${esc(o.row['宣讲时间']||'时间待定')}">${esc(name)}</div>`;
+    }).join('') : '<span class="muted small">-</span>';
+    return `<div class="pcw-col">
+      <div class="pcw-lane" style="height:${(PCW_END_HOUR-PCW_START_HOUR)*PCW_HOUR_PX}px">${evs}</div>
+      <div class="pcw-tbd"><div class="pcw-tbd-h">时间待定${tbd.length?'（'+tbd.length+'）':''}</div>${tbdHtml}</div>
+    </div>`;
+  }).join('');
+  const hours = [];
+  for (let h = PCW_START_HOUR; h < PCW_END_HOUR; h++) hours.push(`<div class="pcw-h">${pcwPad2(h)}:00</div>`);
+  hours.push('<div class="pcw-h pcw-h-tbd">待定</div>');
+  const nodate = undated.length ? `<div class="pcw-nodate">⚠️ 另有 ${undated.length} 场宣讲会解析不出日期，未在日历中丢弃：
+    ${undated.map(x => {
+      const name = String(x['单位名称']||'').trim() || '（未标注单位）';
+      return `<span class="pcw-tbd-i" role="button" tabindex="0" data-n="${esc(name)}"
+        onclick="openCompany(this.dataset.n)" title="${esc(name)}">${esc(name)}</span>`;
+    }).join('')}</div>` : '';
+  grid.style.setProperty('--pcw-hour-px', PCW_HOUR_PX + 'px');
+  grid.style.setProperty('--pcw-tbd-px', PCW_TBD_PX + 'px');
+  grid.innerHTML = `<div class="pcw-scroll"><div class="pcw-grid">
+    <div class="pcw-gutter"><div class="pcw-dh pcw-dh-g">时间</div>${hours.join('')}</div>
+    <div class="pcw-days">
+      <div class="pcw-days-h">${head}</div>
+      <div class="pcw-days-b">${cols}</div>
+    </div>
+  </div></div>${nodate}`;
+}
+
+// ================= 宣讲会时间冲突检测 =================
+// 只用现有的 /api/preachs 与 /api/preach/favs —— 收藏接口本身就带回完整记录（rows），
+// 拿不到时退化为「当前可见场次」，不新增后端路由。
+async function scanPreachConflicts(visibleRows){
+  const today = isoDay(0);
+  const seen = new Set();
+  const rows = [];
+  const push = x => {
+    if (!x) return;
+    const id = String(x['ID'] ?? '');
+    const key = id || ('n:'+String(x['单位名称']||'')+'|'+String(x['宣讲时间']||''));
+    if (seen.has(key)) return;                 // 收藏与可见列表重叠时按 ID 去重
+    seen.add(key);
+    rows.push(x);
+  };
+  (visibleRows || []).forEach(push);
+  try{
+    const f = await api('/api/preach/favs', {silent:true, retries:0});
+    ((f && f.rows) || []).forEach(push);
+  }catch(e){ /* 收藏取不到就只按可见场次判定 */ }
+  const parsed = [];
+  let unknown = 0;
+  rows.forEach(x => {
+    const s = parsePreachSlot(x);
+    if (!s.date){ unknown++; return; }                                  // 连日期都没有
+    if (s.date < today) return;                                         // 过去的场次不打扰
+    if (!s.rangeOk || s.start == null || s.end == null){ unknown++; return; }
+    parsed.push({ row:x, date:s.date, start:s.start, end:s.end });
+  });
+  const byDate = {};
+  parsed.forEach(o => { (byDate[o.date] = byDate[o.date] || []).push(o); });
+  const pairs = [];
+  const ids = new Set();
+  Object.keys(byDate).sort().forEach(d => {
+    const list = byDate[d].slice().sort((a,b) => a.start - b.start || a.end - b.end);
+    for (let i = 0; i < list.length; i++){
+      for (let j = i + 1; j < list.length; j++){
+        if (list[j].start >= list[i].end) break;                        // 已按开始时间排序，后面不会再重叠
+        const ov = Math.min(list[i].end, list[j].end) - Math.max(list[i].start, list[j].start);
+        if (ov <= 0) continue;
+        pairs.push({ a:list[i].row, b:list[j].row, date:d,
+                     start:Math.max(list[i].start, list[j].start),
+                     end:Math.min(list[i].end, list[j].end), overlap:ov });
+        const ia = String(list[i].row['ID']||''), ib = String(list[j].row['ID']||'');
+        if (ia) ids.add(ia);
+        if (ib) ids.add(ib);
+      }
+    }
+  });
+  state.pConflicts = pairs;
+  state.pConflictIds = ids;
+  state.pConflictUnknown = unknown;
+  return pairs;
+}
+// 无冲突 → 整条提醒条隐藏；有冲突 → 显示条，展开后才渲染冲突对明细
+function renderPreachConflictBar(){
+  const bar = $('preachConflictBar'), list = $('preachConflictList');
+  if (!bar || !list) return;
+  const n = (state.pConflicts || []).length;
+  if (!n){
+    bar.style.display = 'none'; list.style.display = 'none'; list.innerHTML = '';
+    state.pConflictOpen = false;
+    return;
+  }
+  bar.style.display = '';
+  const cnt = $('preachConflictCount'); if (cnt) cnt.textContent = String(n);
+  const btn = $('preachConflictToggle'); if (btn) btn.textContent = state.pConflictOpen ? '收起' : '查看冲突';
+  list.style.display = state.pConflictOpen ? '' : 'none';
+  list.innerHTML = state.pConflictOpen ? preachConflictListHtml() : '';
+}
+function togglePreachConflictList(){ state.pConflictOpen = !state.pConflictOpen; renderPreachConflictBar(); }
+function preachConflictListHtml(){
+  const items = state.pConflicts || [];
+  const body = items.map(c => `<div class="pccard">
+    <div class="pccard-h">${companyLink(c.a['单位名称'])} <span class="muted small">⚔️ vs</span> ${companyLink(c.b['单位名称'])}</div>
+    <div class="small muted">🕒 ${esc(c.date)} ${esc(pcwMinStr(c.start))} – ${esc(pcwMinStr(c.end))} · 重叠 ${esc(String(c.overlap))} 分钟</div>
+    <div class="small muted">📍 ${esc(c.a['宣讲会地点']||'-')} ｜ ${esc(c.b['宣讲会地点']||'-')}</div>
+  </div>`).join('');
+  const note = state.pConflictUnknown > 0
+    ? `<p class="hint">另有 ${esc(String(state.pConflictUnknown))} 场因时间格式不明未参与检测。</p>` : '';
+  return body + note;
 }
 
 // ---- Resume / 投递推荐
@@ -2322,6 +2751,7 @@ loadCrawlDates();
 loadFlowStatus();
 loadLlmCatalog();
 $('llmSearch') && $('llmSearch').addEventListener('input', renderLlmCards);
+syncPreachView();          // 宣讲会默认「列表」视图，与按钮初始态保持一致
 refreshStatus();
 loadDashboard();
 // 恢复 URL 指定的页面：刷新后仍停留在原来的 Tab，链接也可直接分享到某一页

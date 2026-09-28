@@ -12,6 +12,12 @@
 
 命名为 settings 而非 config，是为了跟项目根的 `config.json`（含 API Key，已 gitignore）
 区分开：前者是代码模块，后者是运行时产物。
+
+关于 API Key 的保管：默认仍落在 config.json（已 gitignore）。想进一步避免明文落盘
+的用户可以 `pip install keyring` 并开启开关（`WHUT_KEYRING=1` 环境变量或 config.json
+里的 `use_keyring: true`），之后 Key 会写进系统钥匙串，读取时钥匙串优先。
+keyring 是**可选**依赖：没装、装了但后端不可用、或调用抛任何异常，一律静默回落
+到 config.json——「配置读写失败」比「Key 明文存盘」严重得多，这是本模块的底线。
 """
 
 from __future__ import annotations
@@ -25,6 +31,11 @@ from pathlib import Path
 
 import providers
 from utils import io as io_utils
+
+try:
+    import keyring
+except ImportError:      # 可选依赖：没装就退化成「明文存 config.json」的老行为
+    keyring = None
 
 # ---------------------------------------------------------------- LLM 默认值
 # 定义在这里而不是 analyze，是因为配置层要在零业务依赖下知道默认模型名。
@@ -91,34 +102,164 @@ def log_event(event: str, **fields) -> None:
         pass
 
 
+# ---------------------------------------------------------------- 密钥保管（可选）
+# 钥匙串里按「服务名 + 字段名」存，字段名（如 api_key / deepseek_api_key）就是条目名，
+# 这样各厂商的 Key 互不干扰，也不必再维护一份额外的映射表。
+KEYRING_SERVICE = "whut-recruit-tool"
+KEYRING_ENV = "WHUT_KEYRING"
+
+
+def _truthy(value) -> bool:
+    """把环境变量 / 配置项的多种写法统一成布尔（"1"/"true"/"yes"/"on" 都算开）。"""
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
+def _keyring_fields() -> list[str]:
+    """所有厂商的 API Key 字段名（去重，保持预设表里的顺序）。"""
+    fields: list[str] = []
+    for conf in providers.LLM_PROVIDERS.values():
+        field = conf["api_key_field"]
+        if field not in fields:
+            fields.append(field)
+    return fields
+
+
+def keyring_enabled(cfg: dict | None = None) -> bool:
+    """是否启用系统钥匙串：`WHUT_KEYRING=1` 或配置项 `use_keyring` 为真才启用。
+
+    **默认关闭**：钥匙串是可选增强，不开就完全不碰它——不装 keyring 的人
+    行为必须与现在一模一样。环境变量优先于配置项，方便临时开关与排查。
+    """
+    if keyring is None:
+        return False
+    env = os.environ.get(KEYRING_ENV, "").strip()
+    if env:
+        return _truthy(env)
+    return _truthy((cfg or {}).get("use_keyring"))
+
+
+def _keyring_get(field: str) -> str:
+    """读钥匙串；未装 / 后端不可用 / 抛任何异常都返回空串（静默回落）。"""
+    kr = keyring
+    if kr is None:
+        return ""
+    try:
+        return (kr.get_password(KEYRING_SERVICE, field) or "").strip()
+    except Exception:      # noqa: BLE001  钥匙串不可用时必须静默，绝不能打断配置读取
+        return ""
+
+
+def _keyring_set(field: str, secret: str) -> bool:
+    """写钥匙串；失败返回 False，由调用方继续把 Key 落到 config.json。"""
+    kr = keyring
+    if kr is None:
+        return False
+    try:
+        kr.set_password(KEYRING_SERVICE, field, secret)
+        return True
+    except Exception:      # noqa: BLE001  写不进钥匙串不该让「保存配置」失败
+        return False
+
+
+def _keyring_delete(field: str) -> None:
+    """删钥匙串条目；不存在或删不掉都无所谓（Key 以 config.json 为准仍能覆盖）。"""
+    kr = keyring
+    if kr is None:
+        return
+    try:
+        kr.delete_password(KEYRING_SERVICE, field)
+    except Exception:      # noqa: BLE001  多数后端对「删不存在的条目」会抛错，忽略即可
+        pass
+
+
+def _keyring_sync(cfg: dict) -> None:
+    """启用钥匙串时把各厂商 Key 同步进钥匙串。
+
+    空值按「删除」处理：否则用户在设置页点了「删除 Key」，config.json 清空了，
+    钥匙串里那份还在，下次读取又会冒出来——删除看起来像没生效。
+    """
+    for field in _keyring_fields():
+        if field not in cfg:
+            continue                       # 该厂商从未配置过，不动钥匙串
+        secret = str(cfg.get(field) or "").strip()
+        if secret:
+            _keyring_set(field, secret)
+        else:
+            _keyring_delete(field)
+
+
 # ---------------------------------------------------------------- 配置管理
 
+def _read_config_file() -> dict:
+    """读 config.json 原始内容。文件缺失或损坏一律退化为空配置而非抛错。"""
+    if not CONFIG_PATH.exists():
+        return {}
+    try:
+        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return cfg if isinstance(cfg, dict) else {}
+
+
 def load_config() -> dict:
-    """读 config.json，补齐默认值。文件缺失或损坏一律退化为空配置而非抛错。"""
-    cfg: dict = {}
-    if CONFIG_PATH.exists():
-        try:
-            cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            cfg = {}
-        if not isinstance(cfg, dict):
-            cfg = {}
+    """读配置，补齐默认值；启用钥匙串时用钥匙串里的 Key 覆盖文件里的值。
+
+    钥匙串优先于文件：这就是「迁移」的全部含义——迁移后 config.json 里那份旧 Key
+    **不会被主动删除**（何时清由用户决定），但读到的永远是钥匙串里的。
+    """
+    cfg = _read_config_file()
     cfg.setdefault("api_key", os.environ.get("SILICONFLOW_API_KEY", ""))
     cfg.setdefault("model", DEFAULT_MODEL)
     cfg.setdefault("provider", os.environ.get("LLM_PROVIDER", "siliconflow"))
     cfg.setdefault("deepseek_api_key", "")
     cfg.setdefault("deepseek_model", "")
     cfg.setdefault("deepseek_base_url", "https://api.deepseek.com")
+    if keyring_enabled(cfg):
+        for field in _keyring_fields():
+            secret = _keyring_get(field)
+            if secret:
+                cfg[field] = secret
     return cfg
 
 
 def save_config(cfg: dict) -> None:
-    """写 config.json（原子写：临时文件 + os.replace，避免写一半被杀导致配置损坏）。"""
+    """写 config.json；启用钥匙串时先把 Key 同步进钥匙串（失败不影响落盘）。
+
+    文件里仍保留一份明文：这是刻意的——不主动删旧 Key，用户确认钥匙串能用之后
+    再自己决定要不要清，避免「启用开关 → 文件里的 Key 没了 → 钥匙串也没写进去」。
+    """
+    if keyring_enabled(cfg):
+        _keyring_sync(cfg)
     io_utils.write_json_atomic(CONFIG_PATH, cfg)
 
 
 def get_api_key() -> str:
     return (load_config().get("api_key") or "").strip()
+
+
+def keyring_status(cfg: dict | None = None) -> dict:
+    """当前密钥的存放位置，供设置页提示（**只回位置，不回显明文**）。
+
+    source: keyring（钥匙串）/ file（config.json）/ env（环境变量）/ none（没配）。
+    """
+    cfg = load_config() if cfg is None else cfg
+    enabled = keyring_enabled(cfg)
+    conf = providers.LLM_PROVIDERS[providers.normalize_provider(cfg.get("provider"))]
+    field = conf["api_key_field"]
+    in_keyring = bool(enabled and _keyring_get(field))
+    in_file = bool(str(_read_config_file().get(field) or "").strip())
+    if in_keyring:
+        source = "keyring"
+    elif in_file:
+        source = "file"
+    elif str(cfg.get(field) or "").strip():
+        source = "env"          # 既不在钥匙串也不在文件里，只可能是环境变量给的
+    else:
+        source = "none"
+    return {"available": keyring is not None, "enabled": enabled, "source": source,
+            "in_keyring": in_keyring, "in_file": in_file}
 
 
 # LLM 厂商预设与解析见 providers.py；此处仅重导出以兼容既有引用

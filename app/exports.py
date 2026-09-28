@@ -5,6 +5,11 @@
 路由层负责把字节流包装成下载响应。因此导出逻辑可脱离 Web 层直接测试。
 """
 
+# openpyxl 3.1 自带的类型标注与其运行时行为不符：`Cell.hyperlink` 被声明成只读，
+# 实际它有 setter（运行时可正常赋值，已实测）。为本文件关闭该规则，
+# 免得为「桩写错了」在业务代码里堆一排 type: ignore。
+# pyright: reportAttributeAccessIssue=false
+
 from __future__ import annotations
 
 import csv
@@ -26,12 +31,23 @@ def preach_fav_row(r: dict) -> list[str]:
 def build_preach_favs_xlsx(rows: list[dict]) -> io.BytesIO:
     """收藏宣讲会 → xlsx 工作簿字节流（openpyxl 不可用时抛出，由调用方降级 CSV）。"""
     from openpyxl import Workbook  # noqa: PLC0415  可选依赖，按需导入
-    from openpyxl.styles import Alignment, Font, PatternFill  # noqa: PLC0415
+    from openpyxl.styles import Alignment, Color, Font, PatternFill  # noqa: PLC0415
+    from openpyxl.utils import get_column_letter  # noqa: PLC0415
+    from openpyxl.worksheet.worksheet import Worksheet  # noqa: PLC0415
 
     wb = Workbook()
+    # wb.active 的推断类型是 Union（含 WriteOnlyWorksheet），而 WriteOnlyWorksheet 既没有
+    # ws[1] 也没有 ws.columns——下面两种访问都要用，所以必须先收窄到 Worksheet。
+    # 这里不用 wb.create_sheet 兜底：它没写返回标注，推断出来同样是那个 Union，
+    # 换了写法问题还在；而 Workbook()（write_only=False）运行时必定自带一张普通工作表，
+    # 真走到 else 说明 openpyxl 行为变了，早说清楚比在 ws[1] 上炸掉好排查。
     ws = wb.active
+    if not isinstance(ws, Worksheet):
+        raise RuntimeError("openpyxl Workbook() 未返回可写工作表，无法导出 xlsx")
     ws.title = "收藏宣讲会"
-    header_fill = PatternFill("solid", fgColor="4F8EF7")
+    # fgColor 传 str 运行时也能用（openpyxl 会补 alpha 位），但它的标注是 Color；
+    # 直接构造 Color 两种写法产出的 rgb 完全一致（实测都是 004F8EF7），还能免掉一处类型例外。
+    header_fill = PatternFill("solid", fgColor=Color(rgb="4F8EF7"))
     header_font = Font(bold=True, color="FFFFFF")
     ws.append(PREACH_FAV_HEADERS)
     for c in ws[1]:
@@ -41,9 +57,10 @@ def build_preach_favs_xlsx(rows: list[dict]) -> io.BytesIO:
     ws.freeze_panes = "A2"
     for r in rows:
         ws.append(preach_fav_row(r))
-    for col in ws.columns:
+    # 用列号换算字母，而不是取 col[0].column_letter：合并单元格时首格可能是 MergedCell（无该属性）
+    for idx, col in enumerate(ws.columns, start=1):
         width = max(len(str(c.value or "")) for c in col) + 4
-        ws.column_dimensions[col[0].column_letter].width = min(max(width, 10), 60)
+        ws.column_dimensions[get_column_letter(idx)].width = min(max(width, 10), 60)
     for row in ws.iter_rows(min_row=2):
         cell = row[8]                                   # 「原网页」列设为超链接
         if cell.value:

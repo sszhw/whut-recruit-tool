@@ -28,6 +28,9 @@ from services import board as board_svc
 # 其余（空格、标点、括号）一律丢弃——它们只反映书写习惯，不代表企业身份。
 _NON_ALNUM = re.compile(r"[^0-9a-z\u4e00-\u9fff]+")
 
+# 分析缓存里 is_state_owned 是布尔，老数据可能是字符串或缺失，非布尔一律显示「未知」
+_SO_LABEL = {True: "是", False: "否"}
+
 
 def normalize_name(name: Any) -> str:
     """企业名称的匹配键：NFKC + 小写 + 只保留字母数字与汉字。
@@ -67,10 +70,12 @@ def _analysis(cache: dict, target: str) -> dict:
     if info is None:
         return {"has": False, "company_type": "", "state_owned": "未知", "confidence": "",
                 "locations": [], "evidence": ""}
+    # is_state_owned 在老缓存里可能是字符串或缺失，只有 bool 才查表，否则一律「未知」
+    is_so = info.get("is_state_owned")
     return {
         "has": True,
         "company_type": _text(info.get("company_type")),
-        "state_owned": {True: "是", False: "否"}.get(info.get("is_state_owned"), "未知"),
+        "state_owned": _SO_LABEL.get(is_so, "未知") if isinstance(is_so, bool) else "未知",
         "confidence": _text(info.get("confidence")),
         "locations": _tag_list(info.get("locations")),
         "evidence": _text(info.get("evidence")),

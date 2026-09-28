@@ -47,6 +47,7 @@ from dataloaders import (
 )
 from extensions import KIND_SLUGS, TaskManager, _error_summary, _parse_progress, tasks
 from flask import Flask, g, jsonify, request
+from flask.json.provider import DefaultJSONProvider
 from services.preaches import apply_filters, collect_ids, venue_label
 from services.recommend import (
     ALLOWED_EXT,
@@ -110,7 +111,11 @@ def create_app() -> Flask:
     且不依赖模块导入顺序。
     """
     app = Flask(__name__)
-    app.json.ensure_ascii = False
+    # 中文不要被 jsonify 转成 \uXXXX：接口直读和日志都要能看懂。
+    # 只在默认 JSON provider 上设——ensure_ascii 是 DefaultJSONProvider 的属性，
+    # 换成自定义 provider 后硬赋值会在启动时 AttributeError，那种情况按「不改」处理。
+    if isinstance(app.json, DefaultJSONProvider):
+        app.json.ensure_ascii = False
     # 上传体积上限：简历 / 报告导入走内存缓存，超限直接 413，避免大文件撑爆内存
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 

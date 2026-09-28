@@ -8,6 +8,10 @@ LLM 不可用时整体降级为本地关键词匹配，保证功能不中断。
 
 本模块不读 `request`：视觉模型名、简历文本等一律由参数传入，
 这样同一段逻辑将来也能被 CLI / 定时任务复用。
+
+**个人求职偏好（`services/prefs.py`）在这里全局复用**：目标工作地 / 企业性质
+没填时用偏好兜底，黑名单里的企业一律不进结果。用户看不到某家企业时必须知道
+原因，所以每次都会在 `prefs_applied` 里回报「这次用了哪些偏好、剔除了谁」。
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ from dataloaders import load_cache, load_preachs
 from settings import DATA, WORKDIR, get_llm
 
 from services import ServiceError
+from services import prefs as prefs_svc
 
 ALLOWED_EXT = {"pdf", "docx", "png", "jpg", "jpeg", "bmp", "webp"}
 
@@ -37,8 +42,8 @@ def save_upload(file_storage) -> Path:
     return tmp
 
 
-def extract_upload(api_key: str, file_storage, base_url: str = None,
-                   vision_model: str = None) -> tuple[str, str]:
+def extract_upload(api_key: str, file_storage, base_url: str | None = None,
+                   vision_model: str | None = None) -> tuple[str, str]:
     """保存临时文件并提取文字，返回 (text, err)。无论成功与否都会清理临时文件。"""
     ext = Path(file_storage.filename).suffix.lower().lstrip(".")
     if ext not in ALLOWED_EXT:
@@ -70,16 +75,26 @@ def build_so_map() -> dict[str, str]:
 
 
 def recommend_preachs(text: str, target_cities: list[str], company_type: str = "",
-                      limit: int = 40) -> list[dict]:
+                      limit: int = 40, prefs: dict | None = None,
+                      rows: list[dict] | None = None) -> list[dict]:
     """基于「轨迹流动」工作地映射，推荐求职者可参加的宣讲会。
 
     匹配规则：宣讲会企业的工作地城市与目标工作地命中 → 再按企业性质（若有）过滤 → 结合日期排序。
-    未填目标城市时，从简历文本里嗅探城市；仍无则展示全部有工作地映射的场次。
+    未填目标城市时用偏好里的目标城市兜底；偏好也没有则从简历文本里嗅探城市；
+    仍无则展示全部有工作地映射的场次。
 
     每条都带 `score`（与企业推荐同一套 0-100 口径）与 `matched_cities`，便于横向比较。
+
+    `prefs` / `rows` 可由调用方传入以复用同一份偏好与已过滤的数据（`build_recommendation`
+    需要拿到被黑名单剔除的名字去回报，不能让这里悄悄丢掉）。
     """
-    rows = load_preachs()
+    prefs = prefs_svc.load_prefs() if prefs is None else prefs
+    rows = load_preachs() if rows is None else rows
+    # 黑名单先剔：被挡掉的场次不能占 limit 的名额，否则表现为「宣讲会变少了」
+    rows = prefs_svc.split_blacklisted(rows, prefs.get("blacklist"), "单位名称")[0]
     so_map = build_so_map()
+    if not target_cities:
+        target_cities = list(prefs.get("target_cities") or [])
     if not target_cities:
         target_cities = sorted({c for r in rows for c in (r.get("work_cities") or []) if c in text})
     want_state = any(k in (company_type or "") for k in ("国企", "央企", "事业"))
@@ -123,7 +138,7 @@ def recommend_preachs(text: str, target_cities: list[str], company_type: str = "
     return matched[:limit]
 
 
-def _resolve_resume_text(resume_text: str, file_storage, vision_model: str,
+def _resolve_resume_text(resume_text: str, file_storage, vision_model: str | None,
                          api_key: str, base_url: str) -> str:
     """确定最终用于推荐的简历文字：优先用已粘贴的，否则从文件提取。
 
@@ -147,7 +162,7 @@ def _resolve_resume_text(resume_text: str, file_storage, vision_model: str,
 
 
 def build_recommendation(resume_text: str = "", work_place: str = "", company_type: str = "",
-                         model: str = "", file_storage=None, vision_model: str = None) -> dict:
+                         model: str = "", file_storage=None, vision_model: str | None = None) -> dict:
     """生成投递推荐。返回可直接 json 化的 payload；失败抛 ServiceError。
 
     统一口径：候选企业来自主库合并后的全部招聘公告（不再是「最新那个文件」）；
@@ -155,22 +170,41 @@ def build_recommendation(resume_text: str = "", work_place: str = "", company_ty
 
     两条路径（AI / 离线兜底）的推荐条目都带 score/breakdown/matched，可横向比较；
     顶层 `explain` 说明分数口径，降级时 note 换成本地规则的说法。
+
+    目标工作地 / 企业性质的取值顺序：**显式入参 > 个人偏好 > 空**。
+    用户在页面上填了就以填的为准，偏好只是缺省值——否则偏好一旦存过就再也
+    改不动单次结果，那是另一种「每次重填」的翻版。
     """
     llm = get_llm()
     if not llm["api_key"]:
         raise ServiceError(f"请先在设置中配置 {llm['label']} API Key")
 
+    prefs = prefs_svc.load_prefs()
+    place_from_prefs = not (work_place or "").strip()
+    type_from_prefs = not (company_type or "").strip()
+    eff_place = (work_place or "").strip() or prefs_svc.cities_to_text(prefs["target_cities"])
+    eff_type = (company_type or "").strip() or prefs["company_type"]
+
     all_companies = resume.build_companies(DATA, max_items=0)
     if not all_companies:
         raise ServiceError("没有可推荐的企业数据，请先运行「抓取」与「企业分析」")
+    # 真实总量取剔除黑名单**之前**的口径：它回答的是「主库有多少家企业」，
+    # 不随用户拉黑谁而变化（剔除数量单独在 prefs_applied 里回报）。
+    companies_total = len(all_companies)
+    # 黑名单必须在「取前 N 条送 LLM」和「最终 Top-N」之前剔除：晚一步就会白占名额，
+    # 用户看到的是推荐条数变少，而不是黑名单生效——那会被当成 bug。
+    all_companies, blocked_companies = prefs_svc.split_blacklisted(all_companies,
+                                                                   prefs["blacklist"], key="name")
+    if not all_companies:
+        raise ServiceError("候选企业全部命中黑名单，请到「求职偏好」里检查黑名单设置")
     companies = all_companies[:RESUME_PROMPT_LIMIT]
 
     use_model = (model or "").strip() or llm["model"]
     base_url = llm["base_url"]
     text = _resolve_resume_text(resume_text, file_storage, vision_model, llm["api_key"], base_url)
 
-    result = resume.recommend(llm["api_key"], use_model, text, companies, work_place=work_place,
-                              company_type=company_type, base_url=base_url)
+    result = resume.recommend(llm["api_key"], use_model, text, companies, work_place=eff_place,
+                              company_type=eff_type, base_url=base_url)
     source = "ai"
     ai_error = result.get("error")
     if ai_error:
@@ -178,11 +212,14 @@ def build_recommendation(resume_text: str = "", work_place: str = "", company_ty
         # 注意 AI 的报错必须在 result 被降级结果覆盖**之前**取出来，
         # 否则提示语里填的是降级结果的 error，用户看到的会是错误的原因描述。
         source = "offline"
-        result = resume.keyword_recommend(text, companies, work_place=work_place,
-                                          company_type=company_type)
+        result = resume.keyword_recommend(text, companies, work_place=eff_place,
+                                          company_type=eff_type)
         result["note"] = (f"AI 模型暂不可用（{ai_error}），"
                           f"已用本地关键词匹配生成推荐（充值后自动恢复 AI）。")
 
+    # 宣讲会同样先按黑名单剔一遍，被剔除的单位名要回报给前端（见 prefs_applied）
+    preach_rows, blocked_preachs = prefs_svc.split_blacklisted(load_preachs(),
+                                                               prefs["blacklist"], "单位名称")
     summary = repo.master_summary()
     return {
         "result": result,
@@ -191,21 +228,34 @@ def build_recommendation(resume_text: str = "", work_place: str = "", company_ty
         "explain": resume.explain_meta(resume.EXPLAIN_NOTE_AI if source == "ai"
                                        else resume.EXPLAIN_NOTE_OFFLINE),
         "companies_count": len(companies),
-        "companies_total": len(all_companies),
+        "companies_total": companies_total,
         "data_source": {"recruit_count": summary["recruit_count"],
                         "coverage_start": summary["coverage_start"],
                         "coverage_end": summary["coverage_end"],
                         "updated": summary["last_update"]},
-        "recommended_preachs": recommend_preachs(text, resume.parse_target_cities(work_place),
-                                                 company_type),
-        "target_work_place": work_place,
-        "target_company_type": company_type,
+        "recommended_preachs": recommend_preachs(text, resume.parse_target_cities(eff_place),
+                                                 eff_type, prefs=prefs, rows=preach_rows),
+        # 生效值而非用户填的值：偏好兜底后两者不同，界面要展示的才是真实生效的那个
+        "target_work_place": eff_place,
+        "target_company_type": eff_type,
+        # 这次用了哪些偏好、黑名单剔除了谁。必须回报：用户看不到某家企业时
+        # 需要知道是「被自己拉黑了」还是「没匹配上」，否则会被当成 bug。
+        "prefs_applied": {
+            "prefs": prefs,
+            "work_place": eff_place,
+            "company_type": eff_type,
+            "work_place_from_prefs": place_from_prefs and bool(eff_place),
+            "company_type_from_prefs": type_from_prefs and bool(eff_type),
+            "blocked_companies": blocked_companies,
+            "blocked_preachs": blocked_preachs,
+            "salary_min": prefs["salary_min"],
+        },
         "model": use_model,
         "resume_chars": len(text),
     }
 
 
-def extract_resume_text(file_storage, vision_model: str = None) -> dict:
+def extract_resume_text(file_storage, vision_model: str | None = None) -> dict:
     """上传简历并提取文字。返回 {"text":..., "chars":...}；失败抛 ServiceError。"""
     llm = get_llm()
     if not llm["api_key"]:

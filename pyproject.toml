@@ -33,14 +33,14 @@ ignore = [
 
 [tool.pyright]
 pythonVersion = "3.10"
-pythonPlatform = "Windows"
 include = ["app"]
 exclude = ["**/__pycache__", "data", "docs"]
 # 先用 basic：本项目大量 dict[str, Any]，strict 会被淹掉
 typeCheckingMode = "basic"
-# openpyxl / python-docx 都未随包提供类型标注（无 py.typed），pyright 会把
-# Workbook() 之类推断成 Unknown，进而报出一串 "is not a known attribute of None" 的假错。
-# 在装齐类型桩之前，缺失导入只当警告，不阻塞。
+# CI 跑在 ubuntu 上，但本项目是 Windows 桌面工具（路径/控制台编码都按 Windows 走的），
+# 显式写死平台，免得本地与 CI 的诊断结果不一致。
+pythonPlatform = "Windows"
+# openpyxl / python-docx 未随包提供完整类型标注，缺失导入只当警告，不阻塞。
 reportMissingImports = "warning"
 # 本地运行若发现依赖全解析不到，多半是 pyright 挑错了解释器，显式指定：
 #   node <workspace>/node_modules/pyright/index.js --pythonpath <装了 requirements.txt 的 python.exe>
