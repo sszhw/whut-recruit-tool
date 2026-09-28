@@ -33,6 +33,9 @@ preach_update_log.txt
 # 本地 AI 助手工作记录（不入库）
 .workbuddy/
 
+# UI 走查 / 主题预览截图（临时产物，不入库）
+outputs/
+
 # 系统文件
 .DS_Store
 Thumbs.db

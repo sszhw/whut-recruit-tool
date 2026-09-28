@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN" data-theme="apple">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -435,8 +435,322 @@
     .vendor-grid { grid-template-columns: 1fr; }
   }
 </style>
+
+<!-- =========================================================================
+     苹果风格主题（Apple HIG）· 独立样式层
+     6 大维度：① Bento Grid ② Aurora & Glass ③ 组件层级 ④ Big Type
+              ⑤ 物理感动效 ⑥ 发丝线与图标细节
+     说明：仅覆盖视觉层，不动 HTML 结构与 JS 选择器；非 apple 主题完全不生效。
+     ========================================================================= -->
+<style id="apple-theme">
+/* ---------- ① 画布：#F5F5F7 + 极光光球（fixed 定位，随视口不动） ---------- */
+/* html 承载底色（会传播到画布），body 透出背景，光球 z-index:-1 才能压在 body 之上 */
+html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
+[data-theme="apple"] body { background: transparent; }
+.aurora { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; display: none; }
+[data-theme="apple"] .aurora { display: block; }
+.aurora .orb { position: absolute; border-radius: 50%; filter: blur(80px); will-change: transform; }
+.aurora .orb-a { width: 60vw; height: 60vw; left: -14vw; top: -20vw;
+  background: radial-gradient(circle at 50% 50%, rgba(162,210,255,.55), rgba(162,210,255,0) 70%);
+  animation: orbA 24s ease-in-out infinite; }
+.aurora .orb-b { width: 56vw; height: 56vw; right: -12vw; top: 6vh;
+  background: radial-gradient(circle at 50% 50%, rgba(200,180,255,.45), rgba(200,180,255,0) 70%);
+  animation: orbB 30s ease-in-out infinite; }
+.aurora .orb-c { width: 52vw; height: 52vw; left: 18vw; bottom: -24vw;
+  background: radial-gradient(circle at 50% 50%, rgba(255,214,190,.38), rgba(255,214,190,0) 70%);
+  animation: orbC 36s ease-in-out infinite; }
+@keyframes orbA { 0%,100% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(5vw,7vh,0) scale(1.10); } }
+@keyframes orbB { 0%,100% { transform: translate3d(0,0,0) scale(1.05); } 50% { transform: translate3d(-6vw,10vh,0) scale(.94); } }
+@keyframes orbC { 0%,100% { transform: translate3d(0,0,0) scale(.98); } 50% { transform: translate3d(7vw,-6vh,0) scale(1.08); } }
+
+/* ---------- 设计令牌 ---------- */
+[data-theme="apple"] {
+  /* 画布与文字 */
+  --bg: #F5F5F7;
+  --text: #1d1d1f; --muted: #6e6e73; --muted2: #86868b;
+  --accent: #0071e3; --accent-hover: #0077ed; --accent2: #34c759;
+  --warn: #ff9f0a; --danger: #ff3b30;
+  /* 毛玻璃面板 */
+  --panel: rgba(255,255,255,.80); --panel2: rgba(255,255,255,.60);
+  --card-bg: rgba(255,255,255,.80); --card-bg-hover: rgba(255,255,255,.94);
+  --header-bg: rgba(255,255,255,.72); --th-bg: rgba(255,255,255,.78);
+  --preview-bg: rgba(0,0,0,.04); --track-bg: rgba(0,0,0,.06);
+  /* 发丝线（1px 半透明） */
+  --border: rgba(0,0,0,.08); --border-strong: rgba(0,0,0,.14);
+  --hairline: rgba(255,255,255,.60); --line: rgba(0,0,0,.10);
+  /* 表单 */
+  --input-bg: rgba(0,0,0,.05); --input-bg-focus: #ffffff; --input-border: transparent;
+  --tag-no-bg: rgba(0,0,0,.05);
+  /* 反馈 */
+  --toast-bg: rgba(29,29,31,.90); --toast-border: rgba(255,255,255,.16); --toast-text: #fff;
+  --row-hover: rgba(0,113,227,.06);
+  /* 形状：Squircle 大圆角 + 胶囊 */
+  --radius: 24px; --radius-sm: 14px; --radius-pill: 980px;
+  --shadow: 0 12px 40px rgba(0,0,0,.08);
+  --card-hover-border: rgba(0,113,227,.35);
+  --card-hover-shadow: 0 20px 55px rgba(0,0,0,.12);
+  /* 语义文字色（保持 WCAG AA：白底 ≥4.5:1） */
+  --accent-text: #0071e3; --ok-text: #15803d; --warn-text: #b45309; --danger-text: #c81e1e;
+  --focus-bg: rgba(0,113,227,.35);
+  --scrollbar-thumb: rgba(0,0,0,.18);
+  /* ⑤ 物理感：非线性弹簧曲线 */
+  --ease-out: cubic-bezier(.25,1,.5,1); --ease-spring: cubic-bezier(.34,1.56,.64,1);
+}
+
+/* ---------- ④ Big Type：系统字体栈 + 标题粗黑、字距微缩 ---------- */
+[data-theme="apple"] body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+               "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--text); letter-spacing: -0.01em;
+}
+[data-theme="apple"] header h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.024em; }
+[data-theme="apple"] .card h2,
+[data-theme="apple"] .sec-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+[data-theme="apple"] .fold-body h3 { font-size: var(--fs-md); font-weight: 600; color: var(--muted); }
+[data-theme="apple"] .hint, [data-theme="apple"] .muted,
+[data-theme="apple"] .small { color: var(--muted); }
+
+/* ---------- ① Bento Grid：1120px 居中，间距 24–32px ---------- */
+[data-theme="apple"] main { max-width: 1120px; padding: 32px var(--sp-6) 96px; }
+[data-theme="apple"] .grid { gap: 24px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+/* 今日行动卡数量固定为 5，用固定 3 列避免 auto-fit 出现「最后一行留空」的破格；
+   最后一格补一条极淡的格栅基准线，让 Bento 网格的留白显得是有意为之 */
+[data-theme="apple"] #actionCards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+[data-theme="apple"] #actionCards::after {
+  content: ''; border-radius: var(--radius);
+  border: 1px dashed rgba(0,0,0,.07); background: rgba(255,255,255,.28);
+}
+[data-theme="apple"] .vendor-grid { gap: 16px; grid-template-columns: repeat(auto-fill, minmax(224px, 1fr)); }
+
+/* ---------- ② 毛玻璃卡片（Squircle 24px + backdrop blur） ---------- */
+[data-theme="apple"] .card,
+[data-theme="apple"] .stat,
+[data-theme="apple"] .statusbar,
+[data-theme="apple"] details.fold,
+[data-theme="apple"] .tablewrap,
+[data-theme="apple"] .taskitem,
+[data-theme="apple"] .vendor-card {
+  background: var(--card-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.55);
+}
+[data-theme="apple"] .card, [data-theme="apple"] details.fold,
+[data-theme="apple"] .statusbar { margin-bottom: 24px; }
+[data-theme="apple"] .card { padding: 24px; }
+[data-theme="apple"] .card:has(> h2) > h2 { padding: 24px 24px 0; margin-bottom: 14px; }
+[data-theme="apple"] .card:has(> h2) > *:not(h2) { padding-left: 24px; padding-right: 24px; }
+[data-theme="apple"] .card:has(> h2) > *:last-child { padding-bottom: 24px; }
+[data-theme="apple"] .card:hover,
+[data-theme="apple"] .stat:hover,
+[data-theme="apple"] .vendor-card:hover {
+  background: var(--card-bg-hover); border-color: var(--hairline);
+  box-shadow: var(--card-hover-shadow), inset 0 1px 0 rgba(255,255,255,.7);
+}
+/* Bento 指标块：大数字 + 微渐变顶部高光 */
+[data-theme="apple"] .stat { padding: 24px; min-width: 0; }
+[data-theme="apple"] .stat .num {
+  font-size: 40px; font-weight: 700; letter-spacing: -0.03em; color: var(--accent-text);
+  line-height: 1.15; overflow-wrap: anywhere;   /* 长文本（如「2026-09-28 09:01」）不撑破 Bento 单元 */
+}
+/* 纯文本类指标（日期/文件名）：改用正文级字号，保持卡片高度统一、不喧宾夺主 */
+[data-theme="apple"] #stRawTime { font-size: 19px; letter-spacing: -0.01em; line-height: 1.35; overflow-wrap: anywhere; }
+[data-theme="apple"] #stRawFile { overflow-wrap: anywhere; }
+[data-theme="apple"] .stat .lbl { font-size: var(--fs-md); margin-top: 6px; }
+[data-theme="apple"] .stat:hover { transform: translateY(-4px) scale(1.01); }
+[data-theme="apple"] .act:hover { border-color: var(--accent); }
+/* 首屏状态条 */
+[data-theme="apple"] .statusbar { padding: 16px 24px; font-size: var(--fs-lg); }
+[data-theme="apple"] .statusbar .sb-k { color: var(--muted); }
+/* 折叠区 */
+[data-theme="apple"] details.fold > summary { padding: 18px 24px; border-radius: var(--radius); font-weight: 700; letter-spacing: -0.02em; }
+[data-theme="apple"] .fold-body { padding: 20px 24px 24px; border-top: 1px solid var(--border); }
+
+/* ---------- 顶栏 / 导航：毛玻璃 + 胶囊分段控件 ---------- */
+[data-theme="apple"] header {
+  position: sticky; top: 0; z-index: 60;
+  background: var(--header-bg);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(0,0,0,.06);
+  padding: 16px var(--sp-6); gap: var(--sp-4);
+}
+[data-theme="apple"] header .sub { color: var(--muted); }
+[data-theme="apple"] nav { padding: 14px var(--sp-6) 0; gap: 7px; }
+[data-theme="apple"] nav button {
+  border-radius: var(--radius-pill); padding: 9px 18px; margin-bottom: 10px;
+  font-size: var(--fs-md); font-weight: 500; color: #6e6e73;
+  background: rgba(255,255,255,.60); border: 1px solid rgba(0,0,0,.06);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  transition: transform .3s var(--ease-out), background .3s var(--ease-out),
+              color .3s var(--ease-out), box-shadow .3s var(--ease-out);
+}
+[data-theme="apple"] nav button:hover { color: var(--text); transform: scale(1.02); background: rgba(255,255,255,.85); }
+[data-theme="apple"] nav button.active {
+  background: #ffffff; color: var(--text); font-weight: 600; border-color: transparent;
+  box-shadow: 0 6px 18px rgba(0,0,0,.10), inset 0 0 0 1px rgba(0,0,0,.04);
+}
+
+/* ---------- ③ 组件层级 ---------- */
+/* 主按钮：品牌蓝实心 + 胶囊 + Hover 光晕 */
+[data-theme="apple"] button.btn {
+  background: var(--accent); color: #fff; border: none;
+  border-radius: var(--radius-pill); padding: 11px 22px; font-weight: 500;
+  transition: transform .3s var(--ease-out), background .25s var(--ease-out), box-shadow .3s var(--ease-out);
+}
+[data-theme="apple"] button.btn:not(:disabled):hover {
+  background: var(--accent-hover); transform: scale(1.02);
+  box-shadow: 0 8px 22px rgba(0,113,227,.32);
+}
+[data-theme="apple"] button.btn:not(:disabled):active { transform: scale(.98); }
+/* 次级按钮：浅灰实心（禁止透明），保证白底可见 */
+[data-theme="apple"] button.btn.ghost {
+  background: #E5E5EA; color: #1d1d1f; border: 1px solid transparent;
+}
+[data-theme="apple"] button.btn.ghost:hover {
+  background: #D8D8DD; box-shadow: 0 6px 16px rgba(0,0,0,.08); color: #1d1d1f;
+}
+[data-theme="apple"] button.btn.green { background: var(--accent2); color: #fff; }
+[data-theme="apple"] button.btn.green:hover { background: #2fbe4f; box-shadow: 0 8px 22px rgba(52,199,89,.32); }
+[data-theme="apple"] button.btn.red { background: var(--danger); color: #fff; }
+[data-theme="apple"] button.btn.red:hover { background: #ff2d20; box-shadow: 0 8px 22px rgba(255,59,48,.28); }
+[data-theme="apple"] button.btn.sm { padding: 7px 15px; }
+/* 输入框：去边框、浅灰底、Focus 变白 + 品牌色光晕 */
+[data-theme="apple"] input, [data-theme="apple"] select, [data-theme="apple"] textarea {
+  background: var(--input-bg); border: 1px solid transparent; color: var(--text);
+  border-radius: var(--radius-sm); padding: 11px 14px;
+  transition: background .25s var(--ease-out), box-shadow .25s var(--ease-out), border-color .25s var(--ease-out);
+}
+[data-theme="apple"] input:focus, [data-theme="apple"] select:focus, [data-theme="apple"] textarea:focus {
+  background: #fff; border-color: rgba(0,113,227,.40); outline: none;
+  box-shadow: 0 0 0 4px rgba(0,113,227,.15);
+}
+[data-theme="apple"] input::placeholder { color: var(--muted2); }
+[data-theme="apple"] :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* 表格 / 日志：玻璃容器 + 发丝分割线 */
+[data-theme="apple"] .tablewrap { border-radius: var(--radius); overflow: auto; }
+/* 表格骨架：表头分隔线保持发丝细度（保留原 sticky 定位，避免长表滚动时表头丢失） */
+[data-theme="apple"] th, [data-theme="apple"] td { border-bottom: 1px solid var(--border); }
+[data-theme="apple"] thead th { border-bottom: 1px solid rgba(0,0,0,.10); }
+[data-theme="apple"] .tablewrap table { border: none; }
+[data-theme="apple"] th {
+  background: rgba(255,255,255,.80); color: var(--muted); text-transform: none;
+  letter-spacing: 0; font-size: var(--fs-xs); font-weight: 600;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+[data-theme="apple"] tr:hover td { background: rgba(0,113,227,.05); }
+[data-theme="apple"] pre.log {
+  background: rgba(255,255,255,.76); color: #1d1d1f; border: 1px solid rgba(0,0,0,.06);
+  border-radius: 18px; -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+}
+/* 标签 / Chip：浅灰实心胶囊 */
+[data-theme="apple"] .tag { border-radius: var(--radius-pill); padding: 3px 11px; }
+[data-theme="apple"] .tag.no, [data-theme="apple"] .badge { background: var(--tag-no-bg); border-color: transparent; }
+[data-theme="apple"] .chip {
+  background: var(--tag-no-bg); border: 1px solid transparent; border-radius: var(--radius-pill);
+  padding: 7px 14px; transition: all .25s var(--ease-out);
+}
+[data-theme="apple"] .chip:hover { background: rgba(0,113,227,.10); color: var(--accent); border-color: transparent; }
+[data-theme="apple"] .bar-track { background: var(--track-bg); border-radius: var(--radius-pill); }
+[data-theme="apple"] .bar-fill { background: linear-gradient(90deg, #0071e3, #4facfe); border-radius: var(--radius-pill); }
+[data-theme="apple"] .bar-fill.green { background: linear-gradient(90deg, #34c759, #30d158); }
+[data-theme="apple"] .progress { background: var(--track-bg); }
+[data-theme="apple"] .progress > i { background: linear-gradient(90deg, #0071e3, #4facfe); }
+
+/* 任务抽屉 / Toast：深色玻璃与浅色玻璃分层 */
+[data-theme="apple"] .taskpanel {
+  background: rgba(255,255,255,.82);
+  -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
+  border-left: 1px solid var(--hairline); border-radius: 24px 0 0 24px;
+  box-shadow: -20px 0 60px rgba(0,0,0,.12);
+}
+[data-theme="apple"] .taskitem { border: 1px solid var(--hairline); }
+[data-theme="apple"] .toast {
+  background: var(--toast-bg); color: var(--toast-text); border: 1px solid var(--toast-border);
+  border-radius: 16px; -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+}
+[data-theme="apple"] .skiplink { background: rgba(255,255,255,.9); border-radius: var(--radius-sm); }
+[data-theme="apple"] .body-preview, [data-theme="apple"] .tasklog {
+  background: rgba(0,0,0,.04); border-radius: var(--radius-sm);
+}
+
+/* ---------- ⑤ 动效：淡入上浮序列 + 弹簧反馈 ---------- */
+[data-theme="apple"] section.active > * { animation: appleIn .55s var(--ease-out) both; }
+@keyframes appleIn {
+  from { opacity: 0; transform: translate3d(0, 22px, 0) scale(.995); }
+  to   { opacity: 1; transform: none; }
+}
+[data-theme="apple"] .stat, [data-theme="apple"] .vendor-card {
+  transition: transform .35s var(--ease-out), box-shadow .35s var(--ease-out),
+              background .3s var(--ease-out), border-color .3s var(--ease-out);
+}
+[data-theme="apple"] .favbtn:hover { transform: scale(1.2); }
+[data-theme="apple"] .expand:hover, [data-theme="apple"] a:hover { text-decoration: none; }
+
+/* ---------- ⑥ 细节：卡头 flex 对齐 + 图标微渐变容器 ---------- */
+[data-theme="apple"] .card > h2 { display: flex; align-items: center; gap: 10px; }
+/* 厂商卡 / 卡片图标：SF Symbols 风格的微渐变圆角容器（仅 apple 主题，需容器为独立 span） */
+[data-theme="apple"] .vendor-card > div:first-child > span:first-child {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 auto; width: 34px; min-width: 34px; height: 34px;
+  padding: 2px; font-size: 18px; line-height: 1;
+  overflow: hidden; white-space: nowrap;
+  border-radius: 11px;
+  background: linear-gradient(135deg, rgba(0,113,227,.16), rgba(200,180,255,.30));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
+}
+[data-theme="apple"] .vendor-card.selected > div:first-child > span:first-child {
+  background: linear-gradient(135deg, rgba(0,113,227,.30), rgba(162,210,255,.42));
+}
+
+/* ---------- 响应式：苹果主题下的断点微调（覆盖上方放大后的间距） ---------- */
+@media (max-width: 900px){
+  [data-theme="apple"] main { padding: 20px 20px 76px; }
+  [data-theme="apple"] header { padding: 14px 20px; }
+  [data-theme="apple"] nav { padding: 10px 20px 0; }
+  [data-theme="apple"] .grid { gap: 16px; }
+  [data-theme="apple"] #actionCards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-theme="apple"] .card { padding: 18px; margin-bottom: 18px; }
+  [data-theme="apple"] .card:has(> h2) > h2 { padding: 18px 18px 0; }
+  [data-theme="apple"] .card:has(> h2) > *:not(h2) { padding-left: 18px; padding-right: 18px; }
+  [data-theme="apple"] .card:has(> h2) > *:last-child { padding-bottom: 18px; }
+  [data-theme="apple"] details.fold, [data-theme="apple"] .statusbar { margin-bottom: 18px; }
+  [data-theme="apple"] .statusbar { padding: 13px 18px; }
+  [data-theme="apple"] details.fold > summary { padding: 15px 18px; }
+  [data-theme="apple"] .fold-body { padding: 16px 18px 18px; }
+  [data-theme="apple"] .stat { padding: 18px; }
+  [data-theme="apple"] .stat .num { font-size: 32px; }
+  [data-theme="apple"] header h1 { font-size: 18px; }
+  [data-theme="apple"] .aurora .orb { filter: blur(70px); }
+}
+@media (max-width: 640px){
+  [data-theme="apple"] main { padding: 14px 14px 64px; }
+  [data-theme="apple"] .card { padding: 15px; margin-bottom: 14px; }
+  [data-theme="apple"] .card:has(> h2) > h2 { padding: 15px 15px 0; }
+  [data-theme="apple"] .card:has(> h2) > *:not(h2) { padding-left: 15px; padding-right: 15px; }
+  [data-theme="apple"] .card:has(> h2) > *:last-child { padding-bottom: 15px; }
+  [data-theme="apple"] .grid { gap: 12px; }
+  [data-theme="apple"] #actionCards { grid-template-columns: 1fr; }
+  [data-theme="apple"] .stat { padding: 15px; }
+  [data-theme="apple"] .stat .num { font-size: 28px; }
+  [data-theme="apple"] #stRawTime { font-size: 17px; }
+  [data-theme="apple"] header h1 { font-size: 16px; }
+  [data-theme="apple"] nav button { padding: 8px 14px; margin-bottom: 8px; }
+  [data-theme="apple"] .aurora .orb { filter: blur(56px); }
+  [data-theme="apple"] .toast { border-radius: 14px; }
+}
+</style>
 </head>
 <body>
+<!-- 苹果风格：Ambient 动态弥散背景（极光光球）。仅 apple 主题显示，不参与交互 -->
+<div class="aurora" aria-hidden="true">
+  <span class="orb orb-a"></span>
+  <span class="orb orb-b"></span>
+  <span class="orb orb-c"></span>
+</div>
 <a class="skiplink" href="#main">跳到主要内容</a>
 <header>
   <h1>🎓 武汉理工招聘信息 · 采集与企业分析</h1>
@@ -444,6 +758,7 @@
   <span id="statusBadge" class="badge">加载中…</span>
   <button class="btn ghost" id="btnTaskCenter" onclick="toggleTaskCenter()">📋 任务中心 <span id="taskRunningBadge" class="badge run" style="display:none">0</span></button>
   <select id="themeSel" title="切换配色主题" aria-label="切换配色主题">
+    <option value="apple">苹果风格 · Aurora Glass</option>
     <option value="light">浅色 · SaaS Dashboard</option>
     <option value="dark">深色 · Material Dark</option>
   </select>
@@ -922,11 +1237,15 @@ async function importReport(){
   btn.disabled = false; btn.textContent = '导入报告';
 }
 
-// ---- 配色主题切换
-function applyTheme(t){ document.documentElement.setAttribute('data-theme', t); try{ localStorage.setItem('theme', t); }catch(e){} }
+// ---- 配色主题切换（apple = 苹果风格 · Aurora Glass，默认）
+const THEMES = ['apple', 'light', 'dark'];
+function applyTheme(t){
+  if (THEMES.indexOf(t) < 0) t = 'apple';
+  document.documentElement.setAttribute('data-theme', t); try{ localStorage.setItem('theme', t); }catch(e){}
+}
 (function(){
   let saved = null; try{ saved = localStorage.getItem('theme'); }catch(e){}
-  const t = saved === 'dark' ? 'dark' : 'light';
+  const t = THEMES.indexOf(saved) >= 0 ? saved : 'apple';
   applyTheme(t);
   const s = $('themeSel');
   if (s){ s.value = t; s.onchange = function(){ applyTheme(this.value); }; }
@@ -1579,7 +1898,7 @@ function renderLlmCards(){
   grid.innerHTML = list.map(p => `
     <div class="vendor-card ${p.current?'current':''} ${llmSelected===p.id?'selected':''}" role="button" tabindex="0" onclick="selectProvider('${esc(p.id)}')">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap">
-        <span style="font-size:18px">${esc(p.logo||'')}</span>
+        <span style="font-size:18px" title="${esc(p.label)}">${esc(p.logo||'')}</span>
         <span style="font-weight:600;white-space:nowrap">${esc(p.label)}</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:nowrap">
