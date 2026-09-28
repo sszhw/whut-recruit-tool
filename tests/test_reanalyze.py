@@ -17,6 +17,7 @@ import sys
 import analyze
 import llm_client
 import pytest
+import repository as repo
 import server
 
 
@@ -280,6 +281,61 @@ def test_cli_only_stale_prints_remaining(monkeypatch, data_dir, capsys):
     assert len(analyzed) == 200
     assert "还有 50 家待重算，请再次运行" in out
     assert "版本未知 250 家" in out
+
+
+# ---------- CLI --source 与 repository 的接线 ----------
+#
+# 这段是线上真出过的 bug：--source 默认值写作 "enrollment"，而 repository.KINDS
+# 只有 recruit / fair / preach。--input 分支用不到这个值（它自己按 key 取数组），
+# 所以一直没暴露；--merge 分支会原样把它传给 repo.raw_items_in() → KeyError。
+# 而 web 端固定带 --merge，于是页面「AI 分析企业」每次必挂。
+
+def test_cli_source_rejects_names_repository_does_not_know():
+    """--source 只接受 repository 认得的 kind；历史上那个错名字必须被挡住。"""
+    parser = analyze.build_parser()
+
+    assert parser.parse_args([]).source == "recruit"
+    assert parser.parse_args(["--source", "preach"]).source == "preach"
+    with pytest.raises(SystemExit):          # argparse 对非法取值退出码 2
+        parser.parse_args(["--source", "enrollment"])
+
+
+@pytest.mark.parametrize("argv, expected_kind", [([], "recruit"), (["--source", "preach"], "preach")])
+def test_cli_merge_passes_a_valid_kind_to_repository(monkeypatch, data_dir, argv, expected_kind):
+    """--merge 分支把 --source 交给 repository：传进去的必须是 KINDS 里的键。
+
+    只做静态校验不够（上面那条已经能挡住错名字），这里补的是「真跑一遍 --merge」——
+    这是唯一会用到 args.source 的路径，也是唯一没被 --input 用例覆盖的路径。
+    """
+    analyzed: list[str] = []
+    seen: list[str] = []
+
+    def fake_call(api_key, model, name, text, max_retries=3):
+        analyzed.append(name)
+        return analyze.stamp_result(_entry(), text)
+
+    def spy_raw_items_in(kind, workdir):
+        seen.append(kind)
+        assert kind in repo.KINDS, f"--source 取值 {kind} 不在 repository.KINDS 中"
+        return [{"id": "1", "com_id_name": "甲企业", "title": "招聘", "content": "武汉"}]
+
+    monkeypatch.setattr(analyze, "call_api", fake_call)
+    monkeypatch.setattr(analyze, "load_cache", lambda path: {})
+    monkeypatch.setattr(analyze, "save_cache", lambda path, c: None)
+    monkeypatch.setattr(analyze, "build_outputs",
+                        lambda *a, **kw: {"total": 0, "state_owned": 0, "csv": "c", "md": "m"})
+    monkeypatch.setattr(analyze.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(analyze.settings, "get_llm",
+                        lambda: {"api_key": "k", "model": "m", "base_url": "http://x", "label": "测试"})
+    # main() 里的 workdir 是写死的 data/（不跟 data_dir 夹具走），所以必须打桩读取，
+    # 否则这条用例会去读项目真实数据目录。
+    monkeypatch.setattr(analyze.repo, "raw_items_in", spy_raw_items_in)
+    monkeypatch.setattr(analyze.repo, "iter_files", lambda pattern, d=None: [])
+    monkeypatch.setattr(sys, "argv", ["analyze.py", "--merge", *argv])
+
+    assert analyze.main() == 0
+    assert seen == [expected_kind]
+    assert analyzed == ["甲企业"]
 
 
 # ---------- 接口 ----------

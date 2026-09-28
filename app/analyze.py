@@ -220,7 +220,7 @@ def parse_json(content: str) -> dict:
 
 
 def build_outputs(workdir: Path, companies: list[dict], cache: dict, model: str, input_name: str,
-                  source: str = "enrollment") -> dict:
+                  source: str = "recruit") -> dict:
     """汇总生成 CSV + Markdown 报告，返回统计信息。source 用于标题说明数据来源。"""
     rows = []
     seen = set()
@@ -355,13 +355,16 @@ def plan_todo(cache: dict, companies: list[dict], *, force: bool = False,
     return {"todo": todo, "reasons": {}, "counts": {}, "remaining": 0, "cap": 0}
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """CLI 参数表。单独拎出来是为了让测试能直接校验取值（不必真跑一次分析）。"""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--input", default="", help="原始数据 JSON 路径（默认自动找最新的）")
     parser.add_argument("--model", default="", help=f"模型名（默认取当前厂商配置，缺省 {DEFAULT_MODEL}）")
     parser.add_argument("--limit", type=int, default=0, help="只分析前 N 家企业（0=全部）")
-    parser.add_argument("--source", default="enrollment", choices=["enrollment", "preach"],
-                        help="分析的数据来源：enrollment=招聘信息(默认)，preach=宣讲会")
+    # 取值必须落在 repository.KINDS 的键集合内：--merge 时这里的值会原样传给
+    # repo.raw_items_in()，写错会在运行时抛 KeyError("未知数据类型")。
+    parser.add_argument("--source", default="recruit", choices=sorted(repo.KINDS.keys() & {"recruit", "preach"}),
+                        help="分析的数据来源：recruit=招聘信息(默认)，preach=宣讲会")
     parser.add_argument("--merge", action="store_true",
                         help="合并全部同类原始数据文件（按 ID 去重）后分析，保证与页面展示口径一致")
     parser.add_argument("--only-stale", action="store_true",
@@ -370,7 +373,11 @@ def main() -> int:
     parser.add_argument("--force", action="store_true", help="忽略缓存，全量重算（优先于 --only-stale）")
     parser.add_argument("--jsonl", action="store_true",
                         help="强制输出 JSONL 事件行（默认：stdout 不是终端时自动开启，供任务中心解析）")
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
 
     # 终端里人盯着跑 → 只输出中文；被任务中心管道接管 → 再补一行行 JSONL 事件
     emit = taskcenter.EventEmitter.for_stdout(force=args.jsonl)

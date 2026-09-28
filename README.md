@@ -140,16 +140,28 @@ python app/server.py --port 8765
 
 ```bash
 pip install pytest            # 或 pip install -e ".[dev]"（含 ruff）
-python -m pytest              # 47 项：合并去重 / 缓存 / 宣讲筛选 / 推荐过滤 / ICS / 报告解析 / 任务管理
+python -m pytest              # 261 项：合并去重 / 缓存 / 宣讲筛选 / 推荐过滤 / ICS / 报告解析 / 任务管理
 python -m ruff check app tests
 ```
 
 测试使用临时目录（`tests/conftest.py` 的 `data_dir` 夹具会把 repository 指向 `tmp_path`），
 **不会读写项目真实数据**；任务管理器用例会启动真实子进程并断言日志/进度/持久化。
 
+### 端到端冒烟（需要真实 API Key）
+
+```bash
+python scripts/e2e_smoke.py   # 11 组检查：状态 / LLM 连通 / 企业 / 宣讲会 / 偏好 / 真实分析 / 看板 / 推荐 / 导出
+```
+
+单测再全也测不到「接口接线」类 bug——每层单测都把自己那一层的入参打桩了。
+这个脚本用**真实 Key + 真实数据**把主链路跑一遍（会真的烧一点 token：分析 2 家企业 + 一次简历推荐），
+专治「只在 web 路径的参数组合下才暴露」的问题（历史上 `--source` 默认值写错、页面
+「AI 分析企业」100% 必挂就是这么抓出来的）。
+
 ## 技术栈
 
-- 后端：Python + Flask（`server.py`），后台任务以子进程 + 日志轮询实现
+- 后端：Python + Flask（`app/server.py` 只做装配，路由按域拆成 `app/api/` 下的蓝图），
+  业务规则在 `app/services/`（不 import flask），后台任务以子进程 + 日志轮询实现
 - 前端：原生 HTML/CSS/JS（`ui.html`），多主题
 - LLM：OpenAI 兼容接口（硅基流动 / DeepSeek），结构化 JSON 输出 + 失败降级
 - 导出：CSV（UTF-8 BOM）与 Excel（openpyxl）
