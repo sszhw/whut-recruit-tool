@@ -39,7 +39,11 @@
 - 投递推荐支持三条来源：直接读简历档案 / 上传文件 / 粘贴，界面如实显示「本次用的是哪份」。
 
 ### 工程
-- 332 项 pytest 通过；CI 跑 pytest / ruff，覆盖 Python 3.11–3.13。
+- 332 项 pytest 通过；CI 跑 pytest / ruff / pyright，覆盖 Python 3.11–3.13，三项全绿。
+  pyright 修了 3 处：`upload.filename` 的 `None` 收窄、`docx` stub 里 `BaseStyle` 没有 `font`
+  （改用与同函数一致的防御写法，不靠全局 ignore 糊过去）。
+- README 改成「怎么用」：目录结构 / 数据口径 / 测试 / 技术栈 / 界面分层移到 `docs/开发指南.md`。
+- `.gitattributes`：统一换行（`*.bat` 保留 CRLF，cmd 对 LF 结尾的 label / goto 处理不可靠）。
 - 密钥默认存 `config.json`（已 gitignore），可选 `WHUT_KEYRING=1` 存进系统钥匙串。
 
 ### 隐私说明

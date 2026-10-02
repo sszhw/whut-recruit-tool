@@ -141,10 +141,13 @@ def api_profile_photo_get():
 def api_profile_photo_upload():
     """导入个人照片（multipart，字段名 file）。"""
     upload = request.files.get("file")
-    if upload is None or not (upload.filename or "").strip():
+    if upload is None:
+        return jsonify({"ok": False, "error": "请选择要导入的照片"}), 400
+    filename = upload.filename or ""
+    if not filename.strip():
         return jsonify({"ok": False, "error": "请选择要导入的照片"}), 400
     try:
-        meta = svc.save_photo(upload.filename, upload.read())
+        meta = svc.save_photo(filename, upload.read())
     except ServiceError as exc:
         return jsonify({"ok": False, "error": str(exc)}), exc.status
     return jsonify({"ok": True, "photo": meta})

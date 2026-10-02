@@ -505,8 +505,12 @@ def _setup_document():
     section.right_margin = Cm(MARGIN_X_CM)
 
     normal = doc.styles["Normal"]
-    normal.font.name = BODY_FONT
-    normal.font.size = Pt(BODY_PT)
+    # python-docx 的 stub 把 styles[...] 标成 BaseStyle（没有 font），
+    # 运行时这里拿到的是 ParagraphStyle。沿用下面 rPr/rFonts 同样的防御写法。
+    normal_font = getattr(normal, "font", None)
+    if normal_font is not None:
+        normal_font.name = BODY_FONT
+        normal_font.size = Pt(BODY_PT)
     rpr = getattr(normal.element, "rPr", None)
     rfonts = getattr(rpr, "rFonts", None) if rpr is not None else None
     if rfonts is not None:
