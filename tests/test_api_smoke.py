@@ -41,6 +41,10 @@ _POST_SAFE = (
     "/api/import/md",            # 空正文 → 400
     "/api/preach/fav",           # 空 id → 400（在动收藏数据之前就拦下）
     "/api/preach/unfav",
+    "/api/profile/fill",         # 空正文 → 400（在调 LLM 之前就拦下）
+    "/api/profile/render",       # 空档案 → 渲染出空简历，不落盘
+    "/api/profile/render.docx",  # 空档案 → 渲染出空 Word，不落盘
+    "/api/profile/photo",        # 无文件 → 400（在覆盖已有照片之前就拦下）
     "/api/resume/extract",       # 无文件 → 400
     "/api/resume/recommend",     # 测试内把 API Key 置空 → 400
     "/api/task/stop",            # 空 task_id → 400
@@ -63,6 +67,7 @@ _POST_SIDE_EFFECT = (
     "/api/preach/flow",      # 起工作地流动分析任务
     "/api/preach/unfav-all",  # 批量改收藏（会落盘）
     "/api/prefs",            # 写 data/求职偏好.json（用户数据，冒烟不该动它）
+    "/api/profile",          # 写 data/投递档案.json（用户数据，含真实个人信息，冒烟不该动它）
     "/api/recruit/update",   # 起增量更新任务
 )
 

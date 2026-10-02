@@ -1,6 +1,6 @@
 flask>=2.0
 requests>=2.25
 openpyxl>=3.0
-python-docx>=0.8.11
+python-docx>=0.8.11    # 简历 docx 解析（resume.py）+ 简历 Word 导出（services/resume_hr.py，已在 1.2.0 验证）
 PyMuPDF>=1.24        # 简历 PDF 文字提取 / 扫描件渲染（resume.py 的 fitz）
 keyring>=25.0        # 可选增强：API Key 存系统钥匙串（默认关闭，见 settings.use_keyring）

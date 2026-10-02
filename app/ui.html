@@ -1,47 +1,15 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="apple">
+<html lang="zh-CN" data-scheme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>武汉理工招聘信息 · 采集与企业分析</title>
 <style>
-  :root {
-    /* 深色 · Material Dark */
-    --bg: #121212; --panel: #1E1E1E; --panel2: #2A2A2A;
-    --text: #E7E7E7; --muted: #A0A0A0; --muted2: #8A8A8A;   /* 6F→8A：占位符等次级文字 3.3:1 → 5.0:1 */
-    --accent: #BB86FC; --accent-hover: #CFA9FF; --accent2: #03DAC6;
-    --warn: #F5A623; --danger: #CF6679;
-    --border: rgba(255,255,255,.10); --border-strong: rgba(255,255,255,.16);
-    --card-bg: #1E1E1E; --card-bg-hover: #262626;
-    --header-bg: #1E1E1E;
-    --th-bg: #262626;
-    --row-hover: rgba(187,134,252,.08);
-    --input-bg: #1E1E1E; --input-bg-focus: #262626; --input-border: rgba(255,255,255,.14);
-    --tag-no-bg: rgba(255,255,255,.05);
-    --toast-bg: #2A2A2A; --toast-border: rgba(255,255,255,.16); --toast-text: #E7E7E7;
-    --track-bg: #2A2A2A;
-    --preview-bg: #2A2A2A;
-    --shadow: 0 8px 30px rgba(0,0,0,.5);
-    --radius: 10px;
-  }
-  [data-theme="light"] {
-    /* 浅色 · SaaS Dashboard */
-    --bg: #f8fafc; --panel: #ffffff; --panel2: #f1f5f9;
-    --text: #1e293b; --muted: #64748b; --muted2: #94a3b8;
-    --accent: #6366f1; --accent-hover: #818cf8; --accent2: #10b981;
-    --warn: #f59e0b; --danger: #ef4444;
-    --border: rgba(15,23,42,.10); --border-strong: rgba(15,23,42,.18);
-    --card-bg: #ffffff; --card-bg-hover: #ffffff;
-    --header-bg: #ffffff;
-    --th-bg: #f1f5f9;
-    --row-hover: rgba(99,102,241,.06);
-    --input-bg: #ffffff; --input-bg-focus: #ffffff; --input-border: rgba(15,23,42,.16);
-    --tag-no-bg: #eef2f7;
-    --toast-bg: #1e293b; --toast-border: rgba(255,255,255,.2); --toast-text: #f8fafc;
-    --track-bg: #e2e8f0;
-    --preview-bg: #f1f5f9;
-    --shadow: 0 8px 30px rgba(15,23,42,.12);
-  }
+  /* ===================== 配色：苹果风 · 浅 / 深两套 =====================
+     方案 A：全项目只有一套视觉语法（毛玻璃 · Squircle 大圆角 · 发丝线 · Big Type）。
+     颜色分浅深两套，由 <html data-scheme="light|dark"> 切换：
+       浅色 → 下方 :root；深色 → [data-scheme="dark"] 覆盖同名变量。
+     原先的「浅色 SaaS Dashboard」与「深色 Material Dark」两套已移除。 */
 
   /* ===================== 设计令牌 =====================
      · 间距 / 字号统一刻度，避免各处硬编码数值漂移
@@ -49,30 +17,22 @@
      · --tap：最小触摸目标（移动端 44px）
      · --focus-bg：焦点环颜色，随主题切换 */
   :root {
+    color-scheme: light;
     --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 22px; --sp-6: 30px;
     --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-lg: 15px; --fs-xl: 17px; --fs-2xl: 28px;
     --tap: 44px;
-    --focus-bg: rgba(187,134,252,.45);
-    --accent-text: var(--accent);
-    --ok-text: #34d399;
-    --warn-text: #F5A623;
-    --danger-text: #ff8a8a;
-    --card-hover-border: var(--border-strong);
-    --card-hover-shadow: 0 6px 18px rgba(0,0,0,.38);
-    --scrollbar-thumb: #3a3a3a;
-    --line: rgba(255,255,255,.18);   /* 加载指示器的轨道色（此前未定义，会导致 spinner 轨道色退化） */
-  }
-  [data-theme="light"] {
-    --focus-bg: rgba(99,102,241,.38);
-    --accent-text: #4f46e5;   /* indigo-600，白底 6.29:1（原 #6366f1 仅 4.0:1） */
-    --ok-text: #047857;       /* emerald-700，白底 5.48:1（原 #10b981 仅 2.5:1） */
-    --warn-text: #b45309;     /* amber-700，白底 5.02:1（原 #f59e0b 仅 2.2:1） */
-    --danger-text: #b91c1c;   /* red-700，白底 6.47:1（原 #ff8a8a 仅 2.3:1） */
-    --muted2: #6b7688;        /* 占位符等次级文字 2.56:1 → 4.59:1 */
-    --card-hover-border: rgba(99,102,241,.45);
-    --card-hover-shadow: 0 6px 18px rgba(15,23,42,.10);
-    --scrollbar-thumb: #cbd5e1;
-    --line: rgba(15,23,42,.14);
+    --focus-bg: rgba(0,113,227,.35);
+    --accent-text: #0071e3;   /* Apple 系统蓝（浅色变体） */
+    --ok-text: #15803d;
+    --warn-text: #b45309;
+    --danger-text: #c81e1e;
+    --card-hover-border: rgba(0,113,227,.35);
+    --card-hover-shadow: 0 20px 55px rgba(0,0,0,.12);
+    --scrollbar-thumb: rgba(0,0,0,.18);
+    --line: rgba(0,0,0,.10);
+    /* 苹果风形状与动效：深浅共用，不随配色切换 */
+    --radius-sm: 14px; --radius-pill: 980px;
+    --ease-out: cubic-bezier(.25,1,.5,1); --ease-spring: cubic-bezier(.34,1.56,.64,1);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   /* 滚动条随主题着色（WebKit + Firefox 双通道），深色主题下不再出现刺眼亮条 */
@@ -169,7 +129,7 @@
   .skiplink:focus { transform: none; }
   .row { display: flex; gap: var(--sp-3); flex-wrap: wrap; align-items: flex-end; }
   .row > div { flex: 1; min-width: 150px; }
-  button.btn { background: var(--accent); color: #fff; border: none; padding: 10px 22px; border-radius: 8px;
+  button.btn { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border: none; padding: 10px 22px; border-radius: 8px;
     cursor: pointer; font-size: var(--fs-md); font-weight: 600; transition: background .15s, transform .08s; white-space: nowrap; }
   button.btn:hover { background: var(--accent-hover); }
   button.btn:active { transform: translateY(1px); }
@@ -211,6 +171,8 @@
   .hint { color: var(--muted); font-size: var(--fs-xs); margin-top: 8px; line-height: 1.6; }
   .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
   .toolbar input, .toolbar select { width: auto; min-width: 140px; }
+  /* 勾选框不受上面那条 min-width 影响：否则框和它的文字之间会空出 140px */
+  .toolbar input[type="checkbox"] { width: auto; min-width: 0; }
   .expand { cursor: pointer; color: var(--accent-text); font-size: var(--fs-xs); user-select: none; }
   .expand:hover { color: var(--accent-hover); }
   .body-preview { display: none; margin-top: 8px; color: var(--muted); font-size: 12px; white-space: pre-wrap;
@@ -396,18 +358,66 @@
   .pcview { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
   .pcview-btn { border-radius: 999px; }
   .pcview-btn.on { background: var(--panel2); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  /* ---- 筛选条件网格：标签统一顶部对齐、控件等宽 ----
+     原先是 .toolbar（flex + wrap + 每项 min-width:140px），字段各自为政：标签
+     长短不一会让控件起点参差，勾选项还会被 min-width 顶到离文字 140px 远。
+     这里改成定宽列网格，两行自然成阶梯：
+       第一行 时间从 / 时间到 / 公司地点 / 宣讲会地点
+       第二行 线下线上 / 只看收藏                                          */
+  .pfilter { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px 16px; align-items: stretch; }
+  /* 每个字段两行：标签一行、控件一行。控件行用 1fr 让同一行的控件区等高，
+     这样第二行的勾选项能和自己左边下拉框的中线对齐，而不是各自贴顶。 */
+  .pfilter-field { min-width: 0; display: grid; grid-template-rows: auto 1fr; row-gap: 6px; }
+  .pfilter-field > label { margin: 0; }
+  .pfilter-field > label:first-child { align-self: end; }
+  .pfilter-field > input, .pfilter-field > select { width: 100%; min-width: 0; }
+  .pfilter-check { align-self: stretch; display: flex; align-items: center; gap: 8px;
+    min-width: 0; color: var(--accent-text); font-size: var(--fs-sm);
+    cursor: pointer; white-space: nowrap; }
+  .pfilter-check input[type="checkbox"] { width: auto; min-width: 0; flex: 0 0 auto;
+    margin: 0; accent-color: var(--accent); cursor: pointer; }
+  /* 说明文字：与控件区隔一条虚线，不再和筛选条件混成一大段 */
+  .pfilter-note { margin: 16px 0 0; padding-top: 12px; border-top: 1px dashed var(--border);
+    color: var(--muted); font-size: var(--fs-xs); line-height: 1.75; }
   /* ---- 时间冲突提醒条：有冲突才出现，无冲突时整条不渲染（不占用版面） */
   .pcbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     background: var(--panel2); border: 1px solid var(--danger); border-radius: var(--radius);
     padding: 10px var(--sp-4); margin-bottom: 12px; font-size: var(--fs-md); }
   .pcbar b { color: var(--danger-text); font-variant-numeric: tabular-nums; }
   .pcbar .pcbar-more { margin-left: auto; }
-  .pcclist { margin-bottom: 12px; }
+  /* 明细动辄上百条（实测 91 处冲突 = 91 张卡片，展开有 50 KB 的 HTML）。
+     给它一个滚动上限，否则一展开就把搜索框和表格顶到屏幕外几千像素——
+     用户看见的是「页面好像坏了」，而不是「冲突列出来了」。 */
+  .pcclist { margin-bottom: 12px; max-height: 56vh; overflow-y: auto; overscroll-behavior: contain; }
+  /* 按天分组、用原生 details 收起：零 JS，键盘与读屏都能操作 */
+  .pccday { margin-bottom: 6px; }
+  .pccday > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 8px;
+    padding: 7px 8px; border-radius: 8px; font-size: var(--fs-sm); font-weight: 600; color: var(--muted); }
+  .pccday > summary:hover { background: var(--panel2); }
+  .pccday > summary::-webkit-details-marker { display: none; }
+  .pccday > summary::before { content: '▸'; color: var(--muted2); font-size: 11px; flex: 0 0 auto; }
+  .pccday[open] > summary::before { content: '▾'; }
+  .pccday-n { font-weight: 400; color: var(--muted2); font-variant-numeric: tabular-nums; }
+  .pccday-body { padding: 2px 0 4px 16px; }
   .pccard { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
     margin-bottom: 8px; background: var(--card-bg); }
   .pccard-h { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pccard-t { font-variant-numeric: tabular-nums; }
   /* 列表里撞车的场次：左侧一道警示竖条，不打乱整行配色 */
   tr.pcrow-conflict > td { box-shadow: inset 3px 0 0 var(--danger); }
+  /* ---- 冲突标记默认隐藏，「显示冲突」打开后才亮
+     平时列表要保持干净：满屏红条 + ⚠️ 标签会让人以为这些场次有问题，
+     其实只是「和另一场时间撞了」，用户没点开之前不该被它抢注意力。
+     用一个 <body> 上的 pconf-on 类统一切换列表行、日历卡片与标签三处标记，
+     而不是在重渲染时决定「要不要写这个 class」——后者每切一次开关都得重跑
+     一次 /api/preachs，而且筛选 / 翻页 / 收藏任何一处漏改，就会出现
+     「标记亮着但明细已关」的错位。 */
+  body:not(.pconf-on) tr.pcrow-conflict > td { box-shadow: none; }
+  body:not(.pconf-on) .pconf-flag { display: none; }
+  /* 日历卡片要退回它本来的颜色：线下取 --accent，线上取 --accent2 */
+  body:not(.pconf-on) .pcw-ev.conflict { border-left-color: var(--accent); }
+  body:not(.pconf-on) .pcw-ev.conflict.online { border-left-color: var(--accent2); }
   /* ---- 周日历：7 列 × 时间轴（每天一列，列内按时段绝对定位） */
   .pcw-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
   .pcw-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg); }
@@ -460,6 +470,54 @@
     .pcstep { flex-wrap: wrap; }
   }
 
+  /* ---- 简历档案（网申填表速查 + 档案全量导出） */
+  .prof-chip { border-radius: 999px; }
+  .prof-chip.on { background: var(--panel2); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  .prof-chip .n { opacity: .55; font-weight: 400; margin-left: 4px; }
+  /* 一条字段：字段名 / 值 / 复制 / 删除。用 grid 而不是 table，
+     因为「值」可能是多行的项目要点，table 里塞 textarea 会被行高压扁。 */
+  .prof-kv { display: grid; grid-template-columns: minmax(96px, 200px) 1fr auto auto; gap: 6px; align-items: start; padding: 5px 0; border-bottom: 1px dashed var(--border); }
+  .prof-kv:last-child { border-bottom: none; }
+  .prof-kv input, .prof-kv textarea { width: 100%; }
+  .prof-kv textarea { min-height: 54px; resize: vertical; font: inherit; }
+  .prof-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px; background: var(--panel2); }
+  .prof-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .prof-item-head b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .prof-preview { max-height: 460px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: var(--fs-sm); line-height: 1.7; background: var(--preview-bg); border-radius: var(--radius-sm); padding: 12px; margin: 0; }
+  .prof-hint { color: var(--muted2); font-size: var(--fs-xs); }
+  /* 照片块：固定 3:4 画框，图片用 object-fit: cover，
+     这样无论导入的是竖版一寸照还是横版生活照，预览框都不会被撑变形。 */
+  .prof-tools { display: flex; gap: 16px; align-items: flex-start; margin-top: 12px; flex-wrap: wrap; }
+  .prof-photo { flex: 0 0 auto; width: 84px; height: 112px; border-radius: var(--radius-sm); overflow: hidden;
+    border: 1px dashed var(--border-strong); background: var(--preview-bg);
+    display: flex; align-items: center; justify-content: center; }
+  .prof-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .prof-photo-none { font-size: var(--fs-xs); color: var(--muted2); text-align: center; line-height: 1.4; }
+  .prof-tools-body { flex: 1; min-width: 240px; }
+  /* 操作条：左边按用途分组的按钮，右边「保存修改」。
+     分组用一条上边框与照片块隔开，组间用竖线分隔——八个按钮排成三行散着放时，
+     看不出哪些是导出、哪个是保存，误点「保存修改」的概率很高。 */
+  .prof-actbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .prof-act-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .prof-act-label { font-size: var(--fs-xs); color: var(--muted2); margin-right: 2px; }
+  .prof-act-sep { width: 1px; align-self: stretch; min-height: 24px; background: var(--border); }
+  .prof-act-tail { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+  @media (max-width: 640px){
+    /* 窄屏按钮全宽会把操作条拉成很长一列，这里改回按内容宽度 + 换行 */
+    .prof-actbar .btn { width: auto; }
+    .prof-act-tail { margin-left: 0; width: 100%; }
+    .prof-act-sep { display: none; }
+  }
+  @media (max-width: 640px){
+    /* 窄屏把「值」换到第二行整行宽，否则四列挤在一起字段名根本没法编辑 */
+    .prof-kv { grid-template-columns: 1fr auto auto; }
+    .prof-kv .k { grid-row: 1; grid-column: 1; }
+    .prof-kv .pcopy { grid-row: 1; grid-column: 2; }
+    .prof-kv .pdel { grid-row: 1; grid-column: 3; }
+    .prof-kv .v { grid-row: 2; grid-column: 1 / -1; }
+  }
+
   /* ===================== 响应式 ===================== */
   /* 平板 / 窄窗口（≤900px）：收紧留白，宽表格改为横向滚动而非压扁列 */
   @media (max-width: 900px){
@@ -479,6 +537,7 @@
     .tablewrap table { min-width: 720px; }   /* 列不被压缩，横向滑动查看 */
     .taskpanel { width: 420px; }
     .toolbar input, .toolbar select { min-width: 120px; }
+    .pfilter { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
   }
   /* 手机（≤640px）：单列堆叠，导航横向滑动，表单与按钮全宽 */
   @media (max-width: 640px){
@@ -498,6 +557,10 @@
     .row > div { min-width: 0; }
     .toolbar { flex-direction: column; align-items: stretch; }
     .toolbar input, .toolbar select { width: 100%; min-width: 0; }
+    /* 手机：筛选条件单列堆叠，勾选项独占一行、无需再和下拉框对齐 */
+    .pfilter { grid-template-columns: 1fr; gap: 12px; }
+    .pfilter-field { grid-template-rows: auto auto; }
+    .pfilter-check { min-height: 40px; }
     button.btn { width: 100%; padding: 11px 18px; min-height: var(--tap); }
     .pager { flex-wrap: wrap; }
     .pager button.btn { width: auto; flex: 1; }
@@ -532,26 +595,26 @@
 <style id="apple-theme">
 /* ---------- ① 画布：#F5F5F7 + 极光光球（fixed 定位，随视口不动） ---------- */
 /* html 承载底色（会传播到画布），body 透出背景，光球 z-index:-1 才能压在 body 之上 */
-html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
-[data-theme="apple"] body { background: transparent; }
+html{ background: var(--bg); }
+body { background: transparent; }
 .aurora { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; display: none; }
-[data-theme="apple"] .aurora { display: block; }
+.aurora { display: block; }
 .aurora .orb { position: absolute; border-radius: 50%; filter: blur(80px); will-change: transform; }
 .aurora .orb-a { width: 60vw; height: 60vw; left: -14vw; top: -20vw;
-  background: radial-gradient(circle at 50% 50%, rgba(162,210,255,.55), rgba(162,210,255,0) 70%);
+  background: radial-gradient(circle at 50% 50%, var(--orb-a), transparent 70%);
   animation: orbA 24s ease-in-out infinite; }
 .aurora .orb-b { width: 56vw; height: 56vw; right: -12vw; top: 6vh;
-  background: radial-gradient(circle at 50% 50%, rgba(200,180,255,.45), rgba(200,180,255,0) 70%);
+  background: radial-gradient(circle at 50% 50%, var(--orb-b), transparent 70%);
   animation: orbB 30s ease-in-out infinite; }
 .aurora .orb-c { width: 52vw; height: 52vw; left: 18vw; bottom: -24vw;
-  background: radial-gradient(circle at 50% 50%, rgba(255,214,190,.38), rgba(255,214,190,0) 70%);
+  background: radial-gradient(circle at 50% 50%, var(--orb-c), transparent 70%);
   animation: orbC 36s ease-in-out infinite; }
 @keyframes orbA { 0%,100% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(5vw,7vh,0) scale(1.10); } }
 @keyframes orbB { 0%,100% { transform: translate3d(0,0,0) scale(1.05); } 50% { transform: translate3d(-6vw,10vh,0) scale(.94); } }
 @keyframes orbC { 0%,100% { transform: translate3d(0,0,0) scale(.98); } 50% { transform: translate3d(7vw,-6vh,0) scale(1.08); } }
 
 /* ---------- 设计令牌 ---------- */
-[data-theme="apple"] {
+:root {
   /* 画布与文字 */
   --bg: #F5F5F7;
   --text: #1d1d1f; --muted: #6e6e73; --muted2: #86868b;
@@ -561,16 +624,41 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
   --panel: rgba(255,255,255,.80); --panel2: rgba(255,255,255,.60);
   --card-bg: rgba(255,255,255,.80); --card-bg-hover: rgba(255,255,255,.94);
   --header-bg: rgba(255,255,255,.72); --th-bg: rgba(255,255,255,.78);
+  --panel-glass: rgba(255,255,255,.82); --skiplink-bg: rgba(255,255,255,.90);
   --preview-bg: rgba(0,0,0,.04); --track-bg: rgba(0,0,0,.06);
   /* 发丝线（1px 半透明） */
   --border: rgba(0,0,0,.08); --border-strong: rgba(0,0,0,.14);
   --hairline: rgba(255,255,255,.60); --line: rgba(0,0,0,.10);
+  --header-border: rgba(0,0,0,.06); --th-border: rgba(0,0,0,.10);
   /* 表单 */
   --input-bg: rgba(0,0,0,.05); --input-bg-focus: #ffffff; --input-border: transparent;
   --tag-no-bg: rgba(0,0,0,.05);
   /* 反馈 */
   --toast-bg: rgba(29,29,31,.90); --toast-border: rgba(255,255,255,.16); --toast-text: #fff;
   --row-hover: rgba(0,113,227,.06);
+  --log-bg: rgba(255,255,255,.76); --log-fg: #1d1d1f; --log-border: rgba(0,0,0,.06);
+  /* 按钮：填充色与文字色分开定义。
+     绿色 / 红色按钮的"亮色 + 白字"原组合对比度不足（#34c759 白字仅 2.19:1），
+     这里改成深底白字（浅色主题）或亮底深字（深色主题），两套都满足 AA 4.5:1 */
+  --btn-primary-bg: #0071e3; --btn-primary-fg: #ffffff;
+  --btn-primary-shadow: 0 8px 22px rgba(0,113,227,.32);
+  --btn-green-bg: #15803d; --btn-green-fg: #ffffff; --btn-green-bg-hover: #0f6b32;
+  --btn-green-shadow: 0 8px 22px rgba(21,128,61,.32);
+  --btn-red-bg: #c81e1e; --btn-red-fg: #ffffff; --btn-red-bg-hover: #b01a1a;
+  --btn-red-shadow: 0 8px 22px rgba(200,30,30,.28);
+  --btn-ghost-bg: #E5E5EA; --btn-ghost-fg: #1d1d1f; --btn-ghost-bg-hover: #D8D8DD;
+  /* 导航（原为硬编码，深色下必须整体换一套） */
+  --nav-fg: #6e6e73; --nav-bg: rgba(255,255,255,.60); --nav-border: rgba(0,0,0,.06);
+  --nav-bg-hover: rgba(255,255,255,.85); --nav-active-bg: #ffffff;
+  --nav-active-shadow: 0 6px 18px rgba(0,0,0,.10), inset 0 0 0 1px rgba(0,0,0,.04);
+  /* 卡片玻璃质感的内高光：浅色靠白色高光，深色必须压到极淡否则边缘发灰 */
+  --inset-hi: rgba(255,255,255,.55); --inset-hi-hover: rgba(255,255,255,.70);
+  /* Bento 网格末尾占位格 */
+  --phantom-border: rgba(0,0,0,.07); --phantom-bg: rgba(255,255,255,.28);
+  /* 进度条渐变 */
+  --grad-a1: #0071e3; --grad-a2: #4facfe; --grad-g1: #34c759; --grad-g2: #30d158;
+  /* 极光光球（深浅两版） */
+  --orb-a: rgba(162,210,255,.55); --orb-b: rgba(200,180,255,.45); --orb-c: rgba(255,214,190,.38);
   /* 形状：Squircle 大圆角 + 胶囊 */
   --radius: 24px; --radius-sm: 14px; --radius-pill: 980px;
   --shadow: 0 12px 40px rgba(0,0,0,.08);
@@ -580,255 +668,319 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
   --accent-text: #0071e3; --ok-text: #15803d; --warn-text: #b45309; --danger-text: #c81e1e;
   --focus-bg: rgba(0,113,227,.35);
   --scrollbar-thumb: rgba(0,0,0,.18);
-  /* ⑤ 物理感：非线性弹簧曲线 */
+  --drawer-shadow: rgba(0,0,0,.12); --ghost-shadow: rgba(0,0,0,.08);
+  --icon-grad-1: rgba(0,113,227,.16); --icon-grad-2: rgba(200,180,255,.30);
+  --icon-grad-sel-1: rgba(0,113,227,.30); --icon-grad-sel-2: rgba(162,210,255,.42);
+  --icon-inset: rgba(255,255,255,.65);
   --ease-out: cubic-bezier(.25,1,.5,1); --ease-spring: cubic-bezier(.34,1.56,.64,1);
 }
 
+/* ---------- 苹果风 · 深色 ----------
+   色值取自 Apple HIG 的系统色深色变体，只覆盖颜色层，
+   形状 / 间距 / 动效沿用 :root，保证两套主题是同一套视觉语法。 */
+[data-scheme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0a0b;
+  --text: #f5f5f7; --muted: #98989d; --muted2: #6e6e73;
+  --accent: #0a84ff; --accent-hover: #3395ff; --accent2: #30d158;
+  --warn: #ff9f0a; --danger: #ff453a;
+  --panel: rgba(28,28,30,.72); --panel2: rgba(44,44,46,.60);
+  --card-bg: rgba(28,28,30,.72); --card-bg-hover: rgba(44,44,46,.88);
+  --header-bg: rgba(20,20,22,.72); --th-bg: rgba(44,44,46,.78);
+  --panel-glass: rgba(24,24,26,.82); --skiplink-bg: rgba(58,58,60,.95);
+  --preview-bg: rgba(255,255,255,.06); --track-bg: rgba(255,255,255,.10);
+  --border: rgba(255,255,255,.10); --border-strong: rgba(255,255,255,.18);
+  --hairline: rgba(255,255,255,.10); --line: rgba(255,255,255,.14);
+  --header-border: rgba(255,255,255,.08); --th-border: rgba(255,255,255,.10);
+  --input-bg: rgba(255,255,255,.08); --input-bg-focus: #1c1c1e; --input-border: transparent;
+  --tag-no-bg: rgba(255,255,255,.08);
+  --toast-bg: rgba(58,58,60,.92); --toast-border: rgba(255,255,255,.14); --toast-text: #f5f5f7;
+  --row-hover: rgba(10,132,255,.10);
+  --log-bg: rgba(28,28,30,.76); --log-fg: #f5f5f7; --log-border: rgba(255,255,255,.08);
+  --btn-primary-bg: #0071e3; --btn-primary-fg: #ffffff;
+  --btn-primary-shadow: 0 8px 22px rgba(10,132,255,.36);
+  --btn-green-bg: #30d158; --btn-green-fg: #0a0a0b; --btn-green-bg-hover: #5fe07e;
+  --btn-green-shadow: 0 8px 22px rgba(48,209,88,.28);
+  --btn-red-bg: #ff453a; --btn-red-fg: #1c1c1e; --btn-red-bg-hover: #ff6b60;
+  --btn-red-shadow: 0 8px 22px rgba(255,69,58,.28);
+  --btn-ghost-bg: rgba(255,255,255,.10); --btn-ghost-fg: #f5f5f7;
+  --btn-ghost-bg-hover: rgba(255,255,255,.16);
+  --nav-fg: #98989d; --nav-bg: rgba(255,255,255,.08); --nav-border: rgba(255,255,255,.06);
+  --nav-bg-hover: rgba(255,255,255,.14); --nav-active-bg: rgba(255,255,255,.16);
+  --nav-active-shadow: 0 6px 18px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.06);
+  --inset-hi: rgba(255,255,255,.08); --inset-hi-hover: rgba(255,255,255,.12);
+  --phantom-border: rgba(255,255,255,.08); --phantom-bg: rgba(255,255,255,.03);
+  --grad-a1: #0a84ff; --grad-a2: #64d2ff; --grad-g1: #30d158; --grad-g2: #5fe07e;
+  --orb-a: rgba(10,132,255,.28); --orb-b: rgba(94,92,230,.24); --orb-c: rgba(255,55,95,.18);
+  --shadow: 0 12px 40px rgba(0,0,0,.55);
+  --card-hover-border: rgba(10,132,255,.45);
+  --card-hover-shadow: 0 20px 55px rgba(0,0,0,.60);
+  --accent-text: #0a84ff; --ok-text: #30d158; --warn-text: #ffd60a; --danger-text: #ff453a;
+  --focus-bg: rgba(10,132,255,.45);
+  --scrollbar-thumb: rgba(255,255,255,.22);  --drawer-shadow: rgba(0,0,0,.60); --ghost-shadow: rgba(0,0,0,.40);
+  --icon-grad-1: rgba(10,132,255,.22); --icon-grad-2: rgba(94,92,230,.30);
+  --icon-grad-sel-1: rgba(10,132,255,.38); --icon-grad-sel-2: rgba(100,210,255,.30);
+  --icon-inset: rgba(255,255,255,.10);
+}
+
 /* ---------- ④ Big Type：系统字体栈 + 标题粗黑、字距微缩 ---------- */
-[data-theme="apple"] body {
+body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
                "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
   color: var(--text); letter-spacing: -0.01em;
 }
-[data-theme="apple"] header h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.024em; }
-[data-theme="apple"] .card h2,
-[data-theme="apple"] .sec-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
-[data-theme="apple"] .fold-body h3 { font-size: var(--fs-md); font-weight: 600; color: var(--muted); }
-[data-theme="apple"] .hint, [data-theme="apple"] .muted,
-[data-theme="apple"] .small { color: var(--muted); }
+header h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.024em; }
+.card h2,
+.sec-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+.fold-body h3 { font-size: var(--fs-md); font-weight: 600; color: var(--muted); }
+.hint, .muted,
+.small { color: var(--muted); }
 
 /* ---------- ① Bento Grid：1120px 居中，间距 24–32px ---------- */
-[data-theme="apple"] main { max-width: 1120px; padding: 32px var(--sp-6) 96px; }
-[data-theme="apple"] .grid { gap: 24px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+main { max-width: 1120px; padding: 32px var(--sp-6) 96px; }
+.grid { gap: 24px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 /* 今日行动卡数量固定为 5，用固定 3 列避免 auto-fit 出现「最后一行留空」的破格；
    最后一格补一条极淡的格栅基准线，让 Bento 网格的留白显得是有意为之 */
-[data-theme="apple"] #actionCards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-[data-theme="apple"] #actionCards::after {
+#actionCards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#actionCards::after {
   content: ''; border-radius: var(--radius);
-  border: 1px dashed rgba(0,0,0,.07); background: rgba(255,255,255,.28);
+  border: 1px dashed var(--phantom-border); background: var(--phantom-bg);
 }
-[data-theme="apple"] .vendor-grid { gap: 16px; grid-template-columns: repeat(auto-fill, minmax(224px, 1fr)); }
+.vendor-grid { gap: 16px; grid-template-columns: repeat(auto-fill, minmax(224px, 1fr)); }
 
 /* ---------- ② 毛玻璃卡片（Squircle 24px + backdrop blur） ---------- */
-[data-theme="apple"] .card,
-[data-theme="apple"] .stat,
-[data-theme="apple"] .statusbar,
-[data-theme="apple"] details.fold,
-[data-theme="apple"] .tablewrap,
-[data-theme="apple"] .taskitem,
-[data-theme="apple"] .vendor-card {
+.card,
+.stat,
+.statusbar,
+details.fold,
+.tablewrap,
+.taskitem,
+.vendor-card {
   background: var(--card-bg);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
-  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.55);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--inset-hi);
 }
-[data-theme="apple"] .card, [data-theme="apple"] details.fold,
-[data-theme="apple"] .statusbar { margin-bottom: 24px; }
-[data-theme="apple"] .card { padding: 24px; }
-[data-theme="apple"] .card:has(> h2) > h2 { padding: 24px 24px 0; margin-bottom: 14px; }
-[data-theme="apple"] .card:has(> h2) > *:not(h2) { padding-left: 24px; padding-right: 24px; }
-[data-theme="apple"] .card:has(> h2) > *:last-child { padding-bottom: 24px; }
-[data-theme="apple"] .card:hover,
-[data-theme="apple"] .stat:hover,
-[data-theme="apple"] .vendor-card:hover {
+.card, details.fold,
+.statusbar { margin-bottom: 24px; }
+.card { padding: 24px; }
+.card:has(> h2) > h2 { padding: 24px 24px 0; margin-bottom: 14px; }
+.card:has(> h2) > *:not(h2) { padding-left: 24px; padding-right: 24px; }
+.card:has(> h2) > *:last-child { padding-bottom: 24px; }
+.card:hover,
+.stat:hover,
+.vendor-card:hover {
   background: var(--card-bg-hover); border-color: var(--hairline);
-  box-shadow: var(--card-hover-shadow), inset 0 1px 0 rgba(255,255,255,.7);
+  box-shadow: var(--card-hover-shadow), inset 0 1px 0 var(--inset-hi-hover);
 }
 /* Bento 指标块：大数字 + 微渐变顶部高光 */
-[data-theme="apple"] .stat { padding: 24px; min-width: 0; }
-[data-theme="apple"] .stat .num {
+.stat { padding: 24px; min-width: 0; }
+.stat .num {
   font-size: 40px; font-weight: 700; letter-spacing: -0.03em; color: var(--accent-text);
   line-height: 1.15; overflow-wrap: anywhere;   /* 长文本（如「2026-09-28 09:01」）不撑破 Bento 单元 */
 }
 /* 纯文本类指标（日期/文件名）：改用正文级字号，保持卡片高度统一、不喧宾夺主 */
-[data-theme="apple"] #stRawTime { font-size: 19px; letter-spacing: -0.01em; line-height: 1.35; overflow-wrap: anywhere; }
-[data-theme="apple"] #stRawFile { overflow-wrap: anywhere; }
-[data-theme="apple"] .stat .lbl { font-size: var(--fs-md); margin-top: 6px; }
-[data-theme="apple"] .stat:hover { transform: translateY(-4px) scale(1.01); }
-[data-theme="apple"] .act:hover { border-color: var(--accent); }
+#stRawTime { font-size: 19px; letter-spacing: -0.01em; line-height: 1.35; overflow-wrap: anywhere; }
+#stRawFile { overflow-wrap: anywhere; }
+.stat .lbl { font-size: var(--fs-md); margin-top: 6px; }
+.stat:hover { transform: translateY(-4px) scale(1.01); }
+.act:hover { border-color: var(--accent); }
 /* 首屏状态条 */
-[data-theme="apple"] .statusbar { padding: 16px 24px; font-size: var(--fs-lg); }
-[data-theme="apple"] .statusbar .sb-k { color: var(--muted); }
+.statusbar { padding: 16px 24px; font-size: var(--fs-lg); }
+.statusbar .sb-k { color: var(--muted); }
 /* 折叠区 */
-[data-theme="apple"] details.fold > summary { padding: 18px 24px; border-radius: var(--radius); font-weight: 700; letter-spacing: -0.02em; }
-[data-theme="apple"] .fold-body { padding: 20px 24px 24px; border-top: 1px solid var(--border); }
+details.fold > summary { padding: 18px 24px; border-radius: var(--radius); font-weight: 700; letter-spacing: -0.02em; }
+.fold-body { padding: 20px 24px 24px; border-top: 1px solid var(--border); }
 
 /* ---------- 顶栏 / 导航：毛玻璃 + 胶囊分段控件 ---------- */
-[data-theme="apple"] header {
+header {
   position: sticky; top: 0; z-index: 60;
   background: var(--header-bg);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(0,0,0,.06);
+  border-bottom: 1px solid var(--header-border);
   padding: 16px var(--sp-6); gap: var(--sp-4);
 }
-[data-theme="apple"] header .sub { color: var(--muted); }
-[data-theme="apple"] nav { padding: 14px var(--sp-6) 0; gap: 7px; }
-[data-theme="apple"] nav button {
+header .sub { color: var(--muted); }
+nav { padding: 14px var(--sp-6) 0; gap: 7px; }
+nav button {
   border-radius: var(--radius-pill); padding: 9px 18px; margin-bottom: 10px;
-  font-size: var(--fs-md); font-weight: 500; color: #6e6e73;
-  background: rgba(255,255,255,.60); border: 1px solid rgba(0,0,0,.06);
+  font-size: var(--fs-md); font-weight: 500; color: var(--nav-fg);
+  background: var(--nav-bg); border: 1px solid var(--nav-border);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
   transition: transform .3s var(--ease-out), background .3s var(--ease-out),
               color .3s var(--ease-out), box-shadow .3s var(--ease-out);
 }
-[data-theme="apple"] nav button:hover { color: var(--text); transform: scale(1.02); background: rgba(255,255,255,.85); }
-[data-theme="apple"] nav button.active {
-  background: #ffffff; color: var(--text); font-weight: 600; border-color: transparent;
-  box-shadow: 0 6px 18px rgba(0,0,0,.10), inset 0 0 0 1px rgba(0,0,0,.04);
+nav button:hover { color: var(--text); transform: scale(1.02); background: var(--nav-bg-hover); }
+nav button.active {
+  background: var(--nav-active-bg); color: var(--text); font-weight: 600; border-color: transparent;
+  box-shadow: var(--nav-active-shadow);
 }
 
 /* ---------- ③ 组件层级 ---------- */
 /* 主按钮：品牌蓝实心 + 胶囊 + Hover 光晕 */
-[data-theme="apple"] button.btn {
-  background: var(--accent); color: #fff; border: none;
+button.btn {
+  background: var(--btn-primary-bg); color: var(--btn-primary-fg); border: none;
   border-radius: var(--radius-pill); padding: 11px 22px; font-weight: 500;
   transition: transform .3s var(--ease-out), background .25s var(--ease-out), box-shadow .3s var(--ease-out);
 }
-[data-theme="apple"] button.btn:not(:disabled):hover {
+button.btn:not(:disabled):hover {
   background: var(--accent-hover); transform: scale(1.02);
-  box-shadow: 0 8px 22px rgba(0,113,227,.32);
+  box-shadow: var(--btn-primary-shadow);
 }
-[data-theme="apple"] button.btn:not(:disabled):active { transform: scale(.98); }
+button.btn:not(:disabled):active { transform: scale(.98); }
 /* 次级按钮：浅灰实心（禁止透明），保证白底可见 */
-[data-theme="apple"] button.btn.ghost {
-  background: #E5E5EA; color: #1d1d1f; border: 1px solid transparent;
+button.btn.ghost {
+  background: var(--btn-ghost-bg); color: var(--btn-ghost-fg); border: 1px solid transparent;
 }
-[data-theme="apple"] button.btn.ghost:hover {
-  background: #D8D8DD; box-shadow: 0 6px 16px rgba(0,0,0,.08); color: #1d1d1f;
+button.btn.ghost:hover {
+  background: var(--btn-ghost-bg-hover); box-shadow: 0 6px 16px var(--ghost-shadow); color: var(--btn-ghost-fg);
 }
-[data-theme="apple"] button.btn.green { background: var(--accent2); color: #fff; }
-[data-theme="apple"] button.btn.green:hover { background: #2fbe4f; box-shadow: 0 8px 22px rgba(52,199,89,.32); }
-[data-theme="apple"] button.btn.red { background: var(--danger); color: #fff; }
-[data-theme="apple"] button.btn.red:hover { background: #ff2d20; box-shadow: 0 8px 22px rgba(255,59,48,.28); }
-[data-theme="apple"] button.btn.sm { padding: 7px 15px; }
+button.btn.green { background: var(--btn-green-bg); color: var(--btn-green-fg); }
+button.btn.green:hover { background: var(--btn-green-bg-hover); box-shadow: var(--btn-green-shadow); }
+button.btn.red { background: var(--btn-red-bg); color: var(--btn-red-fg); }
+button.btn.red:hover { background: var(--btn-red-bg-hover); box-shadow: var(--btn-red-shadow); }
+button.btn.sm { padding: 7px 15px; }
 /* 输入框：去边框、浅灰底、Focus 变白 + 品牌色光晕 */
-[data-theme="apple"] input, [data-theme="apple"] select, [data-theme="apple"] textarea {
+input, select, textarea {
   background: var(--input-bg); border: 1px solid transparent; color: var(--text);
   border-radius: var(--radius-sm); padding: 11px 14px;
   transition: background .25s var(--ease-out), box-shadow .25s var(--ease-out), border-color .25s var(--ease-out);
 }
-[data-theme="apple"] input:focus, [data-theme="apple"] select:focus, [data-theme="apple"] textarea:focus {
-  background: #fff; border-color: rgba(0,113,227,.40); outline: none;
-  box-shadow: 0 0 0 4px rgba(0,113,227,.15);
+input:focus, select:focus, textarea:focus {
+  background: var(--input-bg-focus); border-color: var(--accent); outline: none;
+  box-shadow: 0 0 0 4px var(--focus-bg);
 }
-[data-theme="apple"] input::placeholder { color: var(--muted2); }
-[data-theme="apple"] :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+input::placeholder { color: var(--muted2); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* 表格 / 日志：玻璃容器 + 发丝分割线 */
-[data-theme="apple"] .tablewrap { border-radius: var(--radius); overflow: auto; }
+.tablewrap { border-radius: var(--radius); overflow: auto; }
 /* 表格骨架：表头分隔线保持发丝细度（保留原 sticky 定位，避免长表滚动时表头丢失） */
-[data-theme="apple"] th, [data-theme="apple"] td { border-bottom: 1px solid var(--border); }
-[data-theme="apple"] thead th { border-bottom: 1px solid rgba(0,0,0,.10); }
-[data-theme="apple"] .tablewrap table { border: none; }
-[data-theme="apple"] th {
-  background: rgba(255,255,255,.80); color: var(--muted); text-transform: none;
+th, td { border-bottom: 1px solid var(--border); }
+thead th { border-bottom: 1px solid var(--th-border); }
+.tablewrap table { border: none; }
+th {
+  background: var(--th-bg); color: var(--muted); text-transform: none;
   letter-spacing: 0; font-size: var(--fs-xs); font-weight: 600;
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
-[data-theme="apple"] tr:hover td { background: rgba(0,113,227,.05); }
-[data-theme="apple"] pre.log {
-  background: rgba(255,255,255,.76); color: #1d1d1f; border: 1px solid rgba(0,0,0,.06);
+tr:hover td { background: var(--row-hover); }
+pre.log {
+  background: var(--log-bg); color: var(--log-fg); border: 1px solid var(--log-border);
   border-radius: 18px; -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
 }
 /* 标签 / Chip：浅灰实心胶囊 */
-[data-theme="apple"] .tag { border-radius: var(--radius-pill); padding: 3px 11px; }
-[data-theme="apple"] .tag.no, [data-theme="apple"] .badge { background: var(--tag-no-bg); border-color: transparent; }
-[data-theme="apple"] .chip {
+.tag { border-radius: var(--radius-pill); padding: 3px 11px; }
+.tag.no, .badge { background: var(--tag-no-bg); border-color: transparent; }
+.chip {
   background: var(--tag-no-bg); border: 1px solid transparent; border-radius: var(--radius-pill);
   padding: 7px 14px; transition: all .25s var(--ease-out);
 }
-[data-theme="apple"] .chip:hover { background: rgba(0,113,227,.10); color: var(--accent); border-color: transparent; }
-[data-theme="apple"] .bar-track { background: var(--track-bg); border-radius: var(--radius-pill); }
-[data-theme="apple"] .bar-fill { background: linear-gradient(90deg, #0071e3, #4facfe); border-radius: var(--radius-pill); }
-[data-theme="apple"] .bar-fill.green { background: linear-gradient(90deg, #34c759, #30d158); }
-[data-theme="apple"] .progress { background: var(--track-bg); }
-[data-theme="apple"] .progress > i { background: linear-gradient(90deg, #0071e3, #4facfe); }
+.chip:hover { background: rgba(0,113,227,.10); color: var(--accent); border-color: transparent; }
+.bar-track { background: var(--track-bg); border-radius: var(--radius-pill); }
+.bar-fill { background: linear-gradient(90deg, var(--grad-a1), var(--grad-a2)); border-radius: var(--radius-pill); }
+.bar-fill.green { background: linear-gradient(90deg, var(--grad-g1), var(--grad-g2)); }
+.progress { background: var(--track-bg); }
+.progress > i { background: linear-gradient(90deg, var(--grad-a1), var(--grad-a2)); }
 
 /* 任务抽屉 / Toast：深色玻璃与浅色玻璃分层 */
-[data-theme="apple"] .taskpanel {
-  background: rgba(255,255,255,.82);
+.taskpanel {
+  background: var(--panel-glass);
   -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
   border-left: 1px solid var(--hairline); border-radius: 24px 0 0 24px;
-  box-shadow: -20px 0 60px rgba(0,0,0,.12);
+  box-shadow: -20px 0 60px var(--drawer-shadow);
 }
-[data-theme="apple"] .taskitem { border: 1px solid var(--hairline); }
-[data-theme="apple"] .toast {
+.taskitem { border: 1px solid var(--hairline); }
+.toast {
   background: var(--toast-bg); color: var(--toast-text); border: 1px solid var(--toast-border);
   border-radius: 16px; -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
 }
-[data-theme="apple"] .skiplink { background: rgba(255,255,255,.9); border-radius: var(--radius-sm); }
-[data-theme="apple"] .body-preview, [data-theme="apple"] .tasklog {
-  background: rgba(0,0,0,.04); border-radius: var(--radius-sm);
+.skiplink { background: var(--skiplink-bg); border-radius: var(--radius-sm); }
+.body-preview, .tasklog {
+  background: var(--preview-bg); border-radius: var(--radius-sm);
 }
 
 /* ---------- ⑤ 动效：淡入上浮序列 + 弹簧反馈 ---------- */
-[data-theme="apple"] section.active > * { animation: appleIn .55s var(--ease-out) both; }
+section.active > * { animation: appleIn .55s var(--ease-out) both; }
 @keyframes appleIn {
   from { opacity: 0; transform: translate3d(0, 22px, 0) scale(.995); }
   to   { opacity: 1; transform: none; }
 }
-[data-theme="apple"] .stat, [data-theme="apple"] .vendor-card {
+.stat, .vendor-card {
   transition: transform .35s var(--ease-out), box-shadow .35s var(--ease-out),
               background .3s var(--ease-out), border-color .3s var(--ease-out);
 }
-[data-theme="apple"] .favbtn:hover { transform: scale(1.2); }
-[data-theme="apple"] .expand:hover, [data-theme="apple"] a:hover { text-decoration: none; }
+.favbtn:hover { transform: scale(1.2); }
+.expand:hover, a:hover { text-decoration: none; }
 
 /* ---------- ⑥ 细节：卡头 flex 对齐 + 图标微渐变容器 ---------- */
-[data-theme="apple"] .card > h2 { display: flex; align-items: center; gap: 10px; }
+.card > h2 { display: flex; align-items: center; gap: 10px; }
 /* 厂商卡 / 卡片图标：SF Symbols 风格的微渐变圆角容器（仅 apple 主题，需容器为独立 span） */
-[data-theme="apple"] .vendor-card > div:first-child > span:first-child {
+.vendor-card > div:first-child > span:first-child {
   display: inline-flex; align-items: center; justify-content: center;
   flex: 0 0 auto; width: 34px; min-width: 34px; height: 34px;
   padding: 2px; font-size: 18px; line-height: 1;
   overflow: hidden; white-space: nowrap;
   border-radius: 11px;
-  background: linear-gradient(135deg, rgba(0,113,227,.16), rgba(200,180,255,.30));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
+  background: linear-gradient(135deg, var(--icon-grad-1), var(--icon-grad-2));
+  box-shadow: inset 0 1px 0 var(--icon-inset);
 }
-[data-theme="apple"] .vendor-card.selected > div:first-child > span:first-child {
-  background: linear-gradient(135deg, rgba(0,113,227,.30), rgba(162,210,255,.42));
+.vendor-card.selected > div:first-child > span:first-child {
+  background: linear-gradient(135deg, var(--icon-grad-sel-1), var(--icon-grad-sel-2));
 }
 
 /* ---------- 响应式：苹果主题下的断点微调（覆盖上方放大后的间距） ---------- */
 @media (max-width: 900px){
-  [data-theme="apple"] main { padding: 20px 20px 76px; }
-  [data-theme="apple"] header { padding: 14px 20px; }
-  [data-theme="apple"] nav { padding: 10px 20px 0; }
-  [data-theme="apple"] .grid { gap: 16px; }
-  [data-theme="apple"] #actionCards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  [data-theme="apple"] .card { padding: 18px; margin-bottom: 18px; }
-  [data-theme="apple"] .card:has(> h2) > h2 { padding: 18px 18px 0; }
-  [data-theme="apple"] .card:has(> h2) > *:not(h2) { padding-left: 18px; padding-right: 18px; }
-  [data-theme="apple"] .card:has(> h2) > *:last-child { padding-bottom: 18px; }
-  [data-theme="apple"] details.fold, [data-theme="apple"] .statusbar { margin-bottom: 18px; }
-  [data-theme="apple"] .statusbar { padding: 13px 18px; }
-  [data-theme="apple"] details.fold > summary { padding: 15px 18px; }
-  [data-theme="apple"] .fold-body { padding: 16px 18px 18px; }
-  [data-theme="apple"] .stat { padding: 18px; }
-  [data-theme="apple"] .stat .num { font-size: 32px; }
-  [data-theme="apple"] header h1 { font-size: 18px; }
-  [data-theme="apple"] .aurora .orb { filter: blur(70px); }
+  main { padding: 20px 20px 76px; }
+  header { padding: 14px 20px; }
+  nav { padding: 10px 20px 0; }
+  .grid { gap: 16px; }
+  #actionCards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card { padding: 18px; margin-bottom: 18px; }
+  .card:has(> h2) > h2 { padding: 18px 18px 0; }
+  .card:has(> h2) > *:not(h2) { padding-left: 18px; padding-right: 18px; }
+  .card:has(> h2) > *:last-child { padding-bottom: 18px; }
+  details.fold, .statusbar { margin-bottom: 18px; }
+  .statusbar { padding: 13px 18px; }
+  details.fold > summary { padding: 15px 18px; }
+  .fold-body { padding: 16px 18px 18px; }
+  .stat { padding: 18px; }
+  .stat .num { font-size: 32px; }
+  header h1 { font-size: 18px; }
+  .aurora .orb { filter: blur(70px); }
 }
 @media (max-width: 640px){
-  [data-theme="apple"] main { padding: 14px 14px 64px; }
-  [data-theme="apple"] .card { padding: 15px; margin-bottom: 14px; }
-  [data-theme="apple"] .card:has(> h2) > h2 { padding: 15px 15px 0; }
-  [data-theme="apple"] .card:has(> h2) > *:not(h2) { padding-left: 15px; padding-right: 15px; }
-  [data-theme="apple"] .card:has(> h2) > *:last-child { padding-bottom: 15px; }
-  [data-theme="apple"] .grid { gap: 12px; }
-  [data-theme="apple"] #actionCards { grid-template-columns: 1fr; }
-  [data-theme="apple"] .stat { padding: 15px; }
-  [data-theme="apple"] .stat .num { font-size: 28px; }
-  [data-theme="apple"] #stRawTime { font-size: 17px; }
-  [data-theme="apple"] header h1 { font-size: 16px; }
-  [data-theme="apple"] nav button { padding: 8px 14px; margin-bottom: 8px; }
-  [data-theme="apple"] .aurora .orb { filter: blur(56px); }
-  [data-theme="apple"] .toast { border-radius: 14px; }
+  main { padding: 14px 14px 64px; }
+  .card { padding: 15px; margin-bottom: 14px; }
+  .card:has(> h2) > h2 { padding: 15px 15px 0; }
+  .card:has(> h2) > *:not(h2) { padding-left: 15px; padding-right: 15px; }
+  .card:has(> h2) > *:last-child { padding-bottom: 15px; }
+  .grid { gap: 12px; }
+  #actionCards { grid-template-columns: 1fr; }
+  .stat { padding: 15px; }
+  .stat .num { font-size: 28px; }
+  #stRawTime { font-size: 17px; }
+  header h1 { font-size: 16px; }
+  nav button { padding: 8px 14px; margin-bottom: 8px; }
+  .aurora .orb { filter: blur(56px); }
+  .toast { border-radius: 14px; }
 }
+
+/* ---- 批量菜单：用原生 details 实现，避免为一次点击引入浮层定位逻辑 ---- */
+.pcmenu { position: relative; display: inline-block; }
+.pcmenu > summary { cursor: pointer; display: inline-flex; align-items: center; }
+.pcmenu > summary::-webkit-details-marker { display: none; }
+.pcmenu-body { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+  display: grid; gap: 6px; min-width: 180px; padding: 10px;
+  background: var(--panel-glass); border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); }
+.pcmenu-body button { white-space: nowrap; text-align: left; }
+/* 顶栏按钮组：数据维护 / 设置 与任务中心同排，窄屏允许换行 */
+#btnDataMaintain, #btnSettings { white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -840,14 +992,17 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
 </div>
 <a class="skiplink" href="#main">跳到主要内容</a>
 <header>
-  <h1>🎓 武汉理工招聘信息 · 采集与企业分析</h1>
-  <span class="sub">crawler.py 抓取 → 硅基流动 AI 分析企业性质与工作地点</span>
+  <h1>武汉理工校招 · 采集与投递</h1>
+  <span class="sub">数据更新至 <b id="hdUpdated">—</b></span>
   <span id="statusBadge" class="badge">加载中…</span>
-  <button class="btn ghost" id="btnTaskCenter" onclick="toggleTaskCenter()">📋 任务中心 <span id="taskRunningBadge" class="badge run" style="display:none">0</span></button>
+  <button class="btn" id="btnQuickUpdate" onclick="startRecruitUpdate()">更新数据</button>
+  <button class="btn ghost red" id="btnQuickUpdateStop" style="display:none" onclick="stopTask(state.recruitTask)">停止</button>
+  <button class="btn ghost" id="btnDataMaintain" onclick="activateTab('data')">数据维护</button>
+  <button class="btn ghost" id="btnTaskCenter" onclick="toggleTaskCenter()">任务中心 <span id="taskRunningBadge" class="badge run" style="display:none">0</span></button>
+  <button class="btn ghost" id="btnSettings" onclick="activateTab('settings')" aria-label="打开设置">设置</button>
   <select id="themeSel" title="切换配色主题" aria-label="切换配色主题">
-    <option value="apple">苹果风格 · Aurora Glass</option>
-    <option value="light">浅色 · SaaS Dashboard</option>
-    <option value="dark">深色 · Material Dark</option>
+    <option value="light">苹果 · 浅色</option>
+    <option value="dark">苹果 · 深色</option>
   </select>
 </header>
 
@@ -878,16 +1033,14 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
   <div class="tasklist" id="cpBody"><span class="muted small">尚未选择企业</span></div>
 </aside>
 
-<!-- role=tablist/tab + aria-selected：屏幕阅读器可播报选项卡位置与选中状态 -->
+<!-- role=tablist/tab + aria-selected：屏幕阅读器可播报选项卡位置与选中状态
+     一级导航只放「每天都要看」的四项；数据维护与设置不占导航位，由顶栏按钮唤起。
+     图标一律去掉：原先八项里七项带 emoji、一项没有，视觉重量不齐，且 emoji 跨平台字形不一致。 -->
 <nav role="tablist" aria-label="主功能导航">
-  <button role="tab" id="tabbtn-dashboard" aria-controls="tab-dashboard" aria-selected="true" data-tab="dashboard" class="active">📊 总览</button>
-  <button role="tab" id="tabbtn-crawl" aria-controls="tab-crawl" aria-selected="false" data-tab="crawl">🕷️ 抓取数据</button>
-  <button role="tab" id="tabbtn-analyze" aria-controls="tab-analyze" aria-selected="false" data-tab="analyze">🤖 企业分析</button>
-  <button role="tab" id="tabbtn-resume" aria-controls="tab-resume" aria-selected="false" data-tab="resume">🎯 投递推荐</button>
-  <button role="tab" id="tabbtn-board" aria-controls="tab-board" aria-selected="false" data-tab="board">投递看板</button>
-  <button role="tab" id="tabbtn-recruits" aria-controls="tab-recruits" aria-selected="false" data-tab="recruits">📄 招聘信息</button>
-  <button role="tab" id="tabbtn-preachs" aria-controls="tab-preachs" aria-selected="false" data-tab="preachs">🎤 宣讲会</button>
-  <button role="tab" id="tabbtn-settings" aria-controls="tab-settings" aria-selected="false" data-tab="settings">⚙️ 设置</button>
+  <button role="tab" id="tabbtn-dashboard" aria-controls="tab-dashboard" aria-selected="true" data-tab="dashboard" class="active">今日</button>
+  <button role="tab" id="tabbtn-preachs" aria-controls="tab-preachs" aria-selected="false" data-tab="preachs">宣讲会</button>
+  <button role="tab" id="tabbtn-recruits" aria-controls="tab-recruits" aria-selected="false" data-tab="recruits">招聘</button>
+  <button role="tab" id="tabbtn-mine" aria-controls="tab-mine" aria-selected="false" data-tab="mine">我的</button>
 </nav>
 
 <main id="main">
@@ -977,47 +1130,80 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
   </details>
 </section>
 
-<!-- ================= 抓取 ================= -->
-<section id="tab-crawl" role="tabpanel" aria-labelledby="tabbtn-crawl" tabindex="0">
-  <div class="card" style="border-color:var(--accent2)">
-    <h2>🔄 更新招聘信息（增量）</h2>
+<!-- ================= 数据维护（L3） =================
+     不占一级导航，由顶栏「数据维护」按钮唤起。
+     页面内不再放 <pre class="log">：进度、日志、停止统一走顶栏任务中心。 -->
+<section id="tab-data" role="tabpanel" aria-labelledby="btnDataMaintain" tabindex="0">
+  <div class="card">
+    <h2>数据维护</h2>
+    <p class="hint">下面都是「跑一次就走」的后台作业。启动后可以回到任意页面继续做事，进度、日志、停止都在顶栏「任务中心」。</p>
+  </div>
+
+  <div class="card">
+    <h2>更新招聘信息（增量）</h2>
     <div class="row">
       <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn green" id="btnRecruitUpdate" onclick="startRecruitUpdate()">开始更新</button></div>
       <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn ghost red" id="btnRecruitUpdateStop" style="display:none" onclick="stopTask(state.recruitTask)">停止</button></div>
+      <div style="flex:1"><label>&nbsp;</label><span class="muted small" id="crawlStatus">-</span></div>
     </div>
-    <p class="hint">抓取学校网站<b>最新</b>招聘公告与双选会，与本地数据<b>按 ID 比对</b>，只把新增记录<b>合并进主库</b>（不再新建单日快照文件）；完成后「招聘信息」页与统计自动刷新。与每日 09:00 计划任务同一套逻辑。</p>
+    <p class="hint">抓取学校网站最新招聘公告与双选会，按 ID 比对后只把新增记录合并进主库，不新建数据文件。与每日 09:00 计划任务同一套逻辑。</p>
   </div>
+
   <div class="card">
-    <h2>🕷️ 抓取武汉理工就业网招聘信息（按日期范围）</h2>
+    <h2>按日期范围重新抓取</h2>
     <div class="row">
       <div><label>开始日期</label><input type="date" id="crawlStart" value="2026-06-01"></div>
       <div><label>结束日期</label><input type="date" id="crawlEnd"></div>
       <div style="flex:0"><label>&nbsp;</label><button class="btn" id="btnCrawl" onclick="startCrawl()">开始抓取</button></div>
       <div style="flex:0"><label>&nbsp;</label><button class="btn ghost red" id="btnCrawlStop" style="display:none" onclick="stopTask(state.crawlerTask)">停止</button></div>
     </div>
-    <p class="hint">抓取招聘信息 + 双选会全文，输出 CSV / Markdown / JSON 到本目录。数据量大时约需几分钟。</p>
+    <p class="hint">会新建一个数据文件，不是增量。日常补数据请用上面的「更新招聘信息」。</p>
   </div>
-  <div class="card"><h2>运行日志 <span id="crawlStatus" class="muted small"></span></h2><pre class="log" id="crawlLog">（尚未运行）</pre></div>
-</section>
 
-<!-- ================= 企业分析 ================= -->
-<section id="tab-analyze" role="tabpanel" aria-labelledby="tabbtn-analyze" tabindex="0">
   <div class="card">
-    <h2>🤖 AI 分析企业性质与工作地点（硅基流动 API）</h2>
+    <h2>企业 AI 分析</h2>
     <div class="row">
-      <div><label>模型</label><select id="modelSel">
-        <option value="Qwen/Qwen2.5-72B-Instruct">Qwen2.5-72B-Instruct（推荐）</option>
-        <option value="Qwen/Qwen2.5-32B-Instruct">Qwen2.5-32B-Instruct（更快）</option>
-        <option value="deepseek-ai/DeepSeek-V3">DeepSeek-V3</option>
-        <option value="deepseek-ai/DeepSeek-R1">DeepSeek-R1（推理，慢）</option>
-      </select></div>
       <div><label>分析数量（0 = 全部）</label><input type="number" id="analyzeLimit" value="0" min="0"></div>
       <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnAnalyze" onclick="startAnalyze()">开始分析</button></div>
       <div style="flex:0"><label>&nbsp;</label><button class="btn ghost red" id="btnAnalyzeStop" style="display:none" onclick="stopTask(state.analyzeTask)">停止</button></div>
+      <div style="flex:1"><label>&nbsp;</label><span class="muted small" id="analyzeStatus">-</span></div>
     </div>
-    <p class="hint">已分析的企业会缓存，重复运行自动跳过、可断点续跑。需先在「设置」中填写 API Key。</p>
+    <details class="fold" style="margin-top:8px">
+      <summary class="muted small">高级：临时换一个模型（默认用设置里的当前模型）</summary>
+      <div class="fold-body">
+        <select id="modelSel">
+          <option value="Qwen/Qwen2.5-72B-Instruct">Qwen2.5-72B-Instruct（推荐）</option>
+          <option value="Qwen/Qwen2.5-32B-Instruct">Qwen2.5-32B-Instruct（更快）</option>
+          <option value="deepseek-ai/DeepSeek-V3">DeepSeek-V3</option>
+          <option value="deepseek-ai/DeepSeek-R1">DeepSeek-R1（推理，慢）</option>
+        </select>
+      </div>
+    </details>
+    <p class="hint">已分析的企业会缓存，重复运行自动跳过、可断点续跑。需在设置中配置 API Key。</p>
   </div>
-  <div class="card"><h2>运行日志 <span id="analyzeStatus" class="muted small"></span></h2><pre class="log" id="analyzeLog">（尚未运行）</pre></div>
+
+  <div class="card">
+    <h2>检查宣讲会更新</h2>
+    <div class="row">
+      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnCheckPreach" onclick="checkPreachUpdate()">检查更新</button></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost red" id="btnCheckPreachStop" style="display:none" onclick="stopTask(state.checkTask)">停止</button></div>
+      <div style="flex:1"><label>&nbsp;</label><span class="muted small" id="checkPreachStatus">-</span></div>
+    </div>
+    <p class="hint">抓取今年最新宣讲会，与已缓存数据按 ID 对比，输出新增场次。建议每日运行一次。</p>
+  </div>
+
+  <div class="card">
+    <h2>宣讲会工作地流动分析</h2>
+    <div class="row">
+      <div><label>分析方法</label><select id="flowMethod">
+        <option value="offline">离线（本地关键词+总部映射，免费）</option>
+        <option value="ai">AI（走设置页配置的 LLM）</option>
+      </select></div>
+      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnFlow" onclick="runFlow()">开始分析</button></div>
+      <div style="flex:1"><label>&nbsp;</label><span class="muted small" id="flowStatus">-</span></div>
+    </div>
+    <p class="hint">生成《宣讲会_工作地流动.csv》与报告，并作为宣讲会页「公司地点」的映射依据。</p>
+  </div>
 
   <div class="card">
     <h2>🏢 企业分析结果 <span id="companyTotal" class="muted small"></span></h2>
@@ -1043,60 +1229,241 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
   </div>
 </section>
 
-<!-- ================= 投递推荐 ================= -->
-<section id="tab-resume" role="tabpanel" aria-labelledby="tabbtn-resume" tabindex="0">
+<!-- ================= 我的（L2：推荐 + 看板 + 偏好 三个子视图） ================= -->
+<section id="tab-mine" role="tabpanel" aria-labelledby="tabbtn-mine" tabindex="0">
   <div class="card">
-    <h2>🎯 上传简历，AI 推荐适合投递的企业（硅基流动）</h2>
-    <div class="row" style="align-items:flex-end">
+    <h2>我的</h2>
+    <!-- 顺序 = 使用顺序，不是随手排的：简历档案是**数据源**（推荐页直接读它），
+         求职偏好是推荐的缺省条件，看板是投完之后的跟进；投递推荐只是这份数据的
+         下游消费者，所以放最后。默认落在第一个「简历档案」，与排列顺序一致。 -->
+    <div class="pcview" role="group" aria-label="我的：子视图切换">
+      <button type="button" class="btn ghost sm pcview-btn on" id="mineViewProfile" aria-pressed="true" onclick="setMineView('profile')">简历档案</button>
+      <button type="button" class="btn ghost sm pcview-btn" id="mineViewBoard" aria-pressed="false" onclick="setMineView('board')">投递看板</button>
+      <button type="button" class="btn ghost sm pcview-btn" id="mineViewPrefs" aria-pressed="false" onclick="setMineView('prefs')">求职偏好</button>
+      <button type="button" class="btn ghost sm pcview-btn" id="mineViewRec" aria-pressed="false" onclick="setMineView('rec')">投递推荐</button>
+    </div>
+  </div>
+
+  <!-- 初始 display 与 JS 里的默认子视图（简历档案）保持一致：脚本要跑到这一行才
+       切视图，若静态初值仍写着推荐页，首屏会闪一下推荐再跳走。 -->
+  <div id="mineRecView" style="display:none">
+  <div class="card">
+    <h2>生成投递推荐</h2>
+    <p class="hint">简历来源任选一条：<b>用简历档案</b>（推荐 —— 档案里本来就存着一份，不必再抄一遍）、上传文件、直接粘贴。
+      三者都有时按「文件 &gt; 档案 &gt; 粘贴」取一份，免得混着用搞不清到底拿哪份在算。
+      档案全文（含证件号码、家庭成员等）会一起送给模型做匹配，不想发就在下面文本框里把那几行删掉。</p>
+
+    <!-- 来源①：简历档案。不是「另存一份」而是现读现渲染 /api/profile/render?format=md，
+         所以档案改完回这里点一下「读取简历档案」就同步了。 -->
+    <div class="row" style="align-items:flex-end;margin-top:2px">
+      <div style="flex:1;min-width:220px">
+        <label>① 用简历档案里的信息</label>
+        <span class="muted small" id="resumeProfileMsg">尚未读取档案</span>
+      </div>
+      <div style="flex:0 0 auto"><label>&nbsp;</label>
+        <button class="btn ghost" id="btnResumeFromProfile" style="white-space:nowrap" onclick="fillResumeFromProfile(true)">读取简历档案</button></div>
+      <div style="flex:0 0 auto"><label>&nbsp;</label>
+        <button class="btn ghost sm" id="btnResumeClear" style="white-space:nowrap" onclick="clearResumeText()" title="清空已选文件与文本框，改用别的简历来源">清空</button></div>
+    </div>
+
+    <div class="row" style="align-items:flex-end;margin-top:10px">
       <div style="flex:2">
-        <label>简历文件（PDF / .docx / 图片）</label>
+        <label>② 或上传简历文件（PDF / .docx / 图片）</label>
         <input type="file" id="resumeFile" accept=".pdf,.docx,.png,.jpg,.jpeg,.bmp,.webp">
       </div>
-      <div>
-        <label>推荐模型</label>
-        <select id="resumeModel">
-          <option value="Qwen/Qwen2.5-72B-Instruct">Qwen2.5-72B-Instruct（推荐）</option>
-          <option value="Qwen/Qwen3.5-27B">Qwen3.5-27B（更快）</option>
-          <option value="deepseek-ai/DeepSeek-V3.2">DeepSeek-V3.2</option>
-          <option value="deepseek-ai/DeepSeek-V3">DeepSeek-V3</option>
-        </select>
-      </div>
-      <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn green" id="btnResumeRec" onclick="resumeRecommend()" style="white-space:nowrap">生成推荐</button></div>
       <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn ghost" id="btnResumeExtract" onclick="resumeExtract()" style="white-space:nowrap">提取文字预览</button></div>
     </div>
-    <p class="hint" style="margin-top:2px">旧版 .doc 请先另存为 .docx 或 PDF；扫描版 PDF / 图片会走视觉模型 OCR 识别。</p>
-    <div class="row" style="margin-top:6px;align-items:flex-end">
-      <div style="flex:1"><label>🎯 目标工作地（可多填，逗号/顿号分隔）</label><input id="workPlace" placeholder="如：武汉、北京、深圳（留空则按简历城市推断）"></div>
-      <div><label>目标企业性质</label><select id="companyType">
-        <option value="">不限</option>
-        <option value="国企央企">国企 / 央企</option>
-        <option value="私企外企">私企 / 外企 / 互联网</option>
-      </select></div>
-    </div>
-    <p class="hint" style="margin-top:2px">设置目标工作地与目标企业性质后，推荐会据此收窄范围，并会额外列出<b>可参加的宣讲会</b>（依据企业工作地映射）。</p>
-    <div class="row" style="margin-top:6px;align-items:flex-end">
-      <div><label>视觉模型（图片 / 扫描件 OCR，高级）</label>
-        <select id="visionModel">
-          <option value="Qwen/Qwen3-VL-32B-Instruct">Qwen3-VL-32B-Instruct（推荐）</option>
-          <option value="Qwen/Qwen3-VL-30B-A3B-Instruct">Qwen3-VL-30B-A3B-Instruct（更快）</option>
-          <option value="Qwen/Qwen3-VL-8B-Instruct">Qwen3-VL-8B-Instruct（轻量）</option>
-        </select>
-      </div>
-    </div>
-    <label style="margin-top:12px">也可以直接粘贴简历文字（若已上传文件则优先识别文件）</label>
+
+    <label style="margin-top:12px">③ 或直接粘贴简历文字</label>
     <textarea id="resumeText" style="min-height:88px;width:100%" placeholder="粘贴简历：学校、专业、技能、实习/项目经历、求职意向、倾向城市……"></textarea>
-    <p class="hint">推荐范围 = 本次抓取到的校招企业清单（当前共 <span id="resumeCompanyCount">…</span> 家）。建议先运行「抓取」与「企业分析」以获得更完整的企业画像；AI 推荐需在「设置」配置好 API Key 且有余额。</p>
+    <details class="fold" style="margin-top:8px">
+      <summary class="muted small">高级：目标条件与模型（默认读「求职偏好」，一般不用改）</summary>
+      <div class="fold-body">
+        <div class="row" style="align-items:flex-end">
+          <div style="flex:1"><label>目标工作地（逗号 / 顿号分隔）</label><input id="workPlace" placeholder="如：武汉、北京、深圳"></div>
+          <div><label>目标企业性质</label><select id="companyType">
+            <option value="">不限</option>
+            <option value="国企央企">国企 / 央企</option>
+            <option value="私企外企">私企 / 外企 / 互联网</option>
+          </select></div>
+        </div>
+        <div class="row" style="margin-top:6px;align-items:flex-end">
+          <div><label>推荐模型</label><select id="resumeModel">
+            <option value="Qwen/Qwen2.5-72B-Instruct">Qwen2.5-72B-Instruct（推荐）</option>
+            <option value="Qwen/Qwen3.5-27B">Qwen3.5-27B（更快）</option>
+            <option value="deepseek-ai/DeepSeek-V3.2">DeepSeek-V3.2</option>
+            <option value="deepseek-ai/DeepSeek-V3">DeepSeek-V3</option>
+          </select></div>
+          <div><label>视觉模型（图片 / 扫描件 OCR）</label><select id="visionModel">
+            <option value="Qwen/Qwen3-VL-32B-Instruct">Qwen3-VL-32B-Instruct（推荐）</option>
+            <option value="Qwen/Qwen3-VL-30B-A3B-Instruct">Qwen3-VL-30B-A3B-Instruct（更快）</option>
+            <option value="Qwen/Qwen3-VL-8B-Instruct">Qwen3-VL-8B-Instruct（轻量）</option>
+          </select></div>
+        </div>
+      </div>
+    </details>
+    <!-- 主操作单独一行靠左，右边如实说明「本次将用哪份简历」——三个来源并存时，
+         用户最需要知道的就是这个，否则结果不对也没法判断是不是拿错了输入。 -->
+    <div class="row" style="align-items:flex-end;margin-top:10px">
+      <div style="flex:0 0 auto"><label>&nbsp;</label>
+        <button class="btn green" id="btnResumeRec" onclick="resumeRecommend()" style="white-space:nowrap">生成推荐</button></div>
+      <div style="flex:1;min-width:0"><label>&nbsp;</label>
+        <span class="muted small" id="resumePayloadMsg"></span></div>
+    </div>
+    <p class="hint">推荐范围 = 已抓取的校招企业清单（当前共 <span id="resumeCompanyCount">…</span> 家）。旧版 .doc 请先另存为 .docx 或 PDF。</p>
   </div>
 
   <div class="card" id="resumeResultCard" style="display:none">
-    <h2>✨ 投递推荐结果</h2>
+    <h2>投递推荐结果</h2>
     <div id="resumeSummary"></div>
     <div id="resumePositions"></div>
-    <h3 style="margin-top:16px">🏆 推荐企业</h3>
+    <h3 style="margin-top:16px">推荐企业</h3>
     <div id="resumeRecs"></div>
-    <h3 style="margin-top:18px">🎤 可参加的宣讲会 <span class="muted small" id="resumePreachCount"></span></h3>
+    <h3 style="margin-top:18px">可参加的宣讲会 <span class="muted small" id="resumePreachCount"></span></h3>
     <div id="resumePreachs"></div>
   </div>
+  </div><!-- /#mineRecView -->
+
+  <div id="mineBoardView" style="display:none">
+    <div class="card focus">
+      <h2>投递进度</h2>
+      <div class="grid" id="boardStageStats"><span class="muted small">加载中…</span></div>
+      <p class="hint" id="boardConversions"></p>
+    </div>
+
+    <div class="card">
+      <h2>跟进列表 <span id="boardTotal" class="muted small"></span></h2>
+      <div class="toolbar">
+        <div><label>阶段筛选</label><select id="boardStageFilter" onchange="loadBoard()"><option value="">全部阶段</option></select></div>
+        <div style="flex:0"><label>&nbsp;</label><button class="btn ghost" onclick="loadBoard()">刷新</button></div>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>单位 / 标题</th><th style="width:90px">来源</th><th style="width:130px">阶段</th><th>备注</th><th style="width:110px">操作</th></tr></thead>
+          <tbody id="boardRows"><tr><td colspan="5" class="muted">加载中…</td></tr></tbody>
+        </table>
+      </div>
+      <p class="hint">在「招聘」或「宣讲会」列表里点「加入看板」即可新增，单位、标题与链接会作为快照保留。</p>
+    </div>
+  </div><!-- /#mineBoardView -->
+
+  <div id="minePrefsView" style="display:none">
+    <div class="card">
+      <h2>求职偏好</h2>
+      <p class="hint">填一次即可。投递推荐与宣讲会筛选会自动带上，不必每次重填。</p>
+      <div class="row">
+        <div style="flex:2"><label>目标城市（逗号 / 顿号分隔）</label><input id="prefCities" placeholder="如：武汉、深圳"></div>
+        <div style="flex:2"><label>目标岗位（逗号 / 顿号分隔）</label><input id="prefRoles" placeholder="如：机械设计、结构工程师"></div>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <div><label>薪资下限（元 / 月）</label><input id="prefSalary" type="number" min="0" placeholder="如：8000"></div>
+        <div><label>目标企业性质</label><select id="prefCompanyType"><option value="">不限</option></select></div>
+      </div>
+      <div style="margin-top:6px"><label>黑名单企业（逗号 / 顿号分隔，排序与截断之前就剔除）</label><input id="prefBlacklist" placeholder="如：某某公司"></div>
+      <div class="row" style="margin-top:12px">
+        <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn green" id="btnSavePrefs" onclick="savePrefs()">保存偏好</button></div>
+        <div style="flex:1"><label>&nbsp;</label><span class="muted small" id="prefMsg"></span></div>
+      </div>
+    </div>
+  </div><!-- /#minePrefsView -->
+
+  <!-- ================= 简历档案（网申填表速查 + 档案全量导出） ================= -->
+  <div id="mineProfileView">
+    <div class="card">
+      <h2>简历档案</h2>
+      <p class="hint">把网申要填的字段存一份，填表时逐项复制；导出有两份 Word，<b>版式相同、内容取舍不同</b>：
+        <b>HR 版</b>挑着写（高中不上、绩点排名不放），<b>完整版</b>把档案里全部模块与字段一条不落地写进去
+        （含家庭成员、学号、紧急联系人等），两份都只丢掉本地文件指针（照片字段）与带 ⚠️ / ⛔ 的内部批注。
+        数据只存在本机 <code>data/投递档案.json</code>。</p>
+      <div class="pcview" role="group" aria-label="简历档案：模块切换" id="profModBar"></div>
+
+      <!-- 照片块：只放照片相关的输入，导出与保存统一收到下面的操作条里。
+           以前照片按钮和三个导出按钮混在同一个 .row 里，加上卡片底部还有一排
+           按钮，八个按钮散成三行，看不出哪几个是一组。 -->
+      <div class="prof-tools">
+        <div class="prof-photo" id="profPhotoBox">
+          <img id="profPhotoImg" alt="个人照片预览" hidden>
+          <span class="prof-photo-none" id="profPhotoNone">未导入<br>照片</span>
+        </div>
+        <div class="prof-tools-body">
+          <div class="row" style="align-items:flex-end;margin:0">
+            <div style="flex:0 0 auto"><label>个人照片（jpg / png / webp / bmp，≤5 MB）</label>
+              <input type="file" id="profPhotoFile" accept="image/png,image/jpeg,image/webp,image/bmp" onchange="uploadProfilePhoto(this)"></div>
+            <div style="flex:0 0 auto"><label>&nbsp;</label>
+              <button class="btn ghost" id="btnProfPhotoDel" style="white-space:nowrap" onclick="deleteProfilePhoto()" disabled>删除照片</button></div>
+          </div>
+          <p class="prof-hint" id="profPhotoMsg">照片会出现在两份 Word 里（HR 版 / 完整版）；.md 与 .txt 是纯文本，不含照片。照片只存本机，且已加入 .gitignore。</p>
+        </div>
+      </div>
+
+      <!-- 操作条：按用途分两组（导出 / 查看），「保存修改」单独靠右——
+           它是这一屏唯一会写文件的动作，不该混在导出按钮里被误点。 -->
+      <div class="prof-actbar">
+        <div class="prof-act-group">
+          <span class="prof-act-label">导出</span>
+          <button class="btn" id="btnDownloadHr" onclick="downloadResume('hr')" title="挑着写的 HR 版：A4 分区排版、右上照片、要点列表；高中不上、绩点排名不放">HR 版 .docx</button>
+          <button class="btn ghost" id="btnDownloadDocx" onclick="downloadResume('full')" title="与 HR 版同款排版，但把档案里全部模块与字段一条不落写进去（含家庭成员、学号、紧急联系人）">完整版 .docx</button>
+          <button class="btn ghost sm" onclick="downloadResume('md')" title="档案全文，一行一项纯文本，供招聘系统自动解析或直接粘贴">.md</button>
+          <button class="btn ghost sm" onclick="downloadResume('txt')" title="档案全文，一行一项纯文本，供招聘系统自动解析或直接粘贴">.txt</button>
+        </div>
+        <div class="prof-act-sep" aria-hidden="true"></div>
+        <div class="prof-act-group">
+          <span class="prof-act-label">查看</span>
+          <button class="btn ghost sm" onclick="toggleResumePreview()">预览档案全文</button>
+          <button class="btn ghost sm" onclick="copyProfileModule()">复制本模块</button>
+        </div>
+        <div class="prof-act-tail">
+          <span class="muted small" id="profMsg"></span>
+          <button class="btn green" id="btnSaveProfile" onclick="saveProfileAll()">保存修改</button>
+        </div>
+      </div>
+      <p class="prof-hint" style="margin-top:6px">改动与删除只改内存，刷新页面即可撤销；点「保存修改」才写入文件。</p>
+
+      <details class="fold" style="margin-top:8px">
+        <summary class="muted small">从简历识别并填入（PDF / .docx / 图片 / 粘贴文字）</summary>
+        <div class="fold-body">
+          <div class="row" style="align-items:flex-end">
+            <div style="flex:2"><label>简历文件（留空则只用下面粘贴的文字）</label>
+              <input type="file" id="profFile" accept=".pdf,.docx,.png,.jpg,.jpeg,.bmp,.webp"></div>
+            <div style="flex:0 0 auto"><label>&nbsp;</label>
+              <button class="btn ghost" id="btnProfExtract" style="white-space:nowrap" onclick="profileExtract()">提取文字</button></div>
+            <div style="flex:0 0 auto"><label>&nbsp;</label>
+              <button class="btn green" id="btnProfFill" style="white-space:nowrap" onclick="profileFill()">识别并填入</button></div>
+          </div>
+          <label style="margin-top:8px">简历原文（可编辑；识别前可以在这里删掉不想被录入的内容）</label>
+          <textarea id="profText" style="min-height:110px;width:100%" placeholder="上传文件后点「提取文字」会自动填到这里；也可以直接粘贴简历原文，再点「识别并填入」。"></textarea>
+          <p class="prof-hint">识别由配置的 LLM 完成，走的是设置里已配好的模型。识别结果不会直接写入，会先列出来让你逐项勾选。</p>
+        </div>
+      </details>
+    </div>
+
+    <!-- 识别结果预览：逐项勾选后才写入内存 -->
+    <div class="card" id="profFillBox" style="display:none">
+      <h2>识别结果 <span class="muted small" id="profFillNote"></span></h2>
+      <p class="hint">默认只勾选「新增」与「原本为空」的项；<b>会覆盖已有内容的项默认不勾</b>——
+        模型会编造简历里没写的东西（排名、绩点、薪资这类尤其常见），覆盖前请看清楚。</p>
+      <div class="row" style="align-items:flex-end">
+        <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn ghost sm" onclick="profFillToggle(true)">全选</button></div>
+        <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn ghost sm" onclick="profFillToggle(false)">全不选</button></div>
+        <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn green" onclick="profApplySelected()">应用勾选的</button></div>
+        <div style="flex:0 0 auto"><label>&nbsp;</label><button class="btn ghost" onclick="profFillCancel()">取消</button></div>
+      </div>
+      <div class="tablewrap" style="margin-top:8px"><div id="profFillList"></div></div>
+    </div>
+
+    <div class="card">
+      <div id="profBody"><span class="muted small">加载中…</span></div>
+    </div>
+
+    <div class="card" id="profPreviewCard" style="display:none">
+      <h2>档案全文预览 <span class="muted small" id="profPreviewNote"></span></h2>
+      <p class="hint">这是 <code>.md</code> / <code>.txt</code> 的内容：刻意不加排版，一行一项、字段名用全角冒号、
+        日期保持 <code>yyyy-MM-dd</code>，招聘系统的附件解析器最认这种结构。
+        档案里有几项就导几项（家庭成员、学号等一并写出）；仅省略本地文件指针（照片字段）与带 ⚠️ / ⛔ 的内部批注。
+        两份 <code>.docx</code>（HR 版 / 完整版）的内容口径与此一致，只是换了排版。</p>
+      <pre class="prof-preview" id="profPreview"></pre>
+    </div>
+  </div><!-- /#mineProfileView -->
 </section>
 
 <!-- ================= 招聘信息 ================= -->
@@ -1138,36 +1505,70 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
       <span class="muted small">周日历按开始时间把本周场次摆到周一 ~ 周日七列上</span>
     </div>
 
-    <!-- 时间冲突提醒条：无冲突时整条不显示 -->
+    <!-- 时间冲突提醒条：无冲突时整条不显示。
+         右侧那颗按钮是唯一的开关：显示冲突 ⇄ 关闭冲突（文案与 aria-expanded 同步由 JS 管），
+         它同时控制列表行的竖条、日历卡片的红边与 ⚠️ 冲突 标签——这些标记默认全部隐藏。 -->
     <div class="pcbar" id="preachConflictBar" role="status" style="display:none">
       <span aria-hidden="true">⚠️</span>
       <span>你有 <b id="preachConflictCount">0</b> 处时间冲突（收藏 + 当前可见场次，同一天且时间段重叠）</span>
-      <button type="button" class="btn ghost sm pcbar-more" id="preachConflictToggle" onclick="togglePreachConflictList()">查看冲突</button>
+      <button type="button" class="btn ghost sm pcbar-more" id="preachConflictToggle"
+        aria-expanded="false" aria-controls="preachConflictList" title="标出冲突的场次并列出是哪两场撞了"
+        onclick="togglePreachConflictList()">显示冲突</button>
     </div>
     <div class="pcclist" id="preachConflictList" style="display:none"></div>
 
     <div id="preachListView">
-    <div class="toolbar">
-      <div style="flex:2"><label>搜索单位 / 标题 / 地点 / 城市 / 公司地点</label><input id="pq" placeholder="如：比亚迪、马房山、东风厅、北京" onkeydown="if(event.key==='Enter')loadPreachs(1)"></div>
-      <div><label>举办时间从</label><input type="date" id="pstart" onchange="loadPreachs(1)"></div>
-      <div><label>举办时间到</label><input type="date" id="pend" onchange="loadPreachs(1)"></div>
-      <div><label>公司地点（工作地）</label><select id="pwork" onchange="loadPreachs(1)"><option value="">全部</option></select></div>
-      <div><label>宣讲会地点</label><select id="pvenue" onchange="loadPreachs(1)"><option value="">全部</option></select></div>
-      <div><label>线下/线上</label><select id="ptype" onchange="loadPreachs(1)">
-        <option value="">全部</option><option value="线下">仅线下</option><option value="线上">线上</option></select></div>
-      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost" onclick="loadPreachs(1)">查询</button></div>
-    </div>
-    <p class="hint">「公司地点」= 企业工作地（来自《宣讲会_工作地流动.csv》映射）；「宣讲会地点」= 具体宣讲场馆（按校区/场地筛选）；「举办时间」= 按开始日期范围筛选。</p>
-    <label class="small" style="margin:6px 0 12px;display:flex;align-items:center;gap:6px;color:var(--accent);cursor:pointer"><input type="checkbox" id="pUpcoming" checked onchange="loadPreachs(1)" style="width:auto"> 仅显示今天及以后（今天新出的和3天内开始的会用红色标出；取消勾选可查看过去/全部）</label>
-    <div class="row" style="margin-bottom:12px">
-      <div style="flex:0 0 auto"><label class="small" style="display:flex;align-items:center;gap:6px;color:var(--accent);cursor:pointer;white-space:nowrap"><input type="checkbox" id="pFavOnly" onchange="loadPreachs(1)" style="width:auto"> 只看收藏 ⭐</label></div>
-      <div style="display:flex;flex-wrap:nowrap;gap:6px;align-items:center;flex:0 0 auto">
-        <button class="btn ghost" style="white-space:nowrap" onclick="favAllPreachs()">⭐ 一键收藏全部</button>
-        <button class="btn ghost" style="white-space:nowrap" onclick="unfavAllPreachs()">☆ 一键取消收藏全部</button>
-        <button class="btn ghost" style="white-space:nowrap" onclick="exportPreachFavs()">⬇️ 导出收藏为 Excel</button>
-        <button class="btn ghost" style="white-space:nowrap" onclick="exportPreachFavsIcs()">📅 导出收藏为 ICS</button>
+    <!-- 常驻只有搜索框 + 批量；其余筛选收进下方折叠，按钮上显示当前生效了几项 -->
+    <div class="row" style="align-items:flex-end;margin-bottom:10px">
+      <div style="flex:2"><label>搜索</label><input id="pq" placeholder="单位 / 地点 / 城市 / 公司地点" onkeydown="if(event.key==='Enter')loadPreachs(1)"></div>
+      <div style="flex:0 0 auto"><label>&nbsp;</label>
+        <details class="pcmenu">
+          <summary class="btn ghost" style="list-style:none;white-space:nowrap">批量</summary>
+          <div class="pcmenu-body">
+            <button class="btn ghost sm" onclick="favAllPreachs()">一键收藏全部</button>
+            <button class="btn ghost sm" onclick="unfavAllPreachs()">一键取消收藏全部</button>
+            <button class="btn ghost sm" onclick="exportPreachFavs()">导出收藏为 Excel</button>
+            <button class="btn ghost sm" onclick="exportPreachFavsIcs()">导出收藏为 ICS</button>
+          </div>
+        </details>
       </div>
+      <div style="flex:0 0 auto"><label class="small" style="display:flex;align-items:center;gap:6px;color:var(--accent);cursor:pointer;white-space:nowrap;margin:0"><input type="checkbox" id="pUpcoming" checked onchange="loadPreachs(1)" style="width:auto"> 仅今天及以后</label></div>
     </div>
+
+    <details class="fold" id="preachFilterPanel" style="margin-bottom:10px">
+      <summary>筛选 <span id="preachFilterCount" class="muted small">0</span></summary>
+      <div class="fold-body">
+        <div class="pfilter">
+          <div class="pfilter-field">
+            <label for="pstart">举办时间从</label>
+            <input type="date" id="pstart" onchange="loadPreachs(1)">
+          </div>
+          <div class="pfilter-field">
+            <label for="pend">举办时间到</label>
+            <input type="date" id="pend" onchange="loadPreachs(1)">
+          </div>
+          <div class="pfilter-field">
+            <label for="pwork">公司地点（工作地）</label>
+            <select id="pwork" onchange="loadPreachs(1)"><option value="">全部</option></select>
+          </div>
+          <div class="pfilter-field">
+            <label for="pvenue">宣讲会地点</label>
+            <select id="pvenue" onchange="loadPreachs(1)"><option value="">全部</option></select>
+          </div>
+          <div class="pfilter-field">
+            <label for="ptype">线下/线上</label>
+            <select id="ptype" onchange="loadPreachs(1)">
+              <option value="">全部</option><option value="线下">仅线下</option><option value="线上">线上</option></select>
+          </div>
+          <!-- 勾选项：占位标签与其它字段的标签等高，让勾选框和左边的下拉框中线对齐 -->
+          <div class="pfilter-field">
+            <label aria-hidden="true">&nbsp;</label>
+            <label class="pfilter-check" for="pFavOnly"><input type="checkbox" id="pFavOnly" onchange="loadPreachs(1)"> 只看收藏</label>
+          </div>
+        </div>
+        <p class="pfilter-note">「公司地点」= 企业工作地（来自《宣讲会_工作地流动.csv》映射）；「宣讲会地点」= 具体宣讲场馆。筛选条件在列表与周日历两个视图间共用。</p>
+      </div>
+    </details>
     <div class="tablewrap">
       <table>
         <thead><tr><th style="width:140px">宣讲时间</th><th>单位名称</th><th style="width:200px">宣讲会地点</th><th style="width:120px">公司地点</th><th style="width:70px">线下/线上</th><th style="width:170px">提醒</th><th style="width:52px">⭐</th><th style="width:52px">链接</th><th style="width:90px">看板</th></tr></thead>
@@ -1194,70 +1595,8 @@ html[data-theme="apple"] { background: #F5F5F7; color-scheme: light; }
       <p class="hint">点任意场次可打开该企业详情。解析不出开始时间的场次不会消失，会列在当天格子底部的「时间待定」里。</p>
     </div>
   </div>
-  <div class="card" style="border-color:var(--accent2)">
-    <h2>🔄 检查宣讲会更新 <span id="checkPreachStatus" class="muted small"></span></h2>
-    <div class="row">
-      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnCheckPreach" onclick="checkPreachUpdate()">检查更新</button></div>
-      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost red" id="btnCheckPreachStop" style="display:none" onclick="stopTask(state.checkTask)">停止</button></div>
-    </div>
-    <p class="hint">抓取今年最新宣讲会，与已缓存数据对比（按 ID），输出<b>新增场次</b>并更新数据文件。建议每日运行一次。</p>
-    <pre class="log" id="checkPreachLog">（尚未运行）</pre>
-  </div>
-
-  <div class="card">
-    <h2>📊 宣讲会工作地流动分析</h2>
-    <div class="row">
-      <div><label>分析方法</label>
-        <select id="flowMethod">
-          <option value="offline">离线（本地关键词+总部映射，免费）</option>
-          <option value="ai">AI（走设置页配置的 LLM）</option>
-        </select></div>
-      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnFlow" onclick="runFlow()">开始分析</button></div>
-    </div>
-    <p class="hint" id="flowStatus">-</p>
-    <p class="hint">生成《宣讲会_工作地流动.csv》+《宣讲会_工作地流动报告.md》，并作为本页「公司地点」映射依据。</p>
-    <pre class="log" id="flowLog">（尚未运行）</pre>
-  </div>
 </section>
 
-<!-- ================= 投递看板 ================= -->
-<section id="tab-board" role="tabpanel" aria-labelledby="tabbtn-board" tabindex="0">
-  <div class="card focus">
-    <h2>投递进度</h2>
-    <div class="grid" id="boardStageStats"><span class="muted small">加载中…</span></div>
-    <p class="hint" id="boardConversions"></p>
-  </div>
-
-  <div class="card">
-    <h2>新增跟进条目</h2>
-    <div class="row">
-      <div><label>来源</label><select id="boardSourceType"><option value="招聘">招聘信息</option><option value="宣讲会">宣讲会</option></select></div>
-      <div><label>来源记录 ID</label><input id="boardSourceId" placeholder="招聘或宣讲会 ID"></div>
-      <div><label>单位名称</label><input id="boardUnit" placeholder="如：某某科技有限公司"></div>
-      <div style="flex:2"><label>标题</label><input id="boardTitle" placeholder="招聘公告或宣讲会标题"></div>
-    </div>
-    <div class="row">
-      <div style="flex:2"><label>原文链接</label><input id="boardLink" type="url" placeholder="https://..."></div>
-      <div style="flex:2"><label>备注</label><input id="boardNewNote" placeholder="岗位、网申截止时间或待办事项"></div>
-      <div style="flex:0"><label>&nbsp;</label><button class="btn green" id="btnBoardCreate" onclick="createBoardItem()">加入看板</button></div>
-    </div>
-    <p class="hint">也可在「招聘信息」或「宣讲会」列表中直接加入，单位、标题与链接会作为快照保留。</p>
-  </div>
-
-  <div class="card">
-    <h2>跟进列表 <span id="boardTotal" class="muted small"></span></h2>
-    <div class="toolbar">
-      <div><label>阶段筛选</label><select id="boardStageFilter" onchange="loadBoard()"><option value="">全部阶段</option></select></div>
-      <div style="flex:0"><label>&nbsp;</label><button class="btn ghost" onclick="loadBoard()">刷新</button></div>
-    </div>
-    <div class="tablewrap">
-      <table>
-        <thead><tr><th>单位 / 标题</th><th style="width:90px">来源</th><th style="width:130px">阶段</th><th>备注</th><th style="width:110px">操作</th></tr></thead>
-        <tbody id="boardRows"><tr><td colspan="5" class="muted">加载中…</td></tr></tbody>
-      </table>
-    </div>
-  </div>
-</section>
 
 <!-- ================= 设置 ================= -->
 <section id="tab-settings" role="tabpanel" aria-labelledby="tabbtn-settings" tabindex="0">
@@ -1416,49 +1755,619 @@ async function importReport(){
       toast('已导入 '+r.imported+' 家企业，当前缓存共 '+r.total+' 家');
       refreshStatus();
       loadStats(true);
-      if ($('tab-analyze').classList.contains('active')){ loadCompanyFilters(); loadCompanies(state.cPage); }
+      if ($('tab-data').classList.contains('active')){ loadCompanyFilters(); loadCompanies(state.cPage); }
     }
   }catch(e){ toast('导入异常', true); }
   btn.disabled = false; btn.textContent = '导入报告';
 }
 
-// ---- 配色主题切换（apple = 苹果风格 · Aurora Glass，默认）
-const THEMES = ['apple', 'light', 'dark'];
+// ---- 配色主题：苹果风浅 / 深两套（方案 A：全项目只有一套视觉语法）
+const SCHEMES = ['light', 'dark'];
 function applyTheme(t){
-  if (THEMES.indexOf(t) < 0) t = 'apple';
-  document.documentElement.setAttribute('data-theme', t); try{ localStorage.setItem('theme', t); }catch(e){}
+  if (SCHEMES.indexOf(t) < 0) t = 'light';
+  document.documentElement.setAttribute('data-scheme', t); try{ localStorage.setItem('scheme', t); }catch(e){}
 }
 (function(){
-  let saved = null; try{ saved = localStorage.getItem('theme'); }catch(e){}
-  const t = THEMES.indexOf(saved) >= 0 ? saved : 'apple';
+  let saved = null; try{ saved = localStorage.getItem('scheme'); }catch(e){}
+  // 旧版本存过的 apple / light / dark 需要映射过来：apple → 浅色，light → 浅色，dark → 深色
+  if (saved === 'apple') saved = 'light';
+  if (saved === 'theme-dark') saved = 'dark';
+  let t = SCHEMES.indexOf(saved) >= 0 ? saved : null;
+  if (!t){
+    // 首次进入不猜，直接跟随系统；之后记住用户的选择
+    t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  }
   applyTheme(t);
   const s = $('themeSel');
   if (s){ s.value = t; s.onchange = function(){ applyTheme(this.value); }; }
 })();
 
 // ---- Tabs（URL hash 持久化：刷新 / 分享链接 / 前进后退都停留在当前页）
-const TABS = ['dashboard','crawl','analyze','resume','board','recruits','preachs','settings'];
+// NAV_TABS 是出现在顶栏导航里的四项；data / settings 不占导航位，
+// 由顶栏按钮唤起，所以 activateTab 必须允许「没有对应导航按钮」的页。
+const TABS = ['dashboard','preachs','recruits','mine','data','settings'];
+const NAV_TABS = ['dashboard','preachs','recruits','mine'];
 function activateTab(tab, opts){
   opts = opts || {};
-  if (TABS.indexOf(tab) < 0) tab = 'dashboard';
+  if (TABS.indexOf(tab) < 0){ console.warn('[ui] 未知页签，已回退到「今日」：', tab); tab = 'dashboard'; }
+  const sec = $('tab-' + tab);
+  if (!sec) return;
   const btn = document.querySelector('nav button[data-tab="'+tab+'"]');
-  if (!btn) return;
   document.querySelectorAll('nav button').forEach(x=>{ x.classList.remove('active'); x.setAttribute('aria-selected','false'); });
   document.querySelectorAll('section').forEach(x=>x.classList.remove('active'));
-  btn.classList.add('active');
-  btn.setAttribute('aria-selected','true');
-  $('tab-'+tab).classList.add('active');
+  if (btn){ btn.classList.add('active'); btn.setAttribute('aria-selected','true'); }
+  else {
+    // 隐藏页（数据维护 / 设置）：导航不高亮，但顶栏对应按钮高亮，避免"不知道自己在哪页"
+    document.querySelectorAll('#btnDataMaintain, #btnSettings').forEach(x=>x.classList.remove('active'));
+    const ab = tab === 'data' ? $('btnDataMaintain') : (tab === 'settings' ? $('btnSettings') : null);
+    if (ab) ab.classList.add('active');
+  }
+  sec.classList.add('active');
   if (opts.hash !== false && location.hash !== '#'+tab){
     history.replaceState(null, '', '#'+tab);   // 用 replaceState，避免每次切页都堆一条历史记录
   }
   if (tab==='dashboard'){ loadDashboard(); }
-  else if (tab==='analyze'){ loadCompanyFilters(); loadCompanies(1); }
   else if (tab==='recruits'){ loadRecruits(1); }
   else if (tab==='preachs'){ loadPreachFilters(); loadPreachFavs(); refreshPreachView(); }
-  else if (tab==='board'){ loadBoard(); }
-  else if (tab==='resume'){ loadResumeCompanyCount(); }
-  else if (tab==='crawl'){ loadCrawlDates(); }
+  else if (tab==='mine'){ loadResumeCompanyCount(); loadBoard(); loadPrefs(); loadProfile(); }
+  else if (tab==='data'){ loadCrawlDates(); loadFlowStatus(); loadCompanyFilters(); loadCompanies(1); }
+  else if (tab==='settings'){ loadLlmCatalog(); }
 }
+
+// 「我的」页内子视图：简历档案 / 投递看板 / 求职偏好 / 投递推荐
+// 默认视图 = 子导航的第一项（简历档案）：它是数据源，其余四个视图都围着它转。
+const MINE_VIEWS = { profile: 'mineProfileView', board: 'mineBoardView',
+                     prefs: 'minePrefsView', rec: 'mineRecView' };
+const MINE_VIEW_BTNS = { profile: 'mineViewProfile', board: 'mineViewBoard',
+                         prefs: 'mineViewPrefs', rec: 'mineViewRec' };
+const DEFAULT_MINE_VIEW = 'profile';
+
+function setMineView(view){
+  const map = MINE_VIEWS, btns = MINE_VIEW_BTNS;
+  if (!map[view]) view = DEFAULT_MINE_VIEW;
+  Object.keys(map).forEach(k => {
+    const box = $(map[k]); if (box) box.style.display = (k === view) ? 'block' : 'none';
+    const b = $(btns[k]);
+    if (b){ b.classList.toggle('on', k === view); b.setAttribute('aria-pressed', k === view ? 'true' : 'false'); }
+  });
+  if (view === 'board') loadBoard();
+  if (view === 'prefs') loadPrefs();
+  if (view === 'profile') loadProfile();
+  // 推荐页的数据源就是简历档案：进来先自动读一次（档案改过就能立刻用上新的）。
+  // 自动读不覆盖用户自己粘进去的内容，只有手动点按钮才替换，见 fillResumeFromProfile。
+  if (view === 'rec') fillResumeFromProfile(false);
+}
+
+// ---- 求职偏好（接 /api/prefs；填一次，推荐与筛选自动带上）
+async function loadPrefs(){
+  const r = await api('/api/prefs', {silent:true});
+  if (!r.ok) return;
+  const p = r.prefs || {};
+  const join = v => (Array.isArray(v) ? v.join('、') : (v || ''));
+  const set = (id, v) => { const el = $(id); if (el) el.value = v; };
+  set('prefCities', join(p.target_cities));
+  set('prefRoles', join(p.target_positions));
+  set('prefSalary', p.salary_min || '');
+  set('prefBlacklist', join(p.blacklist));
+  const sel = $('prefCompanyType');
+  if (sel){
+    const types = (r.defaults && r.defaults.company_types) || [];
+    if (types.length){
+      sel.innerHTML = '<option value="">不限</option>' +
+        types.map(t => '<option value="' + esc(t) + '">' + esc(t) + '</option>').join('');
+    }
+    sel.value = p.company_type || '';
+  }
+  // 同步回填推荐页的高级选项，省得两处各填一遍
+  set('workPlace', join(p.target_cities));
+  const ct = $('companyType'); if (ct && p.company_type) ct.value = p.company_type;
+}
+async function savePrefs(){
+  const split = v => String(v || '').split(/[，、,;；\s\/]+/).map(x => x.trim()).filter(Boolean);
+  const body = {
+    target_cities: split($('prefCities').value),
+    target_positions: split($('prefRoles').value),
+    salary_min: Number($('prefSalary').value || 0) || 0,
+    blacklist: split($('prefBlacklist').value),
+    company_type: $('prefCompanyType').value || ''
+  };
+  const r = await api('/api/prefs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const msg = $('prefMsg');
+  if (!r.ok){ if (msg) msg.textContent = '保存失败：' + (r.error || ''); toast(r.error || '保存失败', true); return; }
+  if (msg) msg.textContent = '已保存';
+  toast('求职偏好已保存');
+  loadPrefs();
+}
+
+// ---- 简历档案：网申填表速查 + 档案全量导出
+//
+// 为什么是「模块 + 自由字段」而不是固定 schema：不同招聘系统的字段集差得很远
+// （同一个「教育经历」，国家管网要 26 项、中国移动的家庭成员表单要 10 项），
+// 固定 schema 会让「加一个系统特有字段」变成改代码。字段名和条数都交给用户。
+//
+// 修改只改内存，刷新页面即可撤销；点「保存修改」才写文件 —— 所以误删不用慌。
+let PROFILE = null;        // 内存中的档案（含未保存修改）
+let PROF_MODS = [];        // 模块元信息（来自 /api/profile 的 modules）
+let PROF_CUR = 'basic';    // 当前模块
+
+function profMod(key){ return PROF_MODS.find(m => m.key === key) || PROF_MODS[0] || {key:'basic', name:'基本信息', kind:'fields', title_keys:[]}; }
+function profArr(m){ return Array.isArray(PROFILE && PROFILE[m]) ? PROFILE[m] : []; }
+function profPayload(){ const body = {}; PROF_MODS.forEach(m => { body[m.key] = profArr(m.key); }); return body; }
+
+// 卡片标题取多个字段而不是只取一个：两条教育经历的「学校名称」都是武汉理工大学，
+// 只取一个会在列表里出现两个同名条目，分不清本科还是硕士。
+function profItemTitle(mod, item){
+  const parts = (mod.title_keys || []).map(k => String(item[k] || '').trim()).filter(Boolean);
+  if (parts.length) return parts.join(' · ');
+  const first = Object.values(item).find(v => String(v || '').trim());
+  return first ? String(first) : '（未命名）';
+}
+function profValue(m, i, k){
+  const rec = profArr(m)[i];
+  if (rec == null) return '';
+  return typeof rec === 'string' ? rec : String(rec[k] ?? '');
+}
+function profItemText(m, i){
+  const rec = profArr(m)[i];
+  if (rec == null) return '';
+  if (typeof rec === 'string') return rec;
+  return Object.keys(rec).filter(k => String(rec[k] || '').trim()).map(k => `${k}：${rec[k]}`).join('\n');
+}
+function profModuleText(m){
+  const mod = profMod(m), arr = profArr(m);
+  if (mod.kind === 'fields') return arr.filter(r => String(r.v || '').trim()).map(r => `${r.k}：${r.v}`).join('\n');
+  if (mod.kind === 'lines') return arr.join('\n');
+  return arr.map((item, i) => {
+    const lines = Object.keys(item).filter(k => String(item[k] || '').trim()).map(k => `${k}：${item[k]}`);
+    return lines.length ? `【${mod.name} ${i + 1}】\n` + lines.join('\n') : '';
+  }).filter(Boolean).join('\n\n');
+}
+
+async function copyText(text){
+  text = String(text ?? '');
+  if (!text.trim()){ toast('内容为空，没什么可复制的'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('已复制');
+    return;
+  } catch(e){
+    // 非安全上下文（非 localhost 的 http 访问）下 clipboard API 不可用，退回 execCommand
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch(_) { ok = false; }
+  ta.remove();
+  toast(ok ? '已复制' : '复制失败，请手动选中复制', !ok);
+}
+
+function profKvRow(m, i, k, v, delAct){
+  // 多行值（项目「负责工作」的要点列表）用 textarea，input 会把换行吃掉
+  const val = /\n/.test(v || '')
+    ? `<textarea class="v" data-m="${m}" data-i="${i}" data-k="${esc(k)}" aria-label="${esc(k)}">${esc(v)}</textarea>`
+    : `<input class="v" data-m="${m}" data-i="${i}" data-k="${esc(k)}" value="${esc(v)}" aria-label="${esc(k)}">`;
+  return `<div class="prof-kv">
+    <input class="k" data-m="${m}" data-i="${i}" data-k="${esc(k)}" data-role="k" value="${esc(k)}" aria-label="字段名">
+    ${val}
+    <button type="button" class="btn ghost sm pcopy" data-act="copyval" data-m="${m}" data-i="${i}" data-k="${esc(k)}" title="只复制这一项的值">复制</button>
+    <button type="button" class="btn ghost sm pdel" data-act="${delAct}" data-m="${m}" data-i="${i}" data-k="${esc(k)}" title="${delAct === 'delfield' ? '删除这个字段' : '删除这一行'}">✕</button>
+  </div>`;
+}
+
+function setProfMod(key){ PROF_CUR = key; renderProfileModBar(); renderProfileBody(); }
+
+function renderProfileModBar(){
+  const bar = $('profModBar');
+  if (!bar) return;
+  bar.innerHTML = PROF_MODS.map(m => {
+    const on = m.key === PROF_CUR;
+    const tip = m.form_only ? ' title="网申表单字段：导出时照样写出，只是标出来提醒它不是简历正文"' : '';
+    const tag = m.form_only ? '<span class="prof-hint"> · 填表</span>' : '';
+    return `<button type="button" class="btn ghost sm prof-chip${on ? ' on' : ''}" aria-pressed="${on}"${tip} onclick="setProfMod('${m.key}')">${esc(m.name)}<span class="n">${profArr(m.key).length}</span>${tag}</button>`;
+  }).join('');
+}
+
+function renderProfileBody(){
+  const box = $('profBody');
+  if (!box || !PROFILE) return;
+  const mod = profMod(PROF_CUR), m = mod.key, arr = profArr(m);
+  const addBtn = `<div style="margin-top:10px"><button type="button" class="btn ghost sm" data-act="add" data-m="${m}">+ 添加${mod.kind === 'fields' ? '一行' : '一条'}</button></div>`;
+  if (!arr.length){
+    box.innerHTML = `<p class="hint">「${esc(mod.name)}」还没有内容。</p>
+      <button type="button" class="btn ghost sm" data-act="add" data-m="${m}">+ 添加第一条</button>`;
+    return;
+  }
+  if (mod.kind === 'lines'){
+    box.innerHTML = `<label>${esc(mod.name)}（一行一条）</label>
+      <textarea style="min-height:200px;width:100%" data-m="${m}" data-role="lines" aria-label="${esc(mod.name)}">${esc(arr.join('\n'))}</textarea>` + addBtn;
+    return;
+  }
+  if (mod.kind === 'fields'){
+    box.innerHTML = arr.map((row, i) => profKvRow(m, i, row.k, row.v, 'delrow')).join('') + addBtn;
+    return;
+  }
+  box.innerHTML = arr.map((item, i) => `<div class="prof-item">
+      <div class="prof-item-head">
+        <b>${esc(profItemTitle(mod, item))}</b>
+        <button type="button" class="btn ghost sm" data-act="copyitem" data-m="${m}" data-i="${i}">复制整条</button>
+        <button type="button" class="btn ghost sm" data-act="addfield" data-m="${m}" data-i="${i}">添加字段</button>
+        <button type="button" class="btn ghost sm" data-act="delitem" data-m="${m}" data-i="${i}">删除</button>
+      </div>
+      ${Object.keys(item).map(k => profKvRow(m, i, k, item[k], 'delfield')).join('')}
+    </div>`).join('') + addBtn;
+}
+
+function profAdd(m){
+  const mod = profMod(m), arr = profArr(m);
+  if (mod.kind === 'fields') arr.push({ k: '新字段', v: '' });
+  else if (mod.kind === 'lines') arr.push('');
+  else {
+    // 新卡片至少带一个字段，否则是一张空的「（未命名）」卡，看不出该填什么
+    const seed = (mod.title_keys && mod.title_keys[0]) || '字段名';
+    const card = {}; card[seed] = '';
+    arr.push(card);
+  }
+  PROFILE[m] = arr;
+  renderProfileModBar();
+  renderProfileBody();
+}
+
+function bindProfile(){
+  const box = $('profBody');
+  if (!box) return;
+  box.addEventListener('click', e => {
+    const b = e.target.closest('button[data-act]');
+    if (!b || !PROFILE) return;
+    const d = b.dataset, m = d.m, i = Number(d.i || 0);
+    if (d.act === 'copyval'){ copyText(profValue(m, i, d.k)); }
+    else if (d.act === 'copyitem'){ copyText(profItemText(m, i)); }
+    else if (d.act === 'add'){ profAdd(m); }
+    else if (d.act === 'addfield'){
+      const name = (prompt('新字段名（例如：专业方向）') || '').trim();
+      if (!name) return;
+      const rec = profArr(m)[i];
+      if (rec && typeof rec === 'object'){ rec[name] = ''; renderProfileBody(); }
+    }
+    else if (d.act === 'delrow'){ profArr(m).splice(i, 1); renderProfileModBar(); renderProfileBody(); }
+    else if (d.act === 'delitem'){ profArr(m).splice(i, 1); renderProfileModBar(); renderProfileBody(); }
+    else if (d.act === 'delfield'){
+      const rec = profArr(m)[i];
+      if (rec && typeof rec === 'object'){ delete rec[d.k]; renderProfileBody(); }
+    }
+  });
+  box.addEventListener('input', e => {
+    const t = e.target, m = t.dataset.m;
+    if (!m || !PROFILE) return;
+    const arr = profArr(m);
+    if (t.dataset.role === 'lines'){ PROFILE[m] = t.value.split('\n'); return; }
+    const i = Number(t.dataset.i || 0), rec = arr[i];
+    if (rec == null || typeof rec !== 'object') return;
+    if (t.dataset.role === 'k'){
+      // 改字段名：重建对象以保住字段顺序，并同步同行的「值」与「复制」按钮上的旧键名，
+      // 否则接下来编辑值会写到一个已经不存在的键上，凭空多出一个字段。
+      const old = t.dataset.k, next = t.value.trim();
+      if (!next || next === old) return;
+      const keys = Object.keys(rec), at = keys.indexOf(old);
+      if (at < 0) return;
+      const rebuilt = {};
+      keys.forEach((k, idx) => { rebuilt[idx === at ? next : k] = rec[k]; });
+      arr[i] = rebuilt;
+      t.dataset.k = next;
+      const row = t.closest('.prof-kv');
+      if (row){
+        const v = row.querySelector('.v'); if (v) v.dataset.k = next;
+        const c = row.querySelector('.pcopy'); if (c) c.dataset.k = next;
+        const x = row.querySelector('.pdel'); if (x) x.dataset.k = next;
+      }
+      return;
+    }
+    rec[t.dataset.k] = t.value;
+  });
+}
+
+async function loadProfile(){
+  const box = $('profBody');
+  const r = await api('/api/profile', { silent: true });
+  if (!r || !r.ok){ if (box) box.innerHTML = '<span class="muted small">加载失败</span>'; return; }
+  PROF_MODS = r.modules || [];
+  PROFILE = r.profile || {};
+  if (!PROF_MODS.some(m => m.key === PROF_CUR)) PROF_CUR = (PROF_MODS[0] || {}).key || 'basic';
+  renderProfileModBar();
+  renderProfileBody();
+  refreshProfilePhoto(r.photo);
+}
+
+// ---- 个人照片（两份 Word 都用；纯文本导出不含）--------------------------
+function refreshProfilePhoto(meta){
+  const img = $('profPhotoImg'), none = $('profPhotoNone'), del = $('btnProfPhotoDel'), msg = $('profPhotoMsg');
+  const has = !!(meta && meta.exists);
+  if (img){
+    if (has){ img.src = meta.url; img.hidden = false; }
+    else { img.removeAttribute('src'); img.hidden = true; }
+  }
+  if (none) none.hidden = has;
+  if (del) del.disabled = !has;
+  if (msg){
+    msg.textContent = has
+      ? ('当前：' + meta.filename + '（' + Math.round((meta.bytes || 0) / 1024) + ' KB）。会出现在 HR 版与完整版 .docx 里。')
+      : '照片只用于两份 .docx（HR 版 / 完整版）；.md 与 .txt 是纯文本，不含照片。照片只存本机，且已加入 .gitignore。';
+  }
+}
+
+async function uploadProfilePhoto(input){
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const msg = $('profPhotoMsg');
+  if (msg) msg.textContent = '正在导入 ' + file.name + ' …';
+  const fd = new FormData();
+  fd.append('file', file);
+  try{
+    const res = await fetch('/api/profile/photo', { method: 'POST', body: fd });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.ok === false){
+      toast((data && data.error) || ('照片导入失败（HTTP ' + res.status + '）'));
+      await loadProfile();           // 失败时回读真实状态，别把界面留在假象上
+      return;
+    }
+    refreshProfilePhoto(data.photo);
+    toast('照片已导入，可下载 HR 版 / 完整版查看效果');
+  } catch(e){
+    toast('照片导入失败：' + (e && e.message ? e.message : '网络错误'));
+    await loadProfile();
+  } finally {
+    input.value = '';              // 清空，否则重选同一个文件不会再触发 change
+  }
+}
+
+async function deleteProfilePhoto(){
+  if (!confirm('确定删除已导入的个人照片？')) return;
+  try{
+    const res = await fetch('/api/profile/photo', { method: 'DELETE' });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.ok === false){ toast('删除失败'); return; }
+    refreshProfilePhoto(data.photo);
+    toast('照片已删除');
+  } catch(e){
+    toast('删除失败：' + (e && e.message ? e.message : '网络错误'));
+  }
+}
+
+async function saveProfileAll(){
+  const btn = $('btnSaveProfile'), msg = $('profMsg');
+  if (btn) btn.disabled = true;
+  const r = await api('/api/profile', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(profPayload()) });
+  if (btn) btn.disabled = false;
+  if (!r.ok){ if (msg) msg.textContent = '保存失败'; toast(r.error || '保存失败', true); return; }
+  PROFILE = r.profile;
+  if (msg) msg.textContent = '已保存 ' + (r.profile.updated_at || '');
+  toast('简历档案已保存');
+  renderProfileModBar();
+}
+
+async function copyProfileModule(){ copyText(profModuleText(PROF_CUR)); }
+
+// ---- 从简历识别并填入
+//
+// 刻意不直接落盘：LLM 会编造简历里没写的内容（专业排名、绩点、薪资最常见），
+// 直接写入等于把编造值混进档案，背调对不上才发现。这里只产出「建议」，
+// 摊成「当前值 → 识别值」让用户逐项勾选，且默认不勾会覆盖已有内容的项。
+let PROF_FILL_OPS = [];
+
+function brief(v){ v = String(v ?? ''); return v.length > 70 ? v.slice(0, 70) + '…' : v; }
+
+async function profileExtract(){
+  const f = $('profFile').files[0];
+  if (!f){ toast('请先选择简历文件', true); return; }
+  const btn = $('btnProfExtract');
+  btn.disabled = true; btn.textContent = '提取中…';
+  const fd = new FormData();
+  fd.append('file', f);
+  const v = $('visionModel') ? $('visionModel').value.trim() : '';
+  if (v) fd.append('vision_model', v);
+  const r = await api('/api/resume/extract', { method: 'POST', body: fd });
+  btn.disabled = false; btn.textContent = '提取文字';
+  if (!r.ok) return;
+  $('profText').value = r.text || '';
+  toast('已提取 ' + r.chars + ' 字');
+}
+
+async function profileFill(){
+  const t = $('profText').value.trim();
+  if (!t){ toast('请先上传文件提取文字，或直接粘贴简历原文', true); return; }
+  const btn = $('btnProfFill');
+  btn.disabled = true; btn.textContent = '识别中…';
+  const r = await api('/api/profile/fill', { method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ text: t }) });
+  btn.disabled = false; btn.textContent = '识别并填入';
+  if (!r.ok) return;
+  const ops = profDiffOps(r.suggestion || {});
+  if (!ops.length){ toast('没识别出可填入的新内容'); return; }
+  PROF_FILL_OPS = ops;
+  const added = ops.filter(o => o.apply).length;
+  $('profFillNote').textContent = `（${r.model || ''} · 共 ${ops.length} 项，已勾选 ${added} 项${
+    r.truncated ? ' · 原文过长已截断' : ''}）`;
+  profRenderFillOps();
+  $('profFillBox').style.display = '';
+  toast(`识别出 ${ops.length} 项，请逐项确认`);
+}
+
+// 建议 vs 当前档案 → 操作清单。type 决定默认是否勾选：
+// new（档案里没有）/ fill（原本为空）→ 勾；change（会覆盖已有内容）→ 不勾。
+function profDiffOps(sug){
+  const ops = [];
+  PROF_MODS.forEach(mod => {
+    const cur = profArr(mod.key);
+    const next = Array.isArray(sug[mod.key]) ? sug[mod.key] : [];
+    if (!next.length) return;
+    if (mod.kind === 'fields'){
+      next.forEach(row => {
+        const v = String(row.v || '').trim();
+        if (!v) return;
+        const at = cur.findIndex(r => r.k === row.k);
+        if (at < 0) ops.push({ mod, type: 'new', label: row.k, old: '', next: v, apply: true, m: mod.key, i: -1, k: row.k });
+        else if (!String(cur[at].v || '').trim()) ops.push({ mod, type: 'fill', label: row.k, old: '', next: v, apply: true, m: mod.key, i: at, k: row.k });
+        else if (cur[at].v !== v) ops.push({ mod, type: 'change', label: row.k, old: cur[at].v, next: v, apply: false, m: mod.key, i: at, k: row.k });
+      });
+    } else if (mod.kind === 'lines'){
+      next.forEach(line => {
+        const v = String(line || '').trim();
+        if (!v || cur.indexOf(v) >= 0) return;
+        ops.push({ mod, type: 'new', label: '新增一段', old: '', next: v, apply: true, m: mod.key, i: -1 });
+      });
+    } else {
+      next.forEach(item => {
+        if (!item || typeof item !== 'object') return;
+        const title = profItemTitle(mod, item);
+        const at = cur.findIndex(it => it && typeof it === 'object' && profItemTitle(mod, it) === title);
+        if (at < 0){
+          const txt = Object.keys(item).filter(k => String(item[k] || '').trim()).map(k => `${k}：${item[k]}`).join('；');
+          ops.push({ mod, type: 'new', label: title, old: '', next: txt || title, apply: true, m: mod.key, i: -1, item });
+          return;
+        }
+        Object.keys(item).forEach(k => {
+          const v = String(item[k] || '').trim();
+          if (!v) return;
+          const old = String(cur[at][k] || '').trim();
+          if (!old) ops.push({ mod, type: 'fill', label: `${title} · ${k}`, old: '', next: v, apply: true, m: mod.key, i: at, k });
+          else if (old !== v) ops.push({ mod, type: 'change', label: `${title} · ${k}`, old, next: v, apply: false, m: mod.key, i: at, k });
+        });
+      });
+    }
+  });
+  return ops;
+}
+
+function profRenderFillOps(){
+  const typeName = { new: '新增', fill: '填空', change: '覆盖' };
+  const rows = PROF_FILL_OPS.map((op, i) => `<tr>
+    <td><input type="checkbox" data-op="${i}" ${op.apply ? 'checked' : ''} aria-label="应用这一项"></td>
+    <td><span class="tag ${op.type === 'change' ? 'no' : 'so'}">${typeName[op.type] || op.type}</span></td>
+    <td class="small">${esc(op.mod.name)}</td>
+    <td>${esc(brief(op.label))}</td>
+    <td class="muted small">${esc(brief(op.old) || '（空）')}</td>
+    <td>${esc(brief(op.next))}</td>
+  </tr>`).join('');
+  $('profFillList').innerHTML = `<table>
+    <thead><tr><th style="width:38px">用</th><th style="width:56px">类型</th><th style="width:84px">模块</th>
+    <th>字段 / 条目</th><th style="width:24%">当前值</th><th style="width:28%">识别值</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+function profFillToggle(on){
+  document.querySelectorAll('#profFillList input[data-op]').forEach(b => { b.checked = on; });
+}
+function profFillCancel(){
+  PROF_FILL_OPS = [];
+  $('profFillBox').style.display = 'none';
+}
+function profApplySelected(){
+  const picked = Array.from(document.querySelectorAll('#profFillList input[data-op]'))
+    .filter(b => b.checked).map(b => PROF_FILL_OPS[Number(b.dataset.op)]);
+  if (!picked.length){ toast('没有勾选任何一项'); return; }
+  picked.forEach(op => {
+    const arr = profArr(op.m);
+    if (op.i < 0){
+      // 新增：整条卡片 / 一行字段 / 一段文本
+      if (op.item) arr.push(op.item);
+      else if (op.mod.kind === 'fields') arr.push({ k: op.k, v: op.next });
+      else arr.push(op.next);
+    } else {
+      const rec = arr[op.i];
+      if (rec && typeof rec === 'object') rec[op.k] = op.next;
+    }
+  });
+  PROF_FILL_OPS = [];
+  $('profFillBox').style.display = 'none';
+  renderProfileModBar();
+  renderProfileBody();
+  toast(`已应用 ${picked.length} 项，确认无误后点「保存修改」`);
+}
+
+// 预览 / 下载都把**当前界面上的档案** POST 过去渲染，而不是读已保存的版本：
+// 否则改了没保存时会拿到旧内容，用户会以为功能坏了。
+async function fetchResume(fmt){
+  return await api('/api/profile/render?format=' + encodeURIComponent(fmt || 'md'), {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(profPayload()) });
+}
+
+async function toggleResumePreview(){
+  const card = $('profPreviewCard');
+  if (!card) return;
+  if (card.style.display !== 'none'){ card.style.display = 'none'; return; }
+  const r = await fetchResume('md');
+  if (!r || !r.ok) return;
+  const name = r.filename || '';
+  $('profPreview').textContent = r.text || '';
+  $('profPreviewNote').textContent = '（' + name + ' · 反映当前编辑，未保存也算）';
+  card.style.display = '';
+}
+
+function saveBlob(blob, name){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('已下载 ' + name);
+}
+
+function stamp(){
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return '' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate());
+}
+
+// Word 走单独接口：它返回的是二进制流，不能复用 render 的 JSON 通道。
+// 也带当前编辑未保存的内容，行为与 md / txt 一致。
+// 两种 docx 的按钮文案要记下来，跑完得还原成原样，不能留下「生成中…」。
+const DOCX_KINDS = {
+  full: { style: 'full', btn: 'btnDownloadDocx', label: '完整版 .docx' },
+  hr:   { style: 'hr',   btn: 'btnDownloadHr',   label: 'HR 版 .docx' },
+};
+
+async function downloadDocx(kind){
+  const cfg = DOCX_KINDS[kind] || DOCX_KINDS.full;
+  const btn = $(cfg.btn);
+  if (btn){ btn.disabled = true; btn.textContent = '生成中…'; }
+  try{
+    const res = await fetch('/api/profile/render.docx?style=' + cfg.style, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(profPayload()) });
+    if (!res.ok){
+      let msg = '导出 Word 失败（HTTP ' + res.status + '）';
+      try { const j = await res.json(); if (j && j.error) msg = j.error; } catch(e){}
+      toast(msg);
+      return;
+    }
+    // 文件名带中文，从 RFC 5987 的 filename* 里取；取不到再退化成日期命名
+    const disp = res.headers.get('Content-Disposition') || '';
+    const m = /filename\*=UTF-8''([^;]+)/i.exec(disp);
+    let name = '';
+    if (m){ try { name = decodeURIComponent(m[1]); } catch(e){ name = ''; } }
+    if (!name) name = '投递简历-' + stamp() + '.docx';
+    saveBlob(await res.blob(), name);
+  } catch(e){
+    toast('导出 Word 失败：' + (e && e.message ? e.message : '网络错误'));
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = cfg.label; }
+  }
+}
+
+async function downloadResume(fmt){
+  if (fmt === 'full' || fmt === 'hr') return downloadDocx(fmt);
+  const r = await fetchResume(fmt);
+  if (!r || !r.ok) return;
+  const name = r.filename || ('投递简历.' + (fmt === 'txt' ? 'txt' : 'md'));
+  const blob = new Blob([r.text || ''], { type: (fmt === 'txt' ? 'text/plain' : 'text/markdown') + ';charset=utf-8' });
+  saveBlob(blob, name);
+}
+
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => activateTab(b.dataset.tab));
 // 键盘无障碍：tablist 内 ←/→ 循环切换，Home / End 跳到首尾（WAI-ARIA 选项卡惯例）
 (function(){
@@ -1522,6 +2431,16 @@ function applyStatus(s){
     if (badge) badge.dataset.init = '1';
     if (s.has_api_key){ badge.textContent='API Key ✓ · '+s.api_key_masked; badge.className='badge ok'; }
     else { badge.textContent='未配置 API Key'; badge.className='badge no'; }
+    // 顶栏数据新鲜度：不管在哪个页面都能看到数据旧到什么程度
+    const hd = $('hdUpdated'); if (hd) hd.textContent = s.data_updated || '未抓取';
+    // 顶栏「更新数据」跟随增量任务状态：运行中变成不可点 + 出现停止按钮
+    const qb = $('btnQuickUpdate'), qs = $('btnQuickUpdateStop');
+    if (qb && qs){
+      const running = !!(s.update_task && s.update_task.running);
+      qs.style.display = running ? '' : 'none';
+      qb.disabled = running;
+      qb.textContent = running ? '更新中…' : '更新数据';
+    }
     // 模型下拉重建 <option> 是实打实的 DOM 重建，每秒做一次会打断用户的下拉操作
     const mk = MODEL_KEY(s);
     if (mk !== state._modelKey){
@@ -1535,9 +2454,9 @@ function applyStatus(s){
     // 抓取页日志区展示「抓取」与「更新招聘信息」中较新的那个任务
     const scanTask = (s.update_task && (!s.crawler_task || (s.update_task.started_at||0) >= (s.crawler_task.started_at||0)))
       ? s.update_task : s.crawler_task;
-    renderTask($('crawlLog'), $('crawlStatus'), $('btnRecruitUpdateStop'), scanTask);
-    renderTask($('analyzeLog'), $('analyzeStatus'), $('btnAnalyzeStop'), s.analyze_task);
-    renderTask($('checkPreachLog'), $('checkPreachStatus'), $('btnCheckPreachStop'), s.check_task);
+    renderTask(null, $('crawlStatus'), $('btnRecruitUpdateStop'), scanTask);
+    renderTask(null, $('analyzeStatus'), $('btnAnalyzeStop'), s.analyze_task);
+    renderTask(null, $('checkPreachStatus'), $('btnCheckPreachStop'), s.check_task);
     // 工作地流动分析：原先这里有条单独的 1.5s 轮询，现在由 status 推送驱动
     applyFlowTask(s.flow_task);
     // stat cards —— 只在首次生成 DOM，之后仅更新文本，避免每次内联重建导致整排卡片重排/soNum 被重置闪烁
@@ -1568,23 +2487,27 @@ function renderStatsCards(s){
 }
 
 function renderTask(logEl, statusEl, stopBtn, task){
-  if (!task) return;
-  if (task.lines && task.lines.length){ logEl.textContent = task.lines.slice(-300).join('\n'); logEl.scrollTop = logEl.scrollHeight; }
+  if (!task || !statusEl) return;
+  // 页面内不再放 <pre class="log">，日志统一在顶栏任务中心看；logEl 为 null 是常态
+  if (logEl && task.lines && task.lines.length){ logEl.textContent = task.lines.slice(-300).join('\n'); logEl.scrollTop = logEl.scrollHeight; }
   if (task.running){
     if (statusEl.dataset.state !== 'running'){ statusEl.innerHTML = '<span class="spin"></span>运行中（'+task.started+' 开始）'; statusEl.dataset.state='running'; }
-    stopBtn.style.display='';
+    if (stopBtn) stopBtn.style.display='';
   } else {
-    statusEl.textContent = '已结束，退出码 '+task.exit_code+'（'+(task.finished||'')+'）'; stopBtn.style.display='none'; statusEl.dataset.state='done';
+    statusEl.textContent = '已结束，退出码 '+task.exit_code+'（'+(task.finished||'')+'）'; if (stopBtn) stopBtn.style.display='none'; statusEl.dataset.state='done';
     // 仅在该任务「由运行转结束」的首次刷新触发一次 refreshDataViews，避免 refreshStatus↔refreshDataViews 相互调用造成无限循环（整页高频重建/闪烁）
     if (task.exit_code===0 && statusEl.dataset.notified !== '1'){ statusEl.dataset.notified='1'; refreshDataViews(); }
   }
 }
 
-function refreshDataViews(){ refreshStatus(); if($('tab-analyze').classList.contains('active')){ loadCompanyFilters(); loadCompanies(state.cPage); }
+function refreshDataViews(){ refreshStatus(); if($('tab-data').classList.contains('active')){ loadCompanyFilters(); loadCompanies(state.cPage); }
   if($('tab-recruits').classList.contains('active')) loadRecruits(state.rPage); if($('tab-preachs').classList.contains('active')) refreshPreachView(); if($('tab-dashboard').classList.contains('active')) loadDashboard(); }
 
 // ---- 今日行动中心 / 数据健康 / 统一任务中心
-function goTab(tab){ activateTab(tab); }
+// 旧页名 → 新页名：重构后「抓取 / 企业分析」并入「数据维护」，「投递推荐 / 看板」并入「我的」。
+// 留着这层映射，避免任何遗留调用点静默跳回「今日」而看起来"点了没反应"。
+const LEGACY_TABS = { crawl:'data', analyze:'data', resume:'mine', board:'mine' };
+function goTab(tab){ activateTab(LEGACY_TABS[tab] || tab); }
 function isoDay(offset){
   const d = new Date(); d.setDate(d.getDate() + (offset||0));
   const p = n => String(n).padStart(2,'0');
@@ -1601,7 +2524,7 @@ const ACTIONS = [
   {key:'preach_favs', lbl:'我的收藏宣讲会', tip:'只看已收藏的宣讲会',
    act:()=>{ $('pq').value=''; $('pstart').value=''; $('pend').value=''; $('pFavOnly').checked=true; goTab('preachs'); }},
   {key:'unanalyzed', lbl:'待分析企业', tip:'去企业分析页运行分析',
-   act:()=>{ goTab('analyze'); }},
+   act:()=>{ goTab('data'); }},
 ];
 // ---- 首屏状态条：一句话说清「数据更新到什么时候 + 现在要做什么」
 const SB = { updated: '', todos: [] };
@@ -1651,13 +2574,13 @@ async function loadHealth(){
       ['数据覆盖日期', (h.coverage_start||'-') + ' ~ ' + (h.coverage_end||'-'), '按发布日期 / 举办日期', ''],
       ['详情缺失', h.missing_detail, '招聘公告无正文的条数', ''],
       ['已分析企业', h.analyzed_count, '企业分析缓存', ''],
-      ['未分析企业', h.unanalyzed_count, '点击去分析', 'analyze'],
+      ['未分析企业', h.unanalyzed_count, '点击去分析', 'data'],
       ['工作地未确定', (h.work_undetermined ?? '-'), '宣讲会企业缺工作地映射', ''],
     ];
     $('healthBox').innerHTML = items.map(([lbl, val, tip, goto]) =>
       `<div class="stat${goto?' act':''}"${goto?` role="button" tabindex="0" data-goto="${goto}"`:''}><div class="num">${esc(String(val))}</div><div class="lbl">${esc(lbl)}</div>${tip?`<div class="go muted" style="font-size:var(--fs-xs)">${esc(tip)}</div>`:''}</div>`).join('');
-    const go = $('healthBox').querySelector('[data-goto="analyze"]');
-    if (go) go.onclick = () => goTab('analyze');
+    const go = $('healthBox').querySelector('[data-goto="data"]');
+    if (go) go.onclick = () => goTab('data');
     // 状态条只留「需要处理」的项；全都正常时显示一句「数据状态正常」
     SB.todos = [];
     if (h.unanalyzed_count) SB.todos.push(['待分析', h.unanalyzed_count, ' 家']);
@@ -1695,12 +2618,12 @@ async function loadSetupGuide(){
         tab: 'settings', action: '去设置' },
       { done: crawled > 0,
         title: '② 抓取招聘数据',
-        desc: '在「抓取数据」里点「开始更新」，把学校就业网的招聘公告、宣讲会、双选会拉到本地主库。',
-        tab: 'crawl', action: '去抓取' },
+        desc: '在顶栏「数据维护」里点「开始更新」，把学校就业网的招聘公告、宣讲会、双选会拉到本地主库。',
+        tab: 'data', action: '去抓取' },
       { done: (Number(s.analyzed_count)||0) > 0,
         title: '③ 运行企业分析',
-        desc: '在「企业分析」里跑一次 AI 分析，得到企业类型、国企标记与工作地点，筛选与推荐才准。',
-        tab: 'analyze', action: '去分析' },
+        desc: '在顶栏「数据维护」里跑一次 AI 分析，得到企业类型、国企标记与工作地点，筛选与推荐才准。',
+        tab: 'data', action: '去分析' },
     ];
     if (steps.every(x => x.done)){ box.style.display = 'none'; return; }   // 全部完成 → 自动消失
     const prog = $('setupGuideProgress');
@@ -1802,7 +2725,7 @@ async function startCrawl(){
   const r = await api('/api/crawl',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   $('btnCrawl').disabled = false;
   if (!r.ok){ toast(r.error||'启动失败', true); return; }
-  toast('抓取任务已启动'); state.crawlerTask = r.task; $('crawlLog').textContent='';
+  toast('抓取任务已启动'); state.crawlerTask = r.task;
   refreshStatus();   // 立即刷一次给出反馈；后续由 SSE 推送
 }
 async function loadCrawlDates(){
@@ -1819,7 +2742,7 @@ async function startRecruitUpdate(){
     const r = await api('/api/recruit/update',{method:'POST'});
     if (!r.ok){ toast(r.error||'启动失败', true); return; }
     toast('已开始更新招聘信息（增量合并进主库）');
-    state.recruitTask = r.task; $('crawlLog').textContent='';
+    state.recruitTask = r.task;
     refreshStatus();   // 立即刷一次给出反馈；后续由 SSE 推送
     loadTaskCenter();
   }catch(e){ toast('启动异常', true); }
@@ -1834,7 +2757,7 @@ async function startAnalyze(){
   const r = await api('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   $('btnAnalyze').disabled = false;
   if (!r.ok){ toast(r.error||'启动失败', true); return; }
-  toast('分析任务已启动'); state.analyzeTask = r.task; $('analyzeLog').textContent='';
+  toast('分析任务已启动'); state.analyzeTask = r.task;
   refreshStatus();   // 立即刷一次给出反馈；后续由 SSE 推送
 }
 async function checkPreachUpdate(){
@@ -1842,7 +2765,7 @@ async function checkPreachUpdate(){
   const r = await api('/api/preach/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
   $('btnCheckPreach').disabled = false;
   if (!r.ok){ toast(r.error||'启动失败', true); return; }
-  toast('已开始检查宣讲会更新'); state.checkTask = r.task; $('checkPreachLog').textContent='';
+  toast('已开始检查宣讲会更新'); state.checkTask = r.task;
   refreshStatus();   // 立即刷一次给出反馈；后续由 SSE 推送
 }
 async function stopTask(task){
@@ -1970,6 +2893,9 @@ async function loadBoard(){
   }
 }
 async function createBoardItem(){
+  // 看板页的手工新增表单已移除：它要求手填「来源记录 ID」，最容易填错。
+  // 新增一律走列表与企业抽屉里的「加入看板」。保留守卫，避免残留调用报错。
+  if (!$('boardSourceId')) { toast('请从招聘或宣讲会列表里点「加入看板」'); return; }
   const body = {
     source_type:$('boardSourceType').value, source_id:$('boardSourceId').value.trim(),
     snapshot:{unit:$('boardUnit').value.trim(), title:$('boardTitle').value.trim(), link:$('boardLink').value.trim()},
@@ -2173,8 +3099,22 @@ async function loadPreachFilters(){
     pvenue.value = curV;
   }catch(e){}
 }
+// 筛选收进折叠后，用 summary 上的计数告诉用户「有几个条件正在生效」，
+// 否则会出现「列表莫名变少」却看不出是哪一项在起作用。
+function updatePreachFilterCount(){
+  const el = $('preachFilterCount'); if (!el) return;
+  const val = id => { const e = $(id); return e ? e.value : ''; };
+  let n = 0;
+  ['pstart','pend','pwork','pvenue','ptype'].forEach(id => { if (val(id)) n++; });
+  const f = $('pFavOnly'); if (f && f.checked) n++;
+  el.textContent = String(n);
+  const sum = el.parentElement;
+  if (sum) sum.classList.toggle('on', n > 0);
+}
+
 async function loadPreachs(page){
   state.pPage = Math.max(1, page||1);
+  updatePreachFilterCount();
   if(!favsLoaded){ try{ await loadPreachFavs(); }catch(e){} }
   const p = new URLSearchParams({ q:$('pq').value.trim(), type:$('ptype').value,
     work:$('pwork').value, venue:$('pvenue').value,
@@ -2193,7 +3133,9 @@ async function loadPreachs(page){
     const bp = boardPayload('宣讲会', x);
     const cid = String(x['ID']||'');
     const cf = !!(cid && state.pConflictIds && state.pConflictIds.has(cid));
-    return `<tr${cf?' class="pcrow-conflict"':''}><td class="muted small">${cf?'<span class="tag remind">⚠️ 冲突</span> ':''}${esc(x['宣讲时间']||'-')}</td>
+    // pconf-flag 是给 CSS 认的：这个标签与行的 pcrow-conflict 竖条都由
+    // 「显示冲突」那个开关控制显隐（默认隐藏），标签列里的「提醒」不受影响。
+    return `<tr${cf?' class="pcrow-conflict"':''}><td class="muted small">${cf?'<span class="tag remind pconf-flag">⚠️ 冲突</span> ':''}${esc(x['宣讲时间']||'-')}</td>
       <td>${x['单位名称']?companyLink(x['单位名称']):'<span class="muted">-</span>'}${x['标题']&&x['标题']!==x['单位名称']?`<div class="small muted">${esc(x['标题'])}</div>`:''}
       ${x['正文']?`<div><span class="expand" role="button" tabindex="0" onclick="document.getElementById('${id}').classList.toggle('show')">展开详情 ▾</span><div class="body-preview" id="${id}">${esc(x['正文'])}…</div></div>`:''}</td>
       <td class="small">${esc(x['宣讲会地点']||'-')}</td>
@@ -2324,7 +3266,7 @@ function pcwPackLanes(items){
   });
   return Math.max(1, laneEnd.length);
 }
-function refreshPreachView(){ if (state.pView === 'week') loadPreachWeek(); else loadPreachs(state.pPage); }
+function refreshPreachView(){ updatePreachFilterCount(); if (state.pView === 'week') loadPreachWeek(); else loadPreachs(state.pPage); }
 function setPreachView(view){
   state.pView = (view === 'week') ? 'week' : 'list';
   syncPreachView();
@@ -2491,33 +3433,71 @@ async function scanPreachConflicts(visibleRows){
   state.pConflictUnknown = unknown;
   return pairs;
 }
-// 无冲突 → 整条提醒条隐藏；有冲突 → 显示条，展开后才渲染冲突对明细
+// 无冲突 → 整条提醒条隐藏；有冲突 → 显示条，点按钮才渲染冲突对明细。
+// 按钮是唯一开关：「显示冲突 ⇄ 关闭冲突」，文案与 aria-expanded 一起切——
+// 只看文案/听读屏的人也能知道当前是开还是关（旧的「查看冲突 / 收起」不够直白）。
+// 同一个开关也管着**行内标记**（列表左侧竖条 / 日历卡片红边 / ⚠️ 冲突 标签）：
+// 用户要的是「平时看不见，点开才亮」，所以不另设第二个开关，一并切换。
 function renderPreachConflictBar(){
-  const bar = $('preachConflictBar'), list = $('preachConflictList');
-  if (!bar || !list) return;
+  const bar = $('preachConflictBar'), list = $('preachConflictList'), btn = $('preachConflictToggle');
   const n = (state.pConflicts || []).length;
+  if (!n) state.pConflictOpen = false;      // 冲突没了就复位，免得下次带着上次的状态
+  const open = !!state.pConflictOpen && n > 0;
+  // 先同步行内标记：它与明细共用开关，且不依赖下面那两个容器是否存在
+  syncPreachConflictMarkers(open);
+  if (!bar || !list) return;
   if (!n){
     bar.style.display = 'none'; list.style.display = 'none'; list.innerHTML = '';
-    state.pConflictOpen = false;
+    if (btn){ btn.textContent = '显示冲突'; btn.setAttribute('aria-expanded', 'false'); }
     return;
   }
   bar.style.display = '';
   const cnt = $('preachConflictCount'); if (cnt) cnt.textContent = String(n);
-  const btn = $('preachConflictToggle'); if (btn) btn.textContent = state.pConflictOpen ? '收起' : '查看冲突';
-  list.style.display = state.pConflictOpen ? '' : 'none';
-  list.innerHTML = state.pConflictOpen ? preachConflictListHtml() : '';
+  if (btn){ btn.textContent = open ? '关闭冲突' : '显示冲突'; btn.setAttribute('aria-expanded', String(open)); }
+  list.style.display = open ? '' : 'none';
+  list.innerHTML = open ? preachConflictListHtml() : '';
+}
+// 只切 <body> 上的一个类，表格/日历**不重渲染**：
+// 标记本来就已经写进 DOM（行带 pcrow-conflict、卡片带 conflict），
+// 显隐交给 CSS，于是开关是瞬时的，也不会和筛选 / 翻页 / 收藏的重渲染打架。
+function syncPreachConflictMarkers(open){
+  const root = (typeof document !== 'undefined')
+    ? (document.body || document.documentElement) : null;
+  if (root && root.classList) root.classList.toggle('pconf-on', !!open);
 }
 function togglePreachConflictList(){ state.pConflictOpen = !state.pConflictOpen; renderPreachConflictBar(); }
+const PCDAY_WEEK = ['周日','周一','周二','周三','周四','周五','周六'];
+function pcdayLabel(dateStr){
+  const d = new Date((dateStr || '') + 'T00:00:00');
+  const w = isNaN(d.getTime()) ? '' : PCDAY_WEEK[d.getDay()];
+  return esc(dateStr || '日期不明') + (w ? ' · ' + w : '');
+}
 function preachConflictListHtml(){
   const items = state.pConflicts || [];
-  const body = items.map(c => `<div class="pccard">
-    <div class="pccard-h">${companyLink(c.a['单位名称'])} <span class="muted small">⚔️ vs</span> ${companyLink(c.b['单位名称'])}</div>
-    <div class="small muted">🕒 ${esc(c.date)} ${esc(pcwMinStr(c.start))} – ${esc(pcwMinStr(c.end))} · 重叠 ${esc(String(c.overlap))} 分钟</div>
-    <div class="small muted">📍 ${esc(c.a['宣讲会地点']||'-')} ｜ ${esc(c.b['宣讲会地点']||'-')}</div>
-  </div>`).join('');
+  // 按天分组再渲染：91 处冲突就是 91 张卡片，平铺出来没人看得下去；
+  // 分组后可以先扫一眼「哪天最挤」，再决定展开哪一天（details 是原生的，零 JS）。
+  const byDate = new Map();
+  items.forEach(c => {
+    const d = c.date || '';
+    if (!byDate.has(d)) byDate.set(d, []);
+    byDate.get(d).push(c);
+  });
+  const days = Array.from(byDate.entries()).sort((x, y) => x[0] < y[0] ? -1 : (x[0] > y[0] ? 1 : 0));
+  const body = days.map(([date, list]) => `<details class="pccday" open>
+    <summary>${pcdayLabel(date)}<span class="pccday-n">${list.length} 处</span></summary>
+    <div class="pccday-body">${list.map(preachConflictCard).join('')}</div>
+  </details>`).join('');
   const note = state.pConflictUnknown > 0
     ? `<p class="hint">另有 ${esc(String(state.pConflictUnknown))} 场因时间格式不明未参与检测。</p>` : '';
   return body + note;
+}
+// 日期已经写在分组标题上，卡片里不再重复，只留时间段与地点。
+function preachConflictCard(c){
+  return `<div class="pccard">
+    <div class="pccard-h">${companyLink(c.a['单位名称'])} <span class="muted small">⚔️ vs</span> ${companyLink(c.b['单位名称'])}</div>
+    <div class="small muted pccard-t">🕒 ${esc(pcwMinStr(c.start))} – ${esc(pcwMinStr(c.end))} · 重叠 ${esc(String(c.overlap))} 分钟</div>
+    <div class="small muted">📍 ${esc(c.a['宣讲会地点']||'-')} ｜ ${esc(c.b['宣讲会地点']||'-')}</div>
+  </div>`;
 }
 
 // ---- Resume / 投递推荐
@@ -2537,6 +3517,85 @@ async function loadResumeCompanyCount(){
   try{ const r = await api('/api/resume/companies',{silent:true});
     $('resumeCompanyCount').textContent = r.count != null ? r.count : '?'; }catch(e){}
 }
+
+// ---- 简历来源①：直接读「简历档案」（/api/profile/render?format=md）
+//
+// 档案是数据源，推荐只是它的下游消费者：院校、专业、研究方向、项目、技能、获奖
+// 这些字段本来就是为了匹配岗位才录进档案的，再去推荐页手抄一份说不过去。
+// 这里现读现渲染，把结果填进**下面那个文本框**——而不是在后台悄悄拼一份：
+// 用户必须能看见到底拿什么去匹配（档案全文含证件号码、家庭成员，介意就在框里删掉）。
+let RESUME_SRC = { text: '', fromProfile: false };
+
+function setResumeProfileMsg(text){ const el = $('resumeProfileMsg'); if (el) el.textContent = text; }
+
+// 「档案还是空的」的判据：空档案经 render_resume 出来只有标题（如「# 个人简历」），
+// 只要出现过一条「字段：值」就说明用户真填过东西——不必再去请求一次 /api/profile。
+function profileTextIsEmpty(text){ return !text || text.indexOf('：') < 0; }
+
+function refreshResumePayloadMsg(){
+  const box = $('resumeText'), el = $('resumePayloadMsg');
+  const file = $('resumeFile') && $('resumeFile').files[0];
+  const text = box ? box.value.trim() : '';
+  const stillProfile = RESUME_SRC.fromProfile && text && text === RESUME_SRC.text;
+  if (el){
+    el.textContent = file
+      ? ('本次将用：上传的文件「' + file.name + '」（选了文件就以文件为准）')
+      : (text ? ('本次将用：' + (stillProfile ? '简历档案' : '文本框内容') + '（' + text.length + ' 字）')
+              : '还没选来源：读档案 / 上传文件 / 粘贴文字，任选一条即可');
+  }
+  // 明明是从档案读的却已经被改过，必须说出来，否则用户以为用的还是档案那一份
+  if (RESUME_SRC.fromProfile && box){
+    if (!text) setResumeProfileMsg('文本框已清空（档案还在，可再点「读取简历档案」）');
+    else if (stillProfile) setResumeProfileMsg('已读取档案 ' + text.length + ' 字 · 与档案一致');
+    else setResumeProfileMsg('已读取档案 ' + RESUME_SRC.text.length + ' 字 · 文本框已手动修改');
+  }
+}
+
+async function fillResumeFromProfile(manual){
+  const box = $('resumeText');
+  if (!box) return false;
+  // 自动读（切到本页时）只在两种情况发生：框是空的，或者框里还是上次读的那份档案、
+  // 没被动过。用户自己粘的内容不该被顶掉，手动删掉的那几行也不该被自动补回来。
+  if (!manual){
+    const untouched = RESUME_SRC.fromProfile && box.value === RESUME_SRC.text;
+    if (box.value.trim() && !untouched){
+      refreshResumePayloadMsg();   // 保留用户的内容，只在状态行如实说明
+      return true;
+    }
+  }
+  const btn = $('btnResumeFromProfile');
+  if (btn && manual){ btn.disabled = true; btn.textContent = '读取中…'; }
+  try{
+    const r = await api('/api/profile/render?format=md', {silent:true});
+    if (!r.ok){ setResumeProfileMsg('读取档案失败：' + (r.error || '未知错误')); return false; }
+    const text = String(r.text || '').trim();
+    if (profileTextIsEmpty(text)){
+      // 先刷「本次将用哪份」再写状态行：refreshResumePayloadMsg 在
+      // 「上次读的档案还在框里」时也会写状态行，顺序反了会把这句话盖掉
+      refreshResumePayloadMsg();
+      setResumeProfileMsg('档案还是空的 —— 先去「简历档案」填一条，或改用上传 / 粘贴');
+      return false;
+    }
+    RESUME_SRC = { text: text, fromProfile: true };
+    box.value = text;
+    refreshResumePayloadMsg();
+    return true;
+  }catch(e){
+    setResumeProfileMsg('读取档案异常：' + (e && e.message ? e.message : e));
+    return false;
+  }finally{
+    if (btn){ btn.disabled = false; btn.textContent = '读取简历档案'; }
+  }
+}
+
+function clearResumeText(){
+  const box = $('resumeText'); if (box) box.value = '';
+  // 「清空」要连已选文件一起清：只清文本框的话文件仍然优先，看着清了其实没清
+  const file = $('resumeFile'); if (file) file.value = '';
+  RESUME_SRC = { text: '', fromProfile: false };
+  setResumeProfileMsg('已清空，可改用上传文件或自己粘贴');
+  refreshResumePayloadMsg();
+}
 async function resumeExtract(){
   const f = $('resumeFile').files[0];
   if (!f){ toast('请先选择简历文件', true); return; }
@@ -2544,14 +3603,27 @@ async function resumeExtract(){
   try{
     const r = await api('/api/resume/extract',{method:'POST',body:resumeFormData()});
     if (!r.ok){ toast(r.error||'提取失败', true); }
-    else { $('resumeText').value = r.text; toast('已提取 '+r.chars+' 字'); }
+    else {
+      // 提取结果顶掉了框里原有的内容 → 来源标记跟着改成「文本框内容」，
+      // 否则状态行还写着「与档案一致」，而框里已经不是档案那份了
+      RESUME_SRC = { text: '', fromProfile: false };
+      $('resumeText').value = r.text;
+      refreshResumePayloadMsg();
+      toast('已提取 '+r.chars+' 字');
+    }
   }catch(e){ toast('提取异常', true); }
   $('btnResumeExtract').disabled = false; $('btnResumeExtract').textContent='提取文字预览';
 }
 async function resumeRecommend(){
   const f = $('resumeFile').files[0];
-  const t = $('resumeText').value.trim();
-  if (!f && !t){ toast('请上传简历文件或粘贴文字', true); return; }
+  let t = $('resumeText').value.trim();
+  // 三条来源全空时才去读档案：这就是「直接调用简历档案」——档案里有东西的话，
+  // 一次点击就能出结果，不必先手动点一次「读取简历档案」。
+  if (!f && !t){
+    await fillResumeFromProfile(true);
+    t = $('resumeText').value.trim();
+    if (!t){ toast('请读取简历档案、上传文件，或粘贴简历文字', true); return; }
+  }
   $('btnResumeRec').disabled = true; $('btnResumeRec').textContent='AI 分析中…';
   try{
     const r = await api('/api/resume/recommend',{method:'POST',body:resumeFormData()});
@@ -2566,7 +3638,10 @@ function renderResumeResult(r){
     ? `<div class="card" style="border-color:var(--warn);background:rgba(245,166,35,.08);margin-bottom:10px"><b>⚠️ 离线推荐</b>：${esc(res.note||'AI 模型不可用，已用本地关键词匹配生成推荐。')}</div>` : '';
   $('resumeResultCard').style.display = 'block';
   const ds = r.data_source;
-  const srcLine = ds ? `<div class="hint" style="margin-top:6px">数据来源（统一主库）：候选企业 ${r.companies_count} 家 / 共 ${r.companies_total} 家 · ${ds.recruit_count} 条招聘公告 · 覆盖 ${ds.coverage_start||'-'} ~ ${ds.coverage_end||'-'} · 更新于 ${ds.updated||'-'}</div>` : '';
+  // 「简历输入 N 字」让用户能对上刚才那份输入：来源选错时（比如文件顶掉了档案）
+  // 字数对不上就是最直接的线索。
+  const charLine = r.resume_chars ? ` · 本次简历输入 ${r.resume_chars} 字` : '';
+  const srcLine = ds ? `<div class="hint" style="margin-top:6px">数据来源（统一主库）：候选企业 ${r.companies_count} 家 / 共 ${r.companies_total} 家 · ${ds.recruit_count} 条招聘公告 · 覆盖 ${ds.coverage_start||'-'} ~ ${ds.coverage_end||'-'} · 更新于 ${ds.updated||'-'}${charLine}</div>` : '';
   $('resumeSummary').innerHTML = banner + (res.resume_summary
     ? `<div class="card" style="background:var(--panel2);margin-bottom:0"><b>📝 简历速览：</b>${esc(res.resume_summary)}</div>` : '') + srcLine;
   $('resumePositions').innerHTML = (res.target_positions && res.target_positions.length)
@@ -2721,7 +3796,7 @@ async function runFlow(){
   $('btnFlow').disabled = true; $('btnFlow').textContent='分析中…';
   const r = await api('/api/preach/flow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method})});
   if (!r.ok){ toast(r.error||'启动失败', true); $('btnFlow').disabled=false; $('btnFlow').textContent='开始分析'; return; }
-  $('flowLog').textContent=''; state._flowRunning = true;
+  state._flowRunning = true;
   // 不再单独轮询：flow_task 已随 /api/events 的 status 事件推送
   refreshStatus();
 }
@@ -2729,9 +3804,8 @@ async function runFlow(){
 // 避免页面刚加载时看到一条历史完成记录就弹「分析完成」。
 function applyFlowTask(t){
   if (!t) return;
-  const logEl = $('flowLog'), stEl = $('flowStatus'), btn = $('btnFlow');
-  if (!logEl || !stEl || !btn) return;
-  logEl.textContent = (t.lines||[]).join('\n'); logEl.scrollTop = logEl.scrollHeight;
+  const stEl = $('flowStatus'), btn = $('btnFlow');
+  if (!stEl || !btn) return;
   if (t.running){ stEl.textContent = '运行中…'; return; }
   if (!state._flowRunning) return;          // 不是本次发起的，不打扰用户
   state._flowRunning = false;
@@ -2752,6 +3826,12 @@ loadFlowStatus();
 loadLlmCatalog();
 $('llmSearch') && $('llmSearch').addEventListener('input', renderLlmCards);
 syncPreachView();          // 宣讲会默认「列表」视图，与按钮初始态保持一致
+setMineView(DEFAULT_MINE_VIEW);   // 「我的」默认落在简历档案（子导航第一项）
+loadPrefs();               // 偏好回填推荐页的高级选项
+bindProfile();             // 简历档案的编辑/复制走事件委托，只需绑一次
+// 推荐页的来源提示：文本框 / 文件任何一个变了都要重算「本次将用哪份简历」
+$('resumeText') && $('resumeText').addEventListener('input', refreshResumePayloadMsg);
+$('resumeFile') && $('resumeFile').addEventListener('change', refreshResumePayloadMsg);
 refreshStatus();
 loadDashboard();
 // 恢复 URL 指定的页面：刷新后仍停留在原来的 Tab，链接也可直接分享到某一页

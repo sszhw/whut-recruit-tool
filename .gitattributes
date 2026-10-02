@@ -1,0 +1,12 @@
+# 统一换行：仓库内存 LF，检出时按平台还原，避免公开仓库里 diff 满屏 ^M。
+* text=auto
+
+# 批处理必须是 CRLF：cmd.exe 对 LF 结尾的 label / goto 处理不可靠。
+*.bat text eol=crlf
+
+# 二进制：不参与换行转换，也不做文本 diff。
+*.png binary
+*.jpg binary
+*.pdf binary
+*.docx binary
+*.db binary

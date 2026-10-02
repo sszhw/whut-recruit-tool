@@ -35,7 +35,7 @@ NEW_IDS = [
     "pcwGrid",               # 周日历网格（7 列 × 时间轴）
     "preachConflictBar",     # 冲突提醒条（无冲突时隐藏）
     "preachConflictCount",   # 冲突处数
-    "preachConflictToggle",  # 展开 / 收起冲突明细
+    "preachConflictToggle",  # 显示 / 关闭冲突明细的开关
     "preachConflictList",    # 冲突对明细容器
     "setupGuide",            # 上手向导卡片
     "setupGuideProgress",    # 向导进度文本
@@ -51,13 +51,14 @@ NEW_FUNCS = [
     "pcwMonday", "pcwDateStr", "pcwMinStr", "pcwToMin", "pcwPad2", "pcwAddDays", "pcwDayIndex",
     # 冲突检测
     "scanPreachConflicts", "renderPreachConflictBar", "togglePreachConflictList",
-    "preachConflictListHtml",
+    "syncPreachConflictMarkers",
+    "preachConflictListHtml", "preachConflictCard", "pcdayLabel",
     # 上手向导
     "loadSetupGuide", "dismissSetupGuide", "setupGuideDismissed",
 ]
 
 # 这些函数往 innerHTML 里拼了数据，必须逐个字段过 esc()
-HTML_BUILDING_FUNCS = ["renderPreachWeek", "preachConflictListHtml", "loadSetupGuide"]
+HTML_BUILDING_FUNCS = ["renderPreachWeek", "preachConflictListHtml", "preachConflictCard", "loadSetupGuide"]
 
 # 新增片段允许出现的接口（其余 /api/... 都算越界新增后端依赖）
 ALLOWED_ENDPOINTS = {"/api/preachs", "/api/preach/favs", "/api/status"}
@@ -156,6 +157,67 @@ def test_conflict_bar_hidden_until_conflict():
     script = script_of(html)
     body = func_chunks(script)["renderPreachConflictBar"]
     assert "style.display = 'none'" in body, "无冲突时必须把提醒条收起来"
+
+
+def test_conflict_toggle_is_an_explicit_switch():
+    """开关按钮的文案与 aria 三态必须成套：文案、aria-expanded、容器 display 同进同退。
+
+    这里只做静态体检（真行为在 tests/test_ui_preach_conflict.py 里跑 node）。
+    静态能守住的是「有没有成套写」：只改文案不改 aria，读屏用户听到的就是错的。
+    """
+    html = load_ui()
+    btn = tag_of(html, "preachConflictToggle")
+    assert 'aria-controls="preachConflictList"' in btn, "开关要声明它控制哪个容器"
+    assert 'aria-expanded="false"' in btn, "初始必须是收起态"
+    # 按钮文案在标签外面，要连文字一起取
+    label = slice_between(html, 'id="preachConflictToggle"', "</button>")
+    assert "显示冲突" in label, "初始文案应是「显示冲突」，不能是含义含糊的「查看冲突」"
+    assert "关闭冲突" not in label
+
+    body = func_chunks(script_of(html))["renderPreachConflictBar"]
+    assert "显示冲突" in body and "关闭冲突" in body, "两个方向的文案都要在渲染函数里"
+    assert body.count("aria-expanded") >= 2, "显示与关闭两条分支都要同步 aria-expanded"
+    assert body.count("btn.textContent") >= 2, "两条分支都要同步按钮文案"
+    assert "list.innerHTML = ''" in body, "收起后必须清掉明细 DOM，不能只隐藏"
+
+
+def test_conflict_markers_hidden_until_switch_on():
+    """行内冲突标记默认**不显示**，由「显示冲突」那个开关统一点亮。
+
+    守两件事：
+
+    1. 默认态不能有亮着的标记 —— 满屏整行标红 + ⚠️ 标签，会让人以为这些场次
+       本身有问题，而它们只是「和另一场撞了时间」。用户没点开之前不该被抢注意力。
+    2. 显隐必须靠 CSS 类切，而不是「重渲染时决定要不要写这个 class」——
+       后者每切一次开关都得重跑一次 /api/preachs，而且筛选 / 翻页 / 收藏
+       任何一处漏改，就会出现「标记亮着但明细已关」的错位。
+    """
+    html = load_ui()
+    css = slice_between(html, "<style", "</style>")
+    for sel in ("body:not(.pconf-on) tr.pcrow-conflict > td",
+                "body:not(.pconf-on) .pconf-flag",
+                "body:not(.pconf-on) .pcw-ev.conflict"):
+        assert sel in css, f"缺少默认隐藏规则：{sel}"
+    # 日历卡片要退回它本来的颜色；线上卡片是 --accent2，不能一律退回 --accent
+    assert "body:not(.pconf-on) .pcw-ev.conflict.online" in css, "线上卡片会被错染成线下色"
+
+    # ⚠️ 冲突 标签必须有专属类：提醒列也用 .tag.remind，不能靠 .tag.remind 一刀切
+    assert 'class="tag remind pconf-flag"' in html, "冲突标签缺少 pconf-flag 专属类"
+    assert ".pconf-flag" in css
+
+    script = script_of(html)
+    chunks = func_chunks(script)
+    assert "syncPreachConflictMarkers" in chunks, "缺少行内标记的同步函数"
+    assert "classList.toggle('pconf-on'" in chunks["syncPreachConflictMarkers"], \
+        "标记显隐应由 body 上的类控制"
+    assert "syncPreachConflictMarkers" in chunks["renderPreachConflictBar"], \
+        "开关与行内标记必须由同一个渲染函数同步，否则两处会各自漂移"
+
+    # 标记本身仍要照常写进 DOM（只是被 CSS 藏起来）——否则开关打开时没东西可亮
+    rows = chunks["loadPreachs"]
+    assert "pcrow-conflict" in rows, "列表行必须照常写上冲突类"
+    assert "pConflictOpen" not in rows, \
+        "显隐不该由重渲染决定：那样切一次开关就要重跑一次 /api/preachs"
 
 
 # --------------------------------------------------------------------------
@@ -285,3 +347,78 @@ def test_script_block_is_parseable(tmp_path):
 def test_module_importable_without_app():
     """本测试只依赖标准库，不该被 app/ 的导入拖住。"""
     assert sys.version_info >= (3, 10)
+
+
+# --------------------------------------------------------------------------
+# 5.「我的」子视图：排列顺序 / 默认页 / 推荐页直接读简历档案
+# --------------------------------------------------------------------------
+
+MINE_IDS = [
+    "resumeProfileMsg",      # ① 档案来源状态行
+    "btnResumeFromProfile",  # 「读取简历档案」按钮
+    "btnResumeClear",        # 清空来源（含已选文件）
+    "resumePayloadMsg",      # 「本次将用哪份简历」
+]
+
+MINE_FUNCS = [
+    "setResumeProfileMsg", "profileTextIsEmpty", "refreshResumePayloadMsg",
+    "fillResumeFromProfile", "clearResumeText",
+]
+
+
+def mine_subnav(html: str) -> str:
+    return slice_between(html, 'aria-label="我的：子视图切换"', "</div>")
+
+
+def test_mine_subnav_order_is_usage_order():
+    """顺序 = 使用顺序：简历档案是数据源，排第一；投递推荐是它的下游消费者，排最后。"""
+    views = re.findall(r"setMineView\('(\w+)'\)", mine_subnav(load_ui()))
+    assert views == ["profile", "board", "prefs", "rec"], f"子导航顺序不对：{views}"
+
+
+def test_mine_default_view_is_the_first_tab():
+    """默认必须落在子导航第一项，否则「排在最前」和「打开看到的」是两回事。"""
+    html = load_ui()
+    assert "DEFAULT_MINE_VIEW = 'profile'" in html
+    assert "setMineView(DEFAULT_MINE_VIEW)" in html, "初始化没用默认视图常量"
+    assert "if (!map[view]) view = DEFAULT_MINE_VIEW;" in html, "未知视图名要回退到默认页"
+    assert re.search(r'class="[^"]*\bon\b', tag_of(html, "mineViewProfile")), "简历档案按钮初始未选中"
+    assert not re.search(r'class="[^"]*\bon\b', tag_of(html, "mineViewRec")), "投递推荐按钮初始不应选中"
+    # 静态 display 初值要与 JS 默认一致，否则首屏会先闪一下推荐页再跳走
+    assert "display:none" in tag_of(html, "mineRecView")
+    assert "display:none" not in tag_of(html, "mineProfileView")
+
+
+def test_mine_ids_and_funcs_exist():
+    html = load_ui()
+    ids = all_ids(html)
+    for wanted in MINE_IDS:
+        assert ids.count(wanted) == 1, f"id={wanted!r} 应恰好出现 1 次，实际 {ids.count(wanted)} 次"
+    chunks = func_chunks(script_of(html))
+    missing = [f for f in MINE_FUNCS if f not in chunks]
+    assert not missing, f"以下函数未定义：{missing}"
+
+
+def test_recommend_can_read_profile():
+    """推荐页直接调档案：读档案渲染接口，结果落进文本框（用户得看得见拿什么在匹配）。"""
+    body = func_chunks(script_of(load_ui()))["fillResumeFromProfile"]
+    assert "/api/profile/render" in body and "format=md" in body, "读的应是档案渲染接口"
+    assert "box.value = text" in body, "读到的档案必须填进文本框，不能只在后台悄悄拼一份"
+    assert "if (!manual){" in body, "自动读要单独判定，不能顺带覆盖用户内容"
+    assert "box.value === RESUME_SRC.text" in body, "手动改过的档案文本不该被自动读覆盖"
+    assert "profileTextIsEmpty" in body, "空档案不能当成读取成功"
+    assert "btn.textContent = '读取简历档案'" in body, "按钮文案跑完要还原，不能留「读取中…」"
+
+
+def test_recommend_falls_back_to_profile_when_input_empty():
+    """三条来源全空时自动读档案 —— 「一键直出」，不要求用户先手点一次读取。"""
+    chunks = func_chunks(script_of(load_ui()))
+    assert "fillResumeFromProfile(true)" in chunks["resumeRecommend"]
+    assert "fillResumeFromProfile(false)" in chunks["setMineView"], "切到推荐页应自动读一次（非覆盖式）"
+
+
+def test_payload_msg_names_the_source():
+    """「本次将用哪份简历」必须如实报出，来源选错时才有线索可查。"""
+    body = func_chunks(script_of(load_ui()))["refreshResumePayloadMsg"]
+    for token in ("本次将用", "简历档案", "文本框内容", "file.name"):
+        assert token in body, f"来源提示缺少 {token!r}"

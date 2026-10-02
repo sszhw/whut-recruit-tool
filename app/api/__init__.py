@@ -18,6 +18,7 @@ from api.events import bp as events_bp
 from api.exports_rt import bp as exports_bp
 from api.preaches import bp as preaches_bp
 from api.prefs import bp as prefs_bp
+from api.profile import bp as profile_bp
 from api.recommend import bp as recommend_bp
 from api.settings_cfg import bp as settings_bp
 from api.status import bp as status_bp
@@ -34,6 +35,7 @@ ALL: list[Blueprint] = [
     preaches_bp,    # /api/preachs* /api/preach/fav*
     recommend_bp,   # /api/resume/*
     prefs_bp,       # /api/prefs  个人求职偏好（目标城市/岗位/薪资/黑名单）
+    profile_bp,     # /api/profile*  投递档案（结构化简历数据 + 纯文本 / Word 导出）
     exports_bp,     # /api/export/* /api/import/md* /api/preach/favs/export*
 ]
 

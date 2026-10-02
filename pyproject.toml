@@ -1,6 +1,6 @@
 [project]
 name = "whut-recruit-tool"
-version = "0.2.0"
+version = "1.0.0"
 description = "武汉理工大学校招信息采集、企业分析与投递推荐工具（本地单机 Flask + 单页前端）"
 requires-python = ">=3.10"
 # 运行期依赖见 requirements.txt（flask / requests / openpyxl / python-docx）
