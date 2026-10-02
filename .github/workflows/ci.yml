@@ -35,9 +35,6 @@ jobs:
   typecheck:
     name: pyright
     runs-on: ubuntu-latest
-    # 非阻塞：既有类型问题还没清完（见 pyproject.toml 的 [tool.pyright]），
-    # 先让类型诊断可见但不拦流水线，等清完再摘掉这一行。
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
