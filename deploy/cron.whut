@@ -1,0 +1,12 @@
+# WHUT 校招工具 —— 宿主机定时任务
+#
+# 安装：crontab -l > /tmp/c && cat /opt/whut-recruit-tool/deploy/cron.whut >> /tmp/c && crontab /tmp/c
+# 说明：容器里没有 cron，更新任务由宿主机每天 07:00（Asia/Shanghai）拉起：
+#       进容器跑 app/run_daily.py，依次做「招聘+双选会增量」和「宣讲会增量（含工作地流动）」，
+#       日志同时写进 data/preach_update_log.txt（应用内「任务中心」也能看）。
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=Asia/Shanghai
+
+0 7 * * * /usr/bin/docker exec whut-recruit-tool python -u app/run_daily.py >> /opt/whut-recruit-tool/data/cron_update.log 2>&1

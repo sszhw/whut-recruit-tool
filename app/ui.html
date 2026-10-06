@@ -2,7 +2,10 @@
 <html lang="zh-CN" data-scheme="light">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- viewport-fit=cover：页面延伸到刘海 / 挖孔 / 底部手势条之下，
+     由 CSS 里的 env(safe-area-inset-*) 负责把内容推回安全区（见下方「移动端安全区」）。
+     不写这一项时 env() 恒为 0，手势条会压住最后一行内容。 -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>武汉理工招聘信息 · 采集与企业分析</title>
 <style>
   /* ===================== 配色：苹果风 · 浅 / 深两套 =====================
@@ -42,6 +45,16 @@
   ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 6px;
     border: 2px solid transparent; background-clip: padding-box; }
   ::-webkit-scrollbar-thumb:hover { background: var(--muted2); background-clip: padding-box; }
+  /* ---- 移动端安全区与字号基线（对照 APP 尺寸规范） ----
+     ① env(safe-area-inset-*)：配合 viewport-fit=cover 把内容从刘海 / 挖孔 / 底部手势条
+        推回来。第二个参数是兜底值 —— 不支持或未触发的浏览器上解析为 0，
+        所以这两条在桌面和普通浏览器视图里是零效果的，不会改变现有布局。
+        左右放在 body 上：正常流元素（header / nav / main / 卡片）一起受益；
+        position: fixed 的元素不参与，那些单独补（见 .taskpanel / .toast）。
+     ② -webkit-text-size-adjust：拦掉 Android 横屏与系统大字号下的字体自动放大，
+        否则整站字号会被二次通胀，和 8pt 间距刻度对不上。 */
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
   body { background: var(--bg); color: var(--text); font: var(--fs-lg)/1.6 system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif; -webkit-font-smoothing: antialiased; }
   header { padding: var(--sp-5) var(--sp-6); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; background: var(--header-bg); }
   header h1 { font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.01em; }
@@ -56,7 +69,9 @@
     padding: 10px 18px; border-radius: 9px 9px 0 0; cursor: pointer; font-size: var(--fs-md); font-weight: 500; transition: color .15s; }
   nav button:hover { color: var(--text); }
   nav button.active { background: var(--panel); color: var(--text); border-color: var(--border); font-weight: 600; }
-  main { padding: var(--sp-5) var(--sp-6) 72px; max-width: 1240px; margin: 0 auto; }
+  /* 底部留白给支付的是更多呼吸感，但在刘海屏上真正的底线是手势条：把 34pt 安全区加进来，
+     否则最后一张卡片会被底部指示条压住（桌面浏览器 env() 为 0，数值不变）。 */
+  main { padding: var(--sp-5) var(--sp-6) calc(72px + env(safe-area-inset-bottom, 0px)); max-width: 1240px; margin: 0 auto; }
   section { display: none; }
   section.active { display: block; }
   /* 卡片内边距：原先 22px 均匀，导致卡头与卡片顶边之间空出一大块、而左侧却贴着 */
@@ -210,6 +225,7 @@
   /* ---- 企业详情抽屉（点任意企业名打开：招聘公告 + 宣讲会 + 分析画像 + 投递状态） */
   .cpdrawer { position: fixed; top: 0; right: 0; width: 560px; max-width: 96vw; height: 100vh; z-index: 92;
     background: var(--panel); border-left: 1px solid var(--border-strong); box-shadow: var(--shadow);
+    padding-right: env(safe-area-inset-right, 0px);   /* 同 .taskpanel：横屏刘海侧内容不被压 */
     display: flex; flex-direction: column; transform: translateX(103%); transition: transform .28s var(--ease-out); }
   .cpdrawer.open { transform: translateX(0); }
   .cpmask { position: fixed; inset: 0; background: rgba(0,0,0,.32); z-index: 91; opacity: 0; visibility: hidden;
@@ -225,14 +241,18 @@
   .cplink { cursor: pointer; color: var(--accent-text); border-bottom: 1px dashed var(--accent); }
   .cplink:hover { color: var(--accent-hover); border-bottom-style: solid; }
   /* ---- 统一任务中心（右侧抽屉） */
+  /* fixed 元素不吃 body 的左右内边距，横屏刘海侧要自己补；
+     抽屉贴右，这里的 padding-right 让内容避开不安全区，背景仍铺满（视觉上是全屏抽屉）。 */
   .taskpanel { position: fixed; top: 0; right: 0; width: 470px; max-width: 94vw; height: 100vh; background: var(--panel);
+    padding-right: env(safe-area-inset-right, 0px);
     border-left: 1px solid var(--border-strong); box-shadow: var(--shadow); z-index: 90;
     display: flex; flex-direction: column; transform: translateX(103%); transition: transform .22s ease; }
   .taskpanel.open { transform: translateX(0); }
   .taskhead { display: flex; align-items: center; gap: 10px; padding: 14px 16px;
     border-bottom: 1px solid var(--border); white-space: nowrap; }
   .taskhead .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-  .tasklist { flex: 1; overflow-y: auto; padding: 12px 16px; }
+  /* 抽屉是 100vh 的 fixed 容器，最后一张任务卡得让位给底部手势条 */
+  .tasklist { flex: 1; overflow-y: auto; padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
   .taskitem { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: var(--card-bg); }
   .taskitem .trow { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
   .taskitem .tname { font-weight: 600; font-size: 13px; flex: 1; min-width: 0; overflow: hidden;
@@ -542,14 +562,22 @@
   /* 手机（≤640px）：单列堆叠，导航横向滑动，表单与按钮全宽 */
   @media (max-width: 640px){
     body { font-size: 14px; }
-    header { padding: 12px 12px; }
+    /* ---- 输入控件字号必须 ≥16px（APP 尺寸规范：iOS 正文 17pt / Android 正文 16sp）----
+       真正的原因不是好看：iOS Safari 与 Chrome 对 font-size < 16px 的输入框会做
+       「聚焦自动放大」——每次点输入框整页放大再缩回，填一张网申表要抖十几次。
+       16px 是唯一的解法（换 -webkit-text-size-adjust 不管用，禁缩放又伤无障碍）。 */
+    input, select, textarea,
+    .prof-kv input, .prof-kv textarea { font-size: 16px; }
+    /* 页面左右边距按规范取 16–20 的下限（原 12），且 header / nav / main 三级同宽，
+       否则窄屏上会出现卡片比导航缩进半格的错位感 */
+    header { padding: 12px var(--sp-4); }
     header h1 { font-size: 14px; width: 100%; }
     header .sub { width: 100%; }
     #btnTaskCenter { margin-left: 0; }
-    nav { flex-wrap: nowrap; overflow-x: auto; padding: 8px 12px 0; -webkit-overflow-scrolling: touch; }
+    nav { flex-wrap: nowrap; overflow-x: auto; padding: 8px var(--sp-4) 0; -webkit-overflow-scrolling: touch; }
     nav button { flex: 0 0 auto; padding: 8px 14px; font-size: var(--fs-sm);
       min-height: var(--tap); display: inline-flex; align-items: center; }
-    main { padding: 12px 12px 56px; }
+    main { padding: var(--sp-4) var(--sp-4) calc(56px + env(safe-area-inset-bottom, 0px)); }
     .card { padding: 13px; }
     .grid { grid-template-columns: 1fr 1fr; gap: 10px; }
     .vendor-grid { grid-template-columns: 1fr 1fr; }
@@ -560,7 +588,7 @@
     /* 手机：筛选条件单列堆叠，勾选项独占一行、无需再和下拉框对齐 */
     .pfilter { grid-template-columns: 1fr; gap: 12px; }
     .pfilter-field { grid-template-rows: auto auto; }
-    .pfilter-check { min-height: 40px; }
+    .pfilter-check { min-height: var(--tap); }
     button.btn { width: 100%; padding: 11px 18px; min-height: var(--tap); }
     .pager { flex-wrap: wrap; }
     .pager button.btn { width: auto; flex: 1; }
@@ -569,15 +597,18 @@
     pre.log { height: 200px; font-size: 11px; }
     .tablewrap { max-height: 62vh; }
     .taskpanel { width: 100%; max-width: 100vw; }
-    .toast { left: 12px; right: 12px; max-width: none; top: 12px; }
+    /* 顶部：贴 top 的浮层要让位给刘海，否则加到主屏幕后提示条会被压在灵动岛下面 */
+    .toast { left: var(--sp-4); right: var(--sp-4); max-width: none;
+      top: calc(12px + env(safe-area-inset-top, 0px)); }
     .chips { gap: 6px; }
     .statusbar { padding: 10px 12px; font-size: var(--fs-sm); gap: var(--sp-2); }
     .statusbar .sb-more { margin-left: 0; width: 100%; }
     details.fold > summary { padding: 12px 13px; }
     .fold-body { padding: 12px 13px 14px; }
-    /* 表格/筛选里的小控件同样放大到可点范围 */
-    .chip { padding: 9px 14px; min-height: 38px; display: inline-flex; align-items: center; }
-    .favbtn { padding: 8px 10px; font-size: 20px; }
+    /* 表格/筛选里的小控件同样放大到可点范围。规范的最低值是 44（iOS 44pt / Android 48dp），
+       此处取两者下限 44 作为统一值 —— 38px 的勾选片手指点两次才有一次命中。 */
+    .chip { padding: 9px 14px; min-height: var(--tap); display: inline-flex; align-items: center; }
+    .favbtn { padding: 10px 12px; font-size: 20px; min-height: var(--tap); display: inline-flex; align-items: center; }
   }
   /* 超窄屏（≤400px）：指标卡转单列，避免数字与标签挤压 */
   @media (max-width: 400px){
@@ -795,15 +826,22 @@ details.fold > summary { padding: 18px 24px; border-radius: var(--radius); font-
 .fold-body { padding: 20px 24px 24px; border-top: 1px solid var(--border); }
 
 /* ---------- 顶栏 / 导航：毛玻璃 + 胶囊分段控件 ---------- */
-header {
-  position: sticky; top: 0; z-index: 60;
-  background: var(--header-bg);
+  /* sticky 的吸附位置也要避开头顶安全区：加到主屏幕 / 横屏时顶部浏览器栏之外还有刘海 */
+  header {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 60;
+    background: var(--header-bg);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid var(--header-border);
   padding: 16px var(--sp-6); gap: var(--sp-4);
 }
 header .sub { color: var(--muted); }
+/* 顶栏两级分组：宽屏下把两个容器**本身拆掉**（display:contents），
+   子元素继续按原顺序参与 header 的 flex 排布，拆分前后逐像素一致；
+   只有窄屏才让它们变成真正的盒子（见文末 640px 断点）。 */
+.hd-bar, .hd-more { display: contents; }
+/* 「更多」只在收不下的时候出现，宽屏所有动作都平铺得下 */
+#btnHdMore, .hd-mask { display: none; }
 nav { padding: 14px var(--sp-6) 0; gap: 7px; }
 nav button {
   border-radius: var(--radius-pill); padding: 9px 18px; margin-bottom: 10px;
@@ -953,7 +991,7 @@ section.active > * { animation: appleIn .55s var(--ease-out) both; }
   .aurora .orb { filter: blur(70px); }
 }
 @media (max-width: 640px){
-  main { padding: 14px 14px 64px; }
+  main { padding: var(--sp-4) var(--sp-4) calc(64px + env(safe-area-inset-bottom, 0px)); }
   .card { padding: 15px; margin-bottom: 14px; }
   .card:has(> h2) > h2 { padding: 15px 15px 0; }
   .card:has(> h2) > *:not(h2) { padding-left: 15px; padding-right: 15px; }
@@ -967,6 +1005,59 @@ section.active > * { animation: appleIn .55s var(--ease-out) both; }
   nav button { padding: 8px 14px; margin-bottom: 8px; }
   .aurora .orb { filter: blur(56px); }
   .toast { border-radius: 14px; }
+}
+
+/* ---------- 手机顶栏：从「半屏按钮堆叠」压成两行 ----------
+   竖屏上顶栏原来会吃掉大半屏，是两条老规则叠加的结果：
+   ① 全局 `button.btn { width: 100% }`，顶栏 4 个按钮各占满一行；
+   ② `header h1 / .sub { width: 100% }`，标题与数据时间再各占一行。
+   合计 8 行（约 460px），而 header 又是 sticky 的 —— 于是它常驻压在列表上，
+   只剩一条缝能看内容。现在折成两行：
+     第一行 标题 · 更新数据 · ⋯      第二行 数据更新至… · API Key 徽标
+   其余动作收进「⋯」浮层；宽屏一切照旧（两个容器是 display:contents，等于没拆）。 */
+@media (max-width: 640px){
+  header { padding: 10px var(--sp-4); gap: 8px; }
+  /* 用固定两行的网格，而不是 flex 换行：换行的规则是「这一行放不下就另起一行」，
+     在 320px 这种窄屏上会把「⋯」甩到第二行开头、徽标再掉到第三行（试过，确实会）。
+     网格把「哪一行有谁」写死，320 / 375 / 430 都是同样两行。
+     第 3 列留给「停止」：它平时是 display:none，整列自动收成 0 宽，不占地方。 */
+  .hd-bar { display: grid; flex: 1 1 100%; min-width: 0;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      "title upd  stop more"
+      "meta  badge badge badge";
+    align-items: center; gap: 8px; }
+  header h1 { grid-area: title; width: auto; min-width: 0; font-size: 15px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #btnQuickUpdate { grid-area: upd; }
+  #btnQuickUpdateStop { grid-area: stop; }
+  /* 「⋯」是纯图标按钮，最小点击面积必须自己撑到 44×44 —— 它是顶栏最常点的一颗 */
+  #btnHdMore { grid-area: more; display: inline-flex; align-items: center; justify-content: center;
+    width: var(--tap); min-width: var(--tap); height: var(--tap); padding: 0; font-size: 17px; line-height: 1; }
+  /* 当前页是「数据维护 / 设置」时，手机上看不到任何高亮（那两颗按钮在浮层里），
+     把「⋯」自己标出来，否则切过去以后完全不知道自己在哪一页 */
+  #btnHdMore.active { border-color: var(--accent); color: var(--accent-text); font-weight: 700; }
+  header .sub { grid-area: meta; width: auto; min-width: 0; font-size: var(--fs-xs);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* 徽标靠右停住，右边缘与上面的「⋯」对齐；太长就自己省略，不去挤标题 */
+  #statusBadge { grid-area: badge; justify-self: end; min-width: 0; padding: 2px 9px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* 顶栏按钮不参与「手机表单按钮全宽」那条规则，宽度按内容来 */
+  header .hd-bar button.btn { width: auto; min-height: var(--tap); padding: 9px 14px; font-size: var(--fs-sm); }
+  /* 「⋯」浮层：贴顶栏下沿展开，点浮层外 / Esc / 选中任一项后收起。
+     底色再用 --bg 垫一层：header 自己是毛玻璃，子元素的 backdrop-filter
+     取不到真实的页面背景，单用 --panel-glass 会让下面的列表文字透上来。 */
+  .hd-more { display: none; position: absolute; top: calc(100% + 8px); left: var(--sp-4); right: var(--sp-4); z-index: 70;
+    grid-template-columns: 1fr; gap: 8px; padding: 12px;
+    background: linear-gradient(var(--panel-glass), var(--panel-glass)), var(--bg);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm); box-shadow: var(--shadow); }
+  .hd-more.open { display: grid; }
+  .hd-more button.btn { width: 100%; min-height: var(--tap); }
+  .hd-more #themeSel { width: 100%; min-width: 0; }
+  /* 浮层打开时铺一层透明遮罩接住「点浮层外」：浮层压在导航那一行上，
+     没有遮罩的话手指点到导航会被下面的按钮抢走（想切页却触发了数据维护）。 */
+  .hd-mask.show { display: block; position: fixed; inset: 0; z-index: 55; background: transparent; }
 }
 
 /* ---- 批量菜单：用原生 details 实现，避免为一次点击引入浮层定位逻辑 ---- */
@@ -991,20 +1082,36 @@ section.active > * { animation: appleIn .55s var(--ease-out) both; }
   <span class="orb orb-c"></span>
 </div>
 <a class="skiplink" href="#main">跳到主要内容</a>
+<!-- 顶栏分两组：
+     .hd-bar  常驻信息 + 主操作（标题 / 数据新鲜度 / Key 状态 / 更新数据）
+     .hd-more 次要动作（数据维护 / 任务中心 / 设置 / 主题）
+     桌面两端都用 display:contents 拆掉盒子，子元素仍直接排在 header 里（与拆分前逐像素一致）；
+     手机上 .hd-bar 折成两行、.hd-more 收进「⋯」浮层 —— 否则靠全局 button.btn{width:100%}
+     会把 4 个按钮拉成全宽堆叠，顶栏一下占掉大半屏、还压在列表上面。 -->
 <header>
-  <h1>武汉理工校招 · 采集与投递</h1>
-  <span class="sub">数据更新至 <b id="hdUpdated">—</b></span>
-  <span id="statusBadge" class="badge">加载中…</span>
-  <button class="btn" id="btnQuickUpdate" onclick="startRecruitUpdate()">更新数据</button>
-  <button class="btn ghost red" id="btnQuickUpdateStop" style="display:none" onclick="stopTask(state.recruitTask)">停止</button>
-  <button class="btn ghost" id="btnDataMaintain" onclick="activateTab('data')">数据维护</button>
-  <button class="btn ghost" id="btnTaskCenter" onclick="toggleTaskCenter()">任务中心 <span id="taskRunningBadge" class="badge run" style="display:none">0</span></button>
-  <button class="btn ghost" id="btnSettings" onclick="activateTab('settings')" aria-label="打开设置">设置</button>
-  <select id="themeSel" title="切换配色主题" aria-label="切换配色主题">
-    <option value="light">苹果 · 浅色</option>
-    <option value="dark">苹果 · 深色</option>
-  </select>
+  <div class="hd-bar">
+    <h1>武汉理工校招 · 采集与投递</h1>
+    <span class="sub">数据更新至 <b id="hdUpdated">—</b></span>
+    <span id="statusBadge" class="badge">加载中…</span>
+    <button class="btn" id="btnQuickUpdate" onclick="startRecruitUpdate()">更新数据</button>
+    <button class="btn ghost red" id="btnQuickUpdateStop" style="display:none" onclick="stopTask(state.recruitTask)">停止</button>
+    <button class="btn ghost" id="btnHdMore" aria-label="更多操作" aria-haspopup="true"
+            aria-expanded="false" aria-controls="hdMore" onclick="toggleHdMore()">⋯</button>
+  </div>
+  <div class="hd-more" id="hdMore" aria-label="更多操作">
+    <button class="btn ghost" id="btnDataMaintain" onclick="activateTab('data');toggleHdMore(false)">数据维护</button>
+    <button class="btn ghost" id="btnTaskCenter" onclick="toggleTaskCenter();toggleHdMore(false)">任务中心 <span id="taskRunningBadge" class="badge run" style="display:none">0</span></button>
+    <button class="btn ghost" id="btnSettings" onclick="activateTab('settings');toggleHdMore(false)" aria-label="打开设置">设置</button>
+    <select id="themeSel" title="切换配色主题" aria-label="切换配色主题">
+      <option value="light">苹果 · 浅色</option>
+      <option value="dark">苹果 · 深色</option>
+    </select>
+  </div>
 </header>
+<!-- 「更多」浮层打开时的点击遮罩：只负责接住「点浮层外」这一下，
+     免得手指落在浮层下面的导航/列表上（浮层正压着导航那一行）。
+     z-index 比 header(60) 低，所以顶栏本身仍然可点；透明，不改变页面观感。 -->
+<div class="hd-mask" id="hdMask" aria-hidden="true" onclick="toggleHdMore(false)"></div>
 
 <!-- 统一任务中心（右侧抽屉） -->
 <div class="taskmask" id="taskMask" onclick="toggleTaskCenter(false)"></div>
@@ -1801,6 +1908,9 @@ function activateTab(tab, opts){
     document.querySelectorAll('#btnDataMaintain, #btnSettings').forEach(x=>x.classList.remove('active'));
     const ab = tab === 'data' ? $('btnDataMaintain') : (tab === 'settings' ? $('btnSettings') : null);
     if (ab) ab.classList.add('active');
+    // 手机上这两颗按钮收在「⋯」浮层里，光高亮按钮看不见 —— 触发器跟着标一下
+    const moreBtn = $('btnHdMore');
+    if (moreBtn) moreBtn.classList.toggle('active', !!ab);
   }
   sec.classList.add('active');
   if (opts.hash !== false && location.hash !== '#'+tab){
@@ -2657,6 +2767,31 @@ function toggleTaskCenter(force){
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && $('taskPanel') && $('taskPanel').classList.contains('open')) toggleTaskCenter(false);
 });
+
+// ---- 顶栏「更多」浮层：手机上装 数据维护 / 任务中心 / 设置 / 主题
+// 宽屏这些控件本来就平铺在顶栏里（两个容器是 CSS display:contents），
+// 所以这里只管状态与 aria，不需要判断屏幕宽度 —— 判断宽度就会出现
+// 「窗口变宽了浮层还开着、但控件已在顶栏里出现」这种两处都在的错位。
+function toggleHdMore(force){
+  const p = $('hdMore'), b = $('btnHdMore'), m = $('hdMask');
+  if (!p || !b) return;
+  const open = (force === undefined) ? !p.classList.contains('open') : !!force;
+  p.classList.toggle('open', open);
+  if (m) m.classList.toggle('show', open);
+  b.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+// 点浮层外或按 Esc 都收起；点浮层里的项由该按钮自己的 onclick 负责收
+document.addEventListener('click', e => {
+  const p = $('hdMore');
+  if (!p || !p.classList.contains('open')) return;
+  const t = e.target;
+  if (t && t.closest && (t.closest('#hdMore') || t.closest('#btnHdMore'))) return;
+  toggleHdMore(false);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('hdMore') && $('hdMore').classList.contains('open')) toggleHdMore(false);
+});
+
 function taskCard(t){
   const st = TASK_STATUS[t.status] || ['no', t.status || '-'];
   const pr = t.progress || {};

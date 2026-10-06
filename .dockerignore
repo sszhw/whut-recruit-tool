@@ -1,0 +1,24 @@
+# 镜像构建上下文排除项：数据、密钥、本地垃圾文件一律不进镜像
+.git
+.gitignore
+.pytest_cache
+.ruff_cache
+.pytest_cache/**
+.ruff_cache/**
+__pycache__/**
+**/__pycache__
+data
+data/**
+outputs
+outputs/**
+docs
+tests
+scripts
+*.bat
+app/_upload_tmp_*
+app/ui.html.bak
+config.json
+config.example.json
+Dockerfile
+docker-compose.yml
+deploy

@@ -1,0 +1,28 @@
+# 服务器部署：docker compose up -d --build
+#
+# 访问方式：容器只把 8765 暴露到宿主机 127.0.0.1，不对外开端口；
+# 公网访问由宝塔 nginx 反代 + HTTP Basic 认证负责（见 deploy/nginx-whut.conf）。
+#
+# 每日 7:00 增量更新由宿主机 crontab 触发（见 deploy/cron.whut）：
+#   0 7 * * * /usr/bin/docker exec whut-recruit-tool python -u app/run_daily.py
+
+services:
+  whut:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: whut-recruit-tool:latest
+    container_name: whut-recruit-tool
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    volumes:
+      # 抓取库、SQLite 主库、收藏、投递档案、简历照片都在这，容器重建不丢
+      - ./data:/app/data
+      # LLM 配置（含 API Key），页面「设置」保存后会直接写回宿主机这份
+      - ./config.json:/app/config.json
+    ports:
+      - "127.0.0.1:8765:8765"
+    command: ["python", "-u", "app/server.py", "--host", "0.0.0.0", "--port", "8765"]

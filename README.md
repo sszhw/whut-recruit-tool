@@ -36,7 +36,7 @@ python app/server.py --port 8765
 
 ### 3.（可选）配 AI Key
 
-顶栏齿轮 → **设置**，选提供商、填 Key、保存即可。也可以在项目根目录放一个 `config.json`：
+顶栏 **设置**（手机上在 **⋯** 里），选提供商、填 Key、保存即可。也可以在项目根目录放一个 `config.json`：
 
 ```bash
 cp config.example.json config.json      # Windows: copy config.example.json config.json
@@ -106,6 +106,9 @@ cp config.example.json config.json      # Windows: copy config.example.json conf
 
 - **主题**：一键切「苹果 · 浅色」/「苹果 · 深色」，首次跟随系统偏好，之后记住选择
 - **任务中心**：所有后台任务的进度、耗时、错误摘要、日志、停止
+- **手机上**：顶栏固定两行——第一行是标题、**更新数据**、**⋯**，第二行是数据更新时间和 Key 状态；
+  **数据维护 / 任务中心 / 设置 / 主题**都收在 **⋯** 里（点浮层外面或按 Esc 收起）。
+  这样竖屏下顶栏只占约 90px，不会压住列表。
 
 ---
 
@@ -151,6 +154,25 @@ cp config.example.json config.json      # Windows: copy config.example.json conf
 
 ---
 
+## 部署到服务器（可选）
+
+本机双击 `启动服务.bat` 就够了，这一节是给「想放到服务器上长期跑着、手机上也能打开」的人。
+
+```bash
+docker compose up -d --build     # 构建并启动，数据落宿主机 ./data
+docker compose logs -f           # 看日志
+```
+
+- 容器只监听 `127.0.0.1:8765`，**不对外开端口**；公网入口由 nginx 反代 + HTTP Basic 认证负责，
+  配置模板在 `deploy/nginx-whut.conf`。应用本身没有账号体系，这层口令是唯一的门。
+- 每天 07:00 增量更新：把 `deploy/cron.whut` 那一行装进宿主机 crontab。
+- 完整步骤、重启与改口令：见 [deploy/README.md](deploy/README.md)。
+
+⚠️ 服务器 IP / 域名、用户名、口令**只填在服务器上**，别写进仓库里的任何文件 ——
+口令一旦进 Git 历史就撤不回来。
+
+---
+
 ## 常见问题
 
 **启动后页面打不开？**
@@ -185,6 +207,7 @@ cp config.example.json config.json      # Windows: copy config.example.json conf
 | `data/*.db`、`*_原始数据.json`、`*_缓存.json` | 抓取与分析产物 | 体积大、含抓取时段 |
 | `data/服务日志.jsonl`、`任务历史.json`、`任务日志/` | 运行日志 | 可能含本机路径 |
 | `outputs/` | 导出的简历 Word、界面走查截图 | 真实简历全文 |
+| `deploy/README.md` 里的 IP / 用户名 / 口令 | 服务器入口 | **已替换为占位符**，真实值只留服务器本机 |
 
 **推送公开仓库前的自检**：
 
